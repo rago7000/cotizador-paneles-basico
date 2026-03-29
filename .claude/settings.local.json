@@ -14,7 +14,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(grep -r \"file\\\\|document\\\\|pdf\" C:Usersrafa7devcotizador-paneles-basiconode_modulesaidocs --include=*.md -l)",
+      "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p.get\\(''''version'''',''''?''''\\)\\)\")",
+      "Bash(node -e \"const p = require\\(''./node_modules/ai/package.json''\\); console.log\\(p.version\\)\")",
+      "Bash(curl -s https://ai-sdk.dev/api/search-docs?q=pdf+file+content+part)"
     ]
   }
 }

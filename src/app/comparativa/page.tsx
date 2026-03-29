@@ -27,11 +27,11 @@ interface ConceptoCotizado {
 const fmt = (n: number) =>
   "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function derivarConceptos(data: CotizacionData, tc: number): ConceptoCotizado[] {
+function derivarConceptos(data: CotizacionData, baseTc: number): ConceptoCotizado[] {
   const result: ConceptoCotizado[] = [];
 
-  const tcPaneles = Number(data.tcCustomPaneles) > 0 ? Number(data.tcCustomPaneles) : tc;
-  const tcMicros = Number(data.tcCustomMicros) > 0 ? Number(data.tcCustomMicros) : tc;
+  const tcPaneles = Number(data.tcCustomPaneles) > 0 ? Number(data.tcCustomPaneles) : baseTc;
+  const tcMicros = Number(data.tcCustomMicros) > 0 ? Number(data.tcCustomMicros) : baseTc;
 
   const cantidadNum = Number(data.cantidad) || 0;
   const potenciaNum = Number(data.potencia) || 0;
@@ -180,13 +180,6 @@ function derivarConceptos(data: CotizacionData, tc: number): ConceptoCotizado[] 
   return result;
 }
 
-function calcularPrecioCobrado(data: CotizacionData, tc: number): number {
-  const conceptos = derivarConceptos(data, tc);
-  const subtotal = conceptos.reduce((acc, c) => acc + c.totalMXN, 0);
-  // Apply 30% margin then IVA 16%
-  return subtotal * 1.30 * 1.16;
-}
-
 const SECTION_LABELS: Record<Seccion, string> = {
   PANELES: "Paneles Solares",
   INVERSORES: "Microinversores",
@@ -205,9 +198,6 @@ const SECTION_NUMS: Record<Seccion, string> = {
 
 const SECTIONS: Seccion[] = ["PANELES", "INVERSORES", "ESTRUCTURA", "TORNILLERIA", "GENERALES"];
 
-const inputCls =
-  "w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-400/60 focus:border-amber-400/60 transition-colors";
-
 const selectCls =
   "w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-amber-400/60 focus:border-amber-400/60 transition-colors";
 
@@ -217,7 +207,8 @@ export default function ComparativaPage() {
   const [cotizaciones, setCotizaciones] = useState<CotizacionGuardada[]>([]);
   const [selectedNombre, setSelectedNombre] = useState<string>("");
   const [selectedData, setSelectedData] = useState<CotizacionData | null>(null);
-  const [tc, setTc] = useState<string>("");
+  const [liveTc, setLiveTc] = useState<number>(0);
+  const [loadingTc, setLoadingTc] = useState(false);
   const [items, setItems] = useState<SeguimientoItem[]>([]);
   const [msgGuardado, setMsgGuardado] = useState(false);
 
@@ -231,33 +222,63 @@ export default function ComparativaPage() {
   useEffect(() => {
     if (!selectedNombre) {
       setSelectedData(null);
-      setTc("");
+      setLiveTc(0);
       setItems([]);
       return;
     }
     const found = cotizaciones.find((c) => c.nombre === selectedNombre);
     if (!found) return;
     setSelectedData(found.data);
-    // Pre-fill TC from snapshot
-    setTc(found.data.tcSnapshot ?? "");
     // Load existing seguimiento
     const seg = cargarSeguimiento(selectedNombre);
     setItems(seg?.items ?? []);
   }, [selectedNombre, cotizaciones]);
 
-  const tcNum = Number(tc) || 0;
+  // Fetch live DOF when cotización is not frozen
+  useEffect(() => {
+    if (!selectedData) return;
+    if (selectedData.tcFrozen) {
+      // Frozen: use snapshot, no live fetch needed
+      setLiveTc(0);
+      return;
+    }
+    setLoadingTc(true);
+    fetch("/api/tipo-cambio")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.tipoCambio) setLiveTc(d.tipoCambio);
+      })
+      .catch(() => {
+        // If fetch fails, fall back to snapshot if available
+        if (selectedData.tcSnapshot) setLiveTc(Number(selectedData.tcSnapshot) || 0);
+      })
+      .finally(() => setLoadingTc(false));
+  }, [selectedData]);
+
+  // Compute base TC: frozen → snapshot, live → fetched DOF
+  const baseTc = useMemo(() => {
+    if (!selectedData) return 0;
+    if (selectedData.tcFrozen) return Number(selectedData.tcSnapshot) || 0;
+    return liveTc;
+  }, [selectedData, liveTc]);
+
+  // Effective TCs per section
+  const tcPaneles = selectedData && Number(selectedData.tcCustomPaneles) > 0
+    ? Number(selectedData.tcCustomPaneles)
+    : baseTc;
+  const tcMicros = selectedData && Number(selectedData.tcCustomMicros) > 0
+    ? Number(selectedData.tcCustomMicros)
+    : baseTc;
 
   // Derive cotized items
   const conceptos = useMemo<ConceptoCotizado[]>(() => {
-    if (!selectedData || tcNum <= 0) return [];
-    return derivarConceptos(selectedData, tcNum);
-  }, [selectedData, tcNum]);
+    if (!selectedData || baseTc <= 0) return [];
+    return derivarConceptos(selectedData, baseTc);
+  }, [selectedData, baseTc]);
 
-  // Precio cobrado al cliente (with margin + IVA)
-  const precioCobrado = useMemo(() => {
-    if (!selectedData || tcNum <= 0) return 0;
-    return calcularPrecioCobrado(selectedData, tcNum);
-  }, [selectedData, tcNum]);
+  // Precio cobrado al cliente = subtotal + IVA 16%
+  const totalCotizado = conceptos.reduce((acc, c) => acc + c.totalMXN, 0);
+  const precioCobrado = totalCotizado * 1.16;
 
   // Helper to get/set item
   function getItem(key: string): SeguimientoItem {
@@ -282,8 +303,6 @@ export default function ComparativaPage() {
   }
 
   // Summary calculations
-  const totalCotizado = conceptos.reduce((acc, c) => acc + c.totalMXN, 0);
-
   const totalReal = useMemo(() => {
     return conceptos.reduce((acc, c) => {
       const item = getItem(c.key);
@@ -321,6 +340,10 @@ export default function ComparativaPage() {
     }
     return map;
   }, [conceptos]);
+
+  const isFrozen = selectedData?.tcFrozen === true;
+  const hasCustomTcPaneles = selectedData && Number(selectedData.tcCustomPaneles) > 0;
+  const hasCustomTcMicros = selectedData && Number(selectedData.tcCustomMicros) > 0;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -379,6 +402,7 @@ export default function ComparativaPage() {
             <h2 className="font-semibold text-zinc-100 text-base">Configuración</h2>
           </div>
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* Cotización selector */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wide">
                 Cotización
@@ -399,26 +423,80 @@ export default function ComparativaPage() {
                 <p className="text-xs text-zinc-500">No hay cotizaciones guardadas.</p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                Tipo de Cambio (MXN/USD)
-              </label>
-              <input
-                type="number"
-                value={tc}
-                onChange={(e) => setTc(e.target.value)}
-                placeholder="Ej. 17.50"
-                min="1"
-                step="0.01"
-                className={inputCls}
-              />
-              {selectedData?.tcSnapshot && (
-                <p className="text-xs text-zinc-500">
-                  TC al guardar:{" "}
-                  <span className="text-amber-400/80">${selectedData.tcSnapshot}</span>
-                </p>
-              )}
-            </div>
+
+            {/* TC info (read-only) */}
+            {selectedData ? (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Tipos de cambio aplicados
+                </label>
+                <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-4 py-3 space-y-2">
+                  {/* Base TC row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-zinc-500">TC base (DOF)</span>
+                    {loadingTc ? (
+                      <span className="text-xs text-zinc-500 animate-pulse">Cargando…</span>
+                    ) : isFrozen ? (
+                      <span className="flex items-center gap-1.5 text-xs font-mono font-semibold text-amber-400">
+                        <span className="text-amber-400/70">🔒</span>
+                        {Number(selectedData.tcSnapshot) > 0
+                          ? `$${Number(selectedData.tcSnapshot).toFixed(2)}`
+                          : "—"}
+                        <span className="text-zinc-500 font-normal font-sans ml-1">congelado</span>
+                      </span>
+                    ) : baseTc > 0 ? (
+                      <span className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-200">
+                        ${baseTc.toFixed(2)}
+                        <span className="text-zinc-500 font-normal font-sans">DOF en vivo</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-600">—</span>
+                    )}
+                  </div>
+
+                  {/* Paneles TC */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-zinc-500">Paneles</span>
+                    {hasCustomTcPaneles ? (
+                      <span className="flex items-center gap-1.5 text-xs font-mono font-semibold text-sky-400">
+                        ${tcPaneles.toFixed(2)}
+                        <span className="text-zinc-500 font-normal font-sans">personalizado</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {baseTc > 0 ? `$${baseTc.toFixed(2)}` : "—"}
+                        <span className="text-zinc-600 font-sans ml-1">{isFrozen ? "(congelado)" : "(DOF)"}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Micros TC */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-zinc-500">Microinversores</span>
+                    {hasCustomTcMicros ? (
+                      <span className="flex items-center gap-1.5 text-xs font-mono font-semibold text-sky-400">
+                        ${tcMicros.toFixed(2)}
+                        <span className="text-zinc-500 font-normal font-sans">personalizado</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {baseTc > 0 ? `$${baseTc.toFixed(2)}` : "—"}
+                        <span className="text-zinc-600 font-sans ml-1">{isFrozen ? "(congelado)" : "(DOF)"}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Tipos de cambio
+                </label>
+                <div className="rounded-lg border border-zinc-700/40 bg-zinc-800/20 px-4 py-3">
+                  <p className="text-xs text-zinc-600">Selecciona una cotización para ver el TC.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -433,17 +511,15 @@ export default function ComparativaPage() {
           </div>
         )}
 
-        {/* TC missing state */}
-        {selectedNombre && selectedData && tcNum <= 0 && (
-          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6 text-center">
-            <p className="text-amber-400 font-medium text-sm">
-              Ingresa el tipo de cambio para derivar los costos cotizados.
-            </p>
+        {/* Loading TC state */}
+        {selectedNombre && selectedData && !isFrozen && loadingTc && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-center">
+            <p className="text-zinc-500 text-sm animate-pulse">Obteniendo tipo de cambio DOF…</p>
           </div>
         )}
 
         {/* Sections table */}
-        {selectedNombre && selectedData && tcNum > 0 && (
+        {selectedNombre && selectedData && baseTc > 0 && (
           <>
             {SECTIONS.map((seccion) => {
               const sectionItems = bySection[seccion];
@@ -637,7 +713,7 @@ export default function ComparativaPage() {
                     </table>
                   </div>
 
-                  {/* Notes row (collapsible, simple) */}
+                  {/* Notes row */}
                   <div className="px-6 pb-4 pt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {sectionItems.map((concepto) => {
                       const item = getItem(concepto.key);
@@ -665,7 +741,7 @@ export default function ComparativaPage() {
       </main>
 
       {/* Fixed bottom summary bar */}
-      {selectedNombre && selectedData && tcNum > 0 && (
+      {selectedNombre && selectedData && baseTc > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-sm">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4">
             {/* Progress */}
@@ -696,14 +772,14 @@ export default function ComparativaPage() {
                 <div className="font-mono font-semibold text-zinc-100 text-sm">
                   {fmt(precioCobrado)}
                 </div>
-                <div className="text-xs text-zinc-600">Con margen + IVA</div>
+                <div className="text-xs text-zinc-600">Subtotal + IVA 16%</div>
               </div>
               <div className="space-y-0.5">
                 <div className="text-xs text-zinc-500 uppercase tracking-wide">Costo cotizado</div>
                 <div className="font-mono font-semibold text-zinc-300 text-sm">
                   {fmt(totalCotizado)}
                 </div>
-                <div className="text-xs text-zinc-600">Sin margen ni IVA</div>
+                <div className="text-xs text-zinc-600">Sin IVA</div>
               </div>
               <div className="space-y-0.5">
                 <div className="text-xs text-zinc-500 uppercase tracking-wide">Costo real</div>
@@ -725,7 +801,7 @@ export default function ComparativaPage() {
                         utilidad >= 0 ? "text-emerald-400" : "text-red-400"
                       }`}
                     >
-                      {utilidad >= 0 ? "" : ""}{fmt(utilidad)}
+                      {fmt(utilidad)}
                     </div>
                     <div
                       className={`text-xs font-medium ${

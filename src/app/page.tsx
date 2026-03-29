@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import AppNav from "./components/AppNav";
 import {
@@ -379,6 +379,22 @@ function SaveToCatalogBanner({
   );
 }
 
+// ─── CFE Recibo type ──────────────────────────────────────────────────────────
+
+interface ReciboCFEData {
+  nombre: string;
+  direccion: string;
+  noServicio: string;
+  tarifa: string;
+  periodoInicio: string;
+  periodoFin: string;
+  diasPeriodo: number;
+  consumoKwh: number;
+  consumoMensualPromedio: number;
+  totalFacturado: number;
+  historico: { periodo: string; kwh: number; importe: number }[];
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -425,6 +441,12 @@ export default function Home() {
   const [sugerirGuardarMicro, setSugerirGuardarMicro] = useState(false);
   const [panelSeleccionado, setPanelSeleccionado] = useState<CatalogoPanel | null>(null);
   const [microSeleccionado, setMicroSeleccionado] = useState<CatalogoMicro | null>(null);
+
+  // Recibo CFE
+  const [reciboCFE, setReciboCFE] = useState<ReciboCFEData | null>(null);
+  const [loadingRecibo, setLoadingRecibo] = useState(false);
+  const [errorRecibo, setErrorRecibo] = useState("");
+  const reciboInputRef = useRef<HTMLInputElement>(null);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -608,6 +630,42 @@ export default function Home() {
     setSugerirGuardarMicro(false);
   };
 
+  // ── CFE handler ───────────────────────────────────────────────────────────
+  const handleReciboCFE = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingRecibo(true);
+    setErrorRecibo("");
+    try {
+      const fd = new FormData();
+      fd.append("pdf", file);
+      const res = await fetch("/api/leer-recibo", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setReciboCFE(data);
+      // Auto-fill quote name if empty
+      if (data.nombre && !nombreCotizacion.trim()) {
+        setNombreCotizacion(data.nombre);
+      }
+    } catch (err: unknown) {
+      setErrorRecibo(err instanceof Error ? err.message : "Error al procesar el recibo");
+    } finally {
+      setLoadingRecibo(false);
+      if (reciboInputRef.current) reciboInputRef.current.value = "";
+    }
+  };
+
+  // CFE-derived sizing suggestion (northern Mexico ~5.5 peak sun hours)
+  const consumoMensualCFE = reciboCFE
+    ? reciboCFE.consumoMensualPromedio > 0
+      ? reciboCFE.consumoMensualPromedio
+      : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
+    : 0;
+  const kWpSugerido = consumoMensualCFE / (5.5 * 30 * 0.8);
+  const panelesSugeridosCFE = reciboCFE
+    ? Math.ceil((kWpSugerido * 1000) / (Number(potencia) || 545))
+    : 0;
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
@@ -683,6 +741,140 @@ export default function Home() {
 
           {/* ── LEFT: Form sections ──────────────────────────────────────── */}
           <div className="space-y-4 min-w-0">
+
+            {/* ── CFE Recibo banner ────────────────────────────────────────── */}
+            <input
+              ref={reciboInputRef}
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={handleReciboCFE}
+            />
+
+            {reciboCFE ? (
+              /* Loaded state */
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-emerald-500/10">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-400">⚡</span>
+                    <span className="text-sm font-semibold text-zinc-100">Recibo CFE</span>
+                    <span className="text-xs text-zinc-500 truncate max-w-48">{reciboCFE.nombre}</span>
+                    <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
+                      Tarifa {reciboCFE.tarifa}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setReciboCFE(null)}
+                    className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs px-1"
+                    title="Cerrar"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-5">
+                  <div>
+                    <div className="text-xs text-zinc-500 mb-0.5 uppercase tracking-wide">Consumo período</div>
+                    <div className="text-xl font-bold text-zinc-100">{reciboCFE.consumoKwh} <span className="text-sm font-normal text-zinc-400">kWh</span></div>
+                    <div className="text-xs text-zinc-600 mt-0.5">{reciboCFE.diasPeriodo} días · {reciboCFE.periodoInicio} – {reciboCFE.periodoFin}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-zinc-500 mb-0.5 uppercase tracking-wide">Promedio mensual</div>
+                    <div className="text-xl font-bold text-zinc-100">{Math.round(consumoMensualCFE)} <span className="text-sm font-normal text-zinc-400">kWh/mes</span></div>
+                    <div className="text-xs text-zinc-600 mt-0.5">{reciboCFE.historico.length} períodos de historial</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-zinc-500 mb-0.5 uppercase tracking-wide">Sistema sugerido</div>
+                    <div className="text-xl font-bold text-amber-400">{kWpSugerido.toFixed(2)} <span className="text-sm font-normal text-amber-400/60">kWp</span></div>
+                    <div className="text-xs text-zinc-600 mt-0.5">~{panelesSugeridosCFE} paneles de {Number(potencia) || 545}W</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-zinc-500 mb-0.5 uppercase tracking-wide">Último recibo</div>
+                    <div className="text-xl font-bold text-zinc-100">${fmt(reciboCFE.totalFacturado)}</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">MXN con IVA</div>
+                  </div>
+                </div>
+                {/* Action row */}
+                <div className="px-5 pb-4 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setNombreCotizacion(reciboCFE.nombre)}
+                    className="text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    Usar nombre del cliente
+                  </button>
+                  {panelesSugeridosCFE > 0 && (
+                    <button
+                      onClick={() => setCantidad(String(panelesSugeridosCFE))}
+                      className="text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Aplicar {panelesSugeridosCFE} paneles sugeridos
+                    </button>
+                  )}
+                  <button
+                    onClick={() => reciboInputRef.current?.click()}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5"
+                  >
+                    Cambiar recibo
+                  </button>
+                  {/* Mini historical chart */}
+                  {reciboCFE.historico.length > 0 && (
+                    <div className="ml-auto flex items-end gap-1 h-8">
+                      {reciboCFE.historico.slice(-8).map((h, i) => {
+                        const maxKwh = Math.max(...reciboCFE.historico.slice(-8).map((x) => x.kwh));
+                        const pct = maxKwh > 0 ? (h.kwh / maxKwh) * 100 : 0;
+                        return (
+                          <div
+                            key={i}
+                            title={`${h.periodo}: ${h.kwh} kWh`}
+                            className="w-3 rounded-t bg-emerald-500/40 hover:bg-emerald-400/60 transition-colors cursor-default"
+                            style={{ height: `${Math.max(pct, 8)}%` }}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Empty state */
+              <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 px-5 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚡</span>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-300">Cargar recibo CFE</p>
+                    <p className="text-xs text-zinc-600 mt-0.5">
+                      Extrae consumo, tarifa e historial automáticamente del PDF
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {errorRecibo && (
+                    <span className="text-xs text-red-400 max-w-40 text-right">{errorRecibo}</span>
+                  )}
+                  <button
+                    onClick={() => reciboInputRef.current?.click()}
+                    disabled={loadingRecibo}
+                    className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600 px-4 py-2 text-xs font-medium text-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingRecibo ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Leyendo…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Subir PDF
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 1. PANELES */}
             <SectionCard num="1" title="Paneles" badge="USD sin IVA">
