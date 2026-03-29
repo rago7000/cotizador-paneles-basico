@@ -652,17 +652,6 @@ export default function Home() {
                 </Field>
               </div>
 
-              {cantidadNum > 0 && potenciaNum > 0 && precioNum > 0 && (
-                <div className="rounded-lg bg-amber-400/5 border border-amber-400/20 px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">
-                    {cantidadNum} paneles × {potenciaNum}W × {fmtUSD(precioNum)}/W
-                  </span>
-                  <span className="text-sm font-semibold text-amber-400 font-mono">
-                    {fmtUSD(costoPanelesUSD)} USD
-                  </span>
-                </div>
-              )}
-
               {/* Save to catalog suggestion */}
               {sugerirGuardarPanel && potenciaNum > 0 && precioNum > 0 && (
                 <SaveToCatalogBanner
@@ -680,6 +669,58 @@ export default function Home() {
                   <NumInput value={garantiaPaneles} onChange={setGarantiaPaneles} step={0.01} />
                 </Field>
               </div>
+
+              {/* Desglose calculado */}
+              {cantidadNum > 0 && potenciaNum > 0 && precioNum > 0 && (
+                <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                    <span>Concepto</span>
+                    <span className="text-center">Cant.</span>
+                    <span className="text-right">Precio</span>
+                    <span className="text-right">Subtotal</span>
+                  </div>
+
+                  {/* Paneles */}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                    <span className="text-xs text-zinc-300">
+                      Panel {potenciaNum}W{panelSeleccionado ? ` ${panelSeleccionado.modelo}` : ""}
+                    </span>
+                    <span className="text-xs text-center text-zinc-400 font-mono">{cantidadNum}</span>
+                    <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(costoPanel)}/pza</span>
+                    <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoPanelesUSD)}</span>
+                  </div>
+
+                  {/* Flete */}
+                  {fletePanelesNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">Servicio de logística (Flete)</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fletePanelesNum)}</span>
+                    </div>
+                  )}
+
+                  {/* Garantía */}
+                  {garantiaPanelesNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">Garantía contra daños de mercancía</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(garantiaPanelesNum)}</span>
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
+                    <span className="text-xs text-zinc-500">
+                      {cantidadNum} × {potenciaNum}W × ${fmtUSD(precioNum)}/W
+                    </span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">
+                      ${fmtUSD(totalPanelesUSD)} USD
+                    </span>
+                  </div>
+                </div>
+              )}
             </SectionCard>
 
             {/* 2. INVERSORES */}
