@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cotizador de Paneles",
-  description: "Cotizador de paneles",
+  title: "Cotizador Solar",
+  description: "Cotizador de paneles solares",
 };
 
 export default function RootLayout({
