@@ -353,6 +353,8 @@ export default function Home() {
   // "¿Guardar en catálogo?" tras llenar campos manualmente
   const [sugerirGuardarPanel, setSugerirGuardarPanel] = useState(false);
   const [sugerirGuardarMicro, setSugerirGuardarMicro] = useState(false);
+  const [panelSeleccionado, setPanelSeleccionado] = useState<CatalogoPanel | null>(null);
+  const [microSeleccionado, setMicroSeleccionado] = useState<CatalogoMicro | null>(null);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -485,12 +487,14 @@ export default function Home() {
   const seleccionarPanel = (p: CatalogoPanel) => {
     setPotencia(String(p.potencia));
     setPrecioPorWatt(String(p.precioPorWatt));
+    setPanelSeleccionado(p);
     setPickerPanel(false);
     setSugerirGuardarPanel(false);
   };
   const seleccionarMicro = (m: CatalogoMicro) => {
     setPrecioMicroinversor(String(m.precio));
     setPrecioCable(String(m.precioCable));
+    setMicroSeleccionado(m);
     setPickerMicro(false);
     setSugerirGuardarMicro(false);
   };
@@ -617,15 +621,33 @@ export default function Home() {
                 </button>
               </div>
 
+              {/* Chip ítem seleccionado */}
+              {panelSeleccionado && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-400/8 border border-amber-400/25 px-3 py-2">
+                  <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-xs font-medium text-amber-300 flex-1">
+                    {panelSeleccionado.marca} — {panelSeleccionado.modelo}
+                  </span>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    {panelSeleccionado.potencia}W · ${fmtUSD(panelSeleccionado.precioPorWatt)}/W
+                  </span>
+                  <button onClick={() => setPanelSeleccionado(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Cantidad">
                   <NumInput value={cantidad} onChange={setCantidad} placeholder="Ej: 12" />
                 </Field>
                 <Field label="Potencia por panel (W)">
-                  <NumInput value={potencia} onChange={(v) => { setPotencia(v); if (v) setSugerirGuardarPanel(true); }} placeholder="Ej: 550" />
+                  <NumInput value={potencia} onChange={(v) => { setPotencia(v); if (v) { setSugerirGuardarPanel(true); setPanelSeleccionado(null); } }} placeholder="Ej: 550" />
                 </Field>
                 <Field label="Precio / watt (USD)">
-                  <NumInput value={precioPorWatt} onChange={(v) => { setPrecioPorWatt(v); if (v) setSugerirGuardarPanel(true); }} placeholder="Ej: 0.18" step={0.001} />
+                  <NumInput value={precioPorWatt} onChange={(v) => { setPrecioPorWatt(v); if (v) { setSugerirGuardarPanel(true); setPanelSeleccionado(null); } }} placeholder="Ej: 0.18" step={0.001} />
                 </Field>
               </div>
 
@@ -681,12 +703,31 @@ export default function Home() {
                 </button>
               </div>
 
+              {/* Chip ítem seleccionado */}
+              {microSeleccionado && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-400/8 border border-amber-400/25 px-3 py-2">
+                  <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-xs font-medium text-amber-300 flex-1">
+                    {microSeleccionado.marca} — {microSeleccionado.modelo}
+                  </span>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    ${fmtUSD(microSeleccionado.precio)} USD
+                    {microSeleccionado.precioCable > 0 && ` · cable $${fmtUSD(microSeleccionado.precioCable)}`}
+                  </span>
+                  <button onClick={() => setMicroSeleccionado(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Precio por microinversor (USD)" hint={`1 micro por cada ${panelesPorMicro} paneles`}>
-                  <NumInput value={precioMicroinversor} onChange={(v) => { setPrecioMicroinversor(v); if (v) setSugerirGuardarMicro(true); }} placeholder="Ej: 180.00" step={0.01} />
+                  <NumInput value={precioMicroinversor} onChange={(v) => { setPrecioMicroinversor(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 180.00" step={0.01} />
                 </Field>
                 <Field label="Cable troncal APS por unidad (USD)" hint="1 cable por microinversor">
-                  <NumInput value={precioCable} onChange={(v) => { setPrecioCable(v); if (v) setSugerirGuardarMicro(true); }} placeholder="Ej: 25.00" step={0.01} />
+                  <NumInput value={precioCable} onChange={(v) => { setPrecioCable(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 25.00" step={0.01} />
                 </Field>
               </div>
 
