@@ -3,6 +3,7 @@ import {
   CotizacionGuardada,
   CatalogoPanel,
   CatalogoMicro,
+  SeguimientoData,
 } from "./types";
 
 // ── Cotizaciones ──────────────────────────────────────────────────────────────
@@ -104,4 +105,29 @@ export function guardarCatalogoMicro(micro: CatalogoMicro): void {
 export function eliminarCatalogoMicro(id: string): void {
   const lista = listarCatalogoMicros().filter((m) => m.id !== id);
   localStorage.setItem(CAT_MICROS_KEY, JSON.stringify(lista));
+}
+
+// ── Seguimiento ───────────────────────────────────────────────────────────────
+
+const SEGUIMIENTO_KEY = "seguimiento_proyectos";
+
+export function guardarSeguimiento(data: SeguimientoData): void {
+  if (typeof window === "undefined") return;
+  const all = cargarTodosSeguimientos();
+  const idx = all.findIndex((s) => s.cotizacionNombre === data.cotizacionNombre);
+  if (idx >= 0) all[idx] = data; else all.push(data);
+  localStorage.setItem(SEGUIMIENTO_KEY, JSON.stringify(all));
+}
+
+export function cargarSeguimiento(nombre: string): SeguimientoData | null {
+  const all = cargarTodosSeguimientos();
+  return all.find((s) => s.cotizacionNombre === nombre) ?? null;
+}
+
+function cargarTodosSeguimientos(): SeguimientoData[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SEGUIMIENTO_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }

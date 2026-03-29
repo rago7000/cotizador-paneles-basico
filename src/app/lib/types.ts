@@ -17,6 +17,7 @@ export interface CotizacionData {
   // Tipos de cambio personalizados (vacío = usar DOF global)
   tcCustomPaneles: string;
   tcCustomMicros: string;
+  tcSnapshot?: string;  // TC DOF at save time
   // Paneles
   cantidad: string;
   potencia: string;
@@ -55,6 +56,19 @@ export interface CatalogoPanel {
   potencia: number;       // W
   precioPorWatt: number;  // USD sin IVA
   notas: string;
+  fechaActualizacion: string;
+}
+
+export interface SeguimientoItem {
+  key: string;       // matches a ConceptoCotizado key
+  realMXN: string;
+  proveedor: string;
+  notas: string;
+}
+
+export interface SeguimientoData {
+  cotizacionNombre: string;
+  items: SeguimientoItem[];
   fechaActualizacion: string;
 }
 

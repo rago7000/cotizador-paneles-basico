@@ -12,6 +12,8 @@ import {
   guardarCatalogoPanel,
   listarCatalogoMicros,
   guardarCatalogoMicro,
+  guardarSeguimiento,
+  cargarSeguimiento,
 } from "./lib/storage";
 import type {
   CotizacionData,
@@ -20,6 +22,7 @@ import type {
   TipoCambioData,
   CatalogoPanel,
   CatalogoMicro,
+  SeguimientoData,
 } from "./lib/types";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -500,6 +503,7 @@ export default function Home() {
     nombre: nombreCotizacion,
     fecha: new Date().toISOString(),
     tcCustomPaneles, tcCustomMicros,
+    tcSnapshot: String(tcVal),
     cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
     precioMicroinversor, precioCable, precioECU, incluyeECU,
     precioHerramienta, incluyeHerramienta, fleteMicros,
