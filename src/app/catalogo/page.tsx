@@ -156,13 +156,13 @@ function MicroForm({
 }) {
   const [form, setForm] = useState(
     initial
-      ? { marca: initial.marca, modelo: initial.modelo, precio: String(initial.precio), precioCable: String(initial.precioCable), notas: initial.notas }
-      : { marca: "", modelo: "", precio: "", precioCable: "", notas: "" }
+      ? { marca: initial.marca, modelo: initial.modelo, precio: String(initial.precio), precioCable: String(initial.precioCable), panelesPorUnidad: String(initial.panelesPorUnidad ?? 4), notas: initial.notas }
+      : { marca: "", modelo: "", precio: "", precioCable: "", panelesPorUnidad: "4", notas: "" }
   );
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const valid = form.marca.trim() && form.modelo.trim() && Number(form.precio) > 0;
+  const valid = form.marca.trim() && form.modelo.trim() && Number(form.precio) > 0 && Number(form.panelesPorUnidad) > 0;
 
   const handleSave = () => {
     if (!valid) return;
@@ -172,6 +172,7 @@ function MicroForm({
       modelo: form.modelo.trim(),
       precio: Number(form.precio),
       precioCable: Number(form.precioCable) || 0,
+      panelesPorUnidad: Number(form.panelesPorUnidad) || 4,
       notas: form.notas.trim(),
       fechaActualizacion: new Date().toLocaleString("es-MX"),
     });
@@ -199,6 +200,11 @@ function MicroForm({
         <div>
           <label className={labelCls}>Cable troncal por unidad (USD sin IVA)</label>
           <input className={inputCls} type="number" min={0} step={0.01} value={form.precioCable} onChange={(e) => set("precioCable", e.target.value)} placeholder="Ej: 25.00" />
+        </div>
+        <div>
+          <label className={labelCls}>Paneles por microinversor</label>
+          <input className={inputCls} type="number" min={1} step={1} value={form.panelesPorUnidad} onChange={(e) => set("panelesPorUnidad", e.target.value)} placeholder="Ej: 4" />
+          <p className="mt-1 text-xs text-zinc-600">DS3D = 4 · YC600 = 2 · IQ8 = 1</p>
         </div>
       </div>
 
@@ -453,8 +459,9 @@ export default function CatalogoPage() {
 
             {!addingMicro && !editingMicro && micros.length > 0 && (
               <div className="rounded-2xl border border-zinc-800 overflow-hidden">
-                <div className="hidden sm:grid grid-cols-[1fr_110px_110px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                <div className="hidden sm:grid grid-cols-[1fr_80px_110px_110px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
                   <span>Microinversor</span>
+                  <span className="text-center">Paneles/u.</span>
                   <span className="text-right">Precio unit.</span>
                   <span className="text-right">Cable troncal</span>
                   <span />
@@ -463,7 +470,7 @@ export default function CatalogoPage() {
                 {micros.map((m, i) => (
                   <div
                     key={m.id}
-                    className={`flex sm:grid sm:grid-cols-[1fr_110px_110px_36px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""}`}
+                    className={`flex sm:grid sm:grid-cols-[1fr_80px_110px_110px_36px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""}`}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-zinc-100 truncate">
@@ -473,9 +480,10 @@ export default function CatalogoPage() {
                         <p className="text-xs text-zinc-500 mt-0.5 truncate">{m.notas}</p>
                       )}
                       <p className="text-xs text-zinc-600 mt-0.5 sm:hidden">
-                        ${fmt2(m.precio)} USD · cable: ${fmt2(m.precioCable)} USD
+                        {m.panelesPorUnidad ?? 4} pan/u · ${fmt2(m.precio)} USD · cable: ${fmt2(m.precioCable)} USD
                       </p>
                     </div>
+                    <p className="hidden sm:block text-sm text-zinc-300 text-center font-mono">{m.panelesPorUnidad ?? 4}</p>
                     <p className="hidden sm:block text-sm font-semibold text-amber-400 text-right font-mono">${fmt2(m.precio)} USD</p>
                     <p className="hidden sm:block text-sm text-zinc-300 text-right font-mono">
                       {m.precioCable > 0 ? `$${fmt2(m.precioCable)} USD` : <span className="text-zinc-600">—</span>}

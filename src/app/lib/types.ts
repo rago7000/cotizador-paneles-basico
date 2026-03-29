@@ -59,8 +59,9 @@ export interface CatalogoMicro {
   id: string;
   marca: string;
   modelo: string;
-  precio: number;       // USD por unidad, sin IVA
-  precioCable: number;  // USD por cable troncal, sin IVA
+  precio: number;            // USD por unidad, sin IVA
+  precioCable: number;       // USD por cable troncal, sin IVA
+  panelesPorUnidad: number;  // cuántos paneles soporta cada microinversor
   notas: string;
   fechaActualizacion: string;
 }

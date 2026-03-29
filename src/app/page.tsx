@@ -371,7 +371,7 @@ export default function Home() {
   const costoPanel = potenciaNum * precioNum;
   const costoPanelesUSD = costoPanel * cantidadNum;
 
-  const panelesPorMicro = 4;
+  const panelesPorMicro = microSeleccionado?.panelesPorUnidad ?? 4;
   const cantidadMicros = cantidadNum > 0 ? Math.ceil(cantidadNum / panelesPorMicro) : 0;
   const costoMicrosUSD = cantidadMicros * precioMicroNum;
   const costoCablesUSD = cantidadMicros * precioCableNum;
@@ -519,6 +519,7 @@ export default function Home() {
       marca, modelo,
       precio: precioMicroNum,
       precioCable: precioCableNum,
+      panelesPorUnidad: 4,
       notas: "",
       fechaActualizacion: new Date().toLocaleString("es-MX"),
     };
@@ -685,7 +686,7 @@ export default function Home() {
             <SectionCard
               num="2"
               title="Microinversores"
-              badge={cantidadMicros > 0 ? `${cantidadMicros} unidades` : "USD sin IVA"}
+              badge={cantidadMicros > 0 ? `${cantidadMicros} uds · ${panelesPorMicro} pan/micro` : "USD sin IVA"}
             >
               {/* Catalog picker trigger */}
               <div className="flex items-center justify-between -mt-1 mb-1">
@@ -723,13 +724,26 @@ export default function Home() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Precio por microinversor (USD)" hint={`1 micro por cada ${panelesPorMicro} paneles`}>
+                <Field label="Precio por microinversor (USD)" hint={microSeleccionado ? `1 micro por cada ${panelesPorMicro} paneles (${microSeleccionado.modelo})` : `1 micro por cada ${panelesPorMicro} paneles (default DS3D)`}>
                   <NumInput value={precioMicroinversor} onChange={(v) => { setPrecioMicroinversor(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 180.00" step={0.01} />
                 </Field>
                 <Field label="Cable troncal APS por unidad (USD)" hint="1 cable por microinversor">
                   <NumInput value={precioCable} onChange={(v) => { setPrecioCable(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 25.00" step={0.01} />
                 </Field>
               </div>
+
+              {/* Resumen calculado */}
+              {cantidadNum > 0 && precioMicroNum > 0 && (
+                <div className="rounded-lg bg-amber-400/5 border border-amber-400/20 px-4 py-2.5 flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">
+                    {cantidadNum} paneles ÷ {panelesPorMicro} = <strong className="text-zinc-200">{cantidadMicros} microinversores</strong>
+                    {precioCableNum > 0 && ` · ${cantidadMicros} cables`}
+                  </span>
+                  <span className="text-sm font-semibold text-amber-400 font-mono">
+                    {fmtUSD(cantidadMicros * precioMicroNum)} USD
+                  </span>
+                </div>
+              )}
 
               {/* Save to catalog suggestion */}
               {sugerirGuardarMicro && precioMicroNum > 0 && (
@@ -987,7 +1001,10 @@ export default function Home() {
                     <button key={m.id} onClick={() => seleccionarMicro(m)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div>
                         <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
-                        {m.precioCable > 0 && <p className="text-xs text-zinc-500 mt-0.5">Cable: ${fmtUSD(m.precioCable)} USD</p>}
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {m.panelesPorUnidad ?? 4} panel{(m.panelesPorUnidad ?? 4) !== 1 ? "es" : ""}/micro
+                          {m.precioCable > 0 && ` · cable $${fmtUSD(m.precioCable)}`}
+                        </p>
                       </div>
                       <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">${fmtUSD(m.precio)} USD</span>
                     </button>
