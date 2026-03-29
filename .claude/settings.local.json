@@ -3,7 +3,18 @@
     "allow": [
       "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --no-import-alias --use-npm)",
       "Bash(printf 'N\\\\nN\\\\n')",
-      "Bash(yes \"\")"
+      "Bash(yes \"\")",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "WebFetch(domain:www.banxico.org.mx)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"fetch\\(''http://localhost:3000''\\).then\\(r => { console.log\\(''Status:'', r.status\\); return r.text\\(\\) }\\).then\\(t => console.log\\(''Page length:'', t.length\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"fetch\\(''http://localhost:3000''\\).then\\(r => console.log\\(''Status:'', r.status\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(gh auth:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

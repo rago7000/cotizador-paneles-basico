@@ -2,18 +2,27 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import AppNav from "./components/AppNav";
 import {
   guardarCotizacion,
   cargarCotizacion,
   listarCotizaciones,
   eliminarCotizacion,
+  listarCatalogoPaneles,
+  guardarCatalogoPanel,
+  listarCatalogoMicros,
+  guardarCatalogoMicro,
 } from "./lib/storage";
 import type {
   CotizacionData,
   CotizacionGuardada,
   LineItem,
   TipoCambioData,
+  CatalogoPanel,
+  CatalogoMicro,
 } from "./lib/types";
+
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 const PDFViewerWrapper = dynamic(
   () => import("./components/PDFViewerWrapper"),
@@ -243,6 +252,71 @@ function PartidaRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SaveToCatalogBanner({
+  label,
+  onSave,
+  onDismiss,
+}: {
+  label: string;
+  onSave: (marca: string, modelo: string) => void;
+  onDismiss: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
+
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border border-dashed border-zinc-700 px-3 py-2.5 bg-zinc-800/30">
+        <span className="text-xs text-zinc-400">{label}</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setOpen(true)}
+            className="text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
+          >
+            Sí, guardar
+          </button>
+          <button onClick={onDismiss} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+            No
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-400/30 bg-zinc-800/40 p-3 space-y-2.5">
+      <p className="text-xs font-medium text-zinc-300">{label}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
+          placeholder="Marca"
+          value={marca}
+          onChange={(e) => setMarca(e.target.value)}
+        />
+        <input
+          className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
+          placeholder="Modelo"
+          value={modelo}
+          onChange={(e) => setModelo(e.target.value)}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => { if (marca.trim() && modelo.trim()) onSave(marca.trim(), modelo.trim()); }}
+          disabled={!marca.trim() || !modelo.trim()}
+          className="rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          Guardar en catálogo
+        </button>
+        <button onClick={onDismiss} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors px-2">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -270,6 +344,15 @@ export default function Home() {
   const [mostrarGuardadas, setMostrarGuardadas] = useState(false);
   const [mostrarPDF, setMostrarPDF] = useState(false);
   const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
+
+  // Catálogo
+  const [catalogoPaneles, setCatalogoPaneles] = useState<CatalogoPanel[]>([]);
+  const [catalogoMicros, setCatalogoMicros] = useState<CatalogoMicro[]>([]);
+  const [pickerPanel, setPickerPanel] = useState(false);
+  const [pickerMicro, setPickerMicro] = useState(false);
+  // "¿Guardar en catálogo?" tras llenar campos manualmente
+  const [sugerirGuardarPanel, setSugerirGuardarPanel] = useState(false);
+  const [sugerirGuardarMicro, setSugerirGuardarMicro] = useState(false);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -341,6 +424,8 @@ export default function Home() {
 
   useEffect(() => {
     setCotizacionesGuardadas(listarCotizaciones());
+    setCatalogoPaneles(listarCatalogoPaneles());
+    setCatalogoMicros(listarCatalogoMicros());
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -396,6 +481,48 @@ export default function Home() {
   const updateGeneral = (i: number, f: keyof GeneralItem, v: string) =>
     setGenerales((prev) => prev.map((it, idx) => (idx === i ? { ...it, [f]: v } : it)));
 
+  // Catálogo — seleccionar
+  const seleccionarPanel = (p: CatalogoPanel) => {
+    setPotencia(String(p.potencia));
+    setPrecioPorWatt(String(p.precioPorWatt));
+    setPickerPanel(false);
+    setSugerirGuardarPanel(false);
+  };
+  const seleccionarMicro = (m: CatalogoMicro) => {
+    setPrecioMicroinversor(String(m.precio));
+    setPrecioCable(String(m.precioCable));
+    setPickerMicro(false);
+    setSugerirGuardarMicro(false);
+  };
+
+  // Catálogo — guardar desde cotizador
+  const guardarPanelEnCatalogo = (marca: string, modelo: string) => {
+    const p: CatalogoPanel = {
+      id: uid(),
+      marca, modelo,
+      potencia: potenciaNum,
+      precioPorWatt: precioNum,
+      notas: "",
+      fechaActualizacion: new Date().toLocaleString("es-MX"),
+    };
+    guardarCatalogoPanel(p);
+    setCatalogoPaneles(listarCatalogoPaneles());
+    setSugerirGuardarPanel(false);
+  };
+  const guardarMicroEnCatalogo = (marca: string, modelo: string) => {
+    const m: CatalogoMicro = {
+      id: uid(),
+      marca, modelo,
+      precio: precioMicroNum,
+      precioCable: precioCableNum,
+      notas: "",
+      fechaActualizacion: new Date().toLocaleString("es-MX"),
+    };
+    guardarCatalogoMicro(m);
+    setCatalogoMicros(listarCatalogoMicros());
+    setSugerirGuardarMicro(false);
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
@@ -411,6 +538,8 @@ export default function Home() {
             </span>
           </div>
 
+          <div className="h-5 w-px bg-zinc-800 hidden sm:block" />
+          <AppNav />
           <div className="h-5 w-px bg-zinc-800 hidden sm:block" />
 
           {/* Cotizacion name */}
@@ -472,15 +601,31 @@ export default function Home() {
 
             {/* 1. PANELES */}
             <SectionCard num="1" title="Paneles" badge="USD sin IVA">
+              {/* Catalog picker trigger */}
+              <div className="flex items-center justify-between -mt-1 mb-1">
+                <span className="text-xs text-zinc-600">
+                  {catalogoPaneles.length > 0 ? `${catalogoPaneles.length} panel${catalogoPaneles.length !== 1 ? "es" : ""} en catálogo` : "Catálogo vacío"}
+                </span>
+                <button
+                  onClick={() => setPickerPanel(true)}
+                  className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  Del catálogo
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Cantidad">
                   <NumInput value={cantidad} onChange={setCantidad} placeholder="Ej: 12" />
                 </Field>
                 <Field label="Potencia por panel (W)">
-                  <NumInput value={potencia} onChange={setPotencia} placeholder="Ej: 550" />
+                  <NumInput value={potencia} onChange={(v) => { setPotencia(v); if (v) setSugerirGuardarPanel(true); }} placeholder="Ej: 550" />
                 </Field>
                 <Field label="Precio / watt (USD)">
-                  <NumInput value={precioPorWatt} onChange={setPrecioPorWatt} placeholder="Ej: 0.18" step={0.01} />
+                  <NumInput value={precioPorWatt} onChange={(v) => { setPrecioPorWatt(v); if (v) setSugerirGuardarPanel(true); }} placeholder="Ej: 0.18" step={0.001} />
                 </Field>
               </div>
 
@@ -493,6 +638,15 @@ export default function Home() {
                     {fmtUSD(costoPanelesUSD)} USD
                   </span>
                 </div>
+              )}
+
+              {/* Save to catalog suggestion */}
+              {sugerirGuardarPanel && potenciaNum > 0 && precioNum > 0 && (
+                <SaveToCatalogBanner
+                  label="¿Guardar este panel en el catálogo?"
+                  onSave={guardarPanelEnCatalogo}
+                  onDismiss={() => setSugerirGuardarPanel(false)}
+                />
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
@@ -508,17 +662,42 @@ export default function Home() {
             {/* 2. INVERSORES */}
             <SectionCard
               num="2"
-              title="Microinversores — APsystems DS3D"
+              title="Microinversores"
               badge={cantidadMicros > 0 ? `${cantidadMicros} unidades` : "USD sin IVA"}
             >
+              {/* Catalog picker trigger */}
+              <div className="flex items-center justify-between -mt-1 mb-1">
+                <span className="text-xs text-zinc-600">
+                  {catalogoMicros.length > 0 ? `${catalogoMicros.length} modelo${catalogoMicros.length !== 1 ? "s" : ""} en catálogo` : "Catálogo vacío"}
+                </span>
+                <button
+                  onClick={() => setPickerMicro(true)}
+                  className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  Del catálogo
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Precio por microinversor (USD)" hint={`1 micro por cada ${panelesPorMicro} paneles`}>
-                  <NumInput value={precioMicroinversor} onChange={setPrecioMicroinversor} placeholder="Ej: 180.00" step={0.01} />
+                  <NumInput value={precioMicroinversor} onChange={(v) => { setPrecioMicroinversor(v); if (v) setSugerirGuardarMicro(true); }} placeholder="Ej: 180.00" step={0.01} />
                 </Field>
                 <Field label="Cable troncal APS por unidad (USD)" hint="1 cable por microinversor">
-                  <NumInput value={precioCable} onChange={setPrecioCable} placeholder="Ej: 25.00" step={0.01} />
+                  <NumInput value={precioCable} onChange={(v) => { setPrecioCable(v); if (v) setSugerirGuardarMicro(true); }} placeholder="Ej: 25.00" step={0.01} />
                 </Field>
               </div>
+
+              {/* Save to catalog suggestion */}
+              {sugerirGuardarMicro && precioMicroNum > 0 && (
+                <SaveToCatalogBanner
+                  label="¿Guardar este microinversor en el catálogo?"
+                  onSave={guardarMicroEnCatalogo}
+                  onDismiss={() => setSugerirGuardarMicro(false)}
+                />
+              )}
 
               <div className="space-y-3 border-t border-zinc-800 pt-4">
                 <Toggle
@@ -708,6 +887,76 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* ── Modal: Picker paneles ────────────────────────────────────────── */}
+      {pickerPanel && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setPickerPanel(false)}>
+          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <h2 className="text-sm font-semibold text-zinc-100">Seleccionar panel del catálogo</h2>
+              <button onClick={() => setPickerPanel(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {catalogoPaneles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-zinc-600 text-sm">
+                  <p>No hay paneles en el catálogo</p>
+                  <a href="/catalogo" className="mt-2 text-xs text-amber-400 hover:text-amber-300">Ir al catálogo →</a>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-800">
+                  {catalogoPaneles.map((p) => (
+                    <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · ${fmtUSD(p.precioPorWatt)}/W</p>
+                      </div>
+                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">${fmtUSD(p.potencia * p.precioPorWatt)}/panel</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Picker micros ──────────────────────────────────────────── */}
+      {pickerMicro && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setPickerMicro(false)}>
+          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <h2 className="text-sm font-semibold text-zinc-100">Seleccionar microinversor del catálogo</h2>
+              <button onClick={() => setPickerMicro(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {catalogoMicros.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-zinc-600 text-sm">
+                  <p>No hay microinversores en el catálogo</p>
+                  <a href="/catalogo" className="mt-2 text-xs text-amber-400 hover:text-amber-300">Ir al catálogo →</a>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-800">
+                  {catalogoMicros.map((m) => (
+                    <button key={m.id} onClick={() => seleccionarMicro(m)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
+                        {m.precioCable > 0 && <p className="text-xs text-zinc-500 mt-0.5">Cable: ${fmtUSD(m.precioCable)} USD</p>}
+                      </div>
+                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">${fmtUSD(m.precio)} USD</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal: Mis cotizaciones ──────────────────────────────────────── */}
       {mostrarGuardadas && (

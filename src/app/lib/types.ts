@@ -42,3 +42,25 @@ export interface CotizacionGuardada {
   fecha: string;
   data: CotizacionData;
 }
+
+// ── Catálogo ──────────────────────────────────────────────────────────────────
+
+export interface CatalogoPanel {
+  id: string;
+  marca: string;
+  modelo: string;
+  potencia: number;       // W
+  precioPorWatt: number;  // USD sin IVA
+  notas: string;
+  fechaActualizacion: string;
+}
+
+export interface CatalogoMicro {
+  id: string;
+  marca: string;
+  modelo: string;
+  precio: number;       // USD por unidad, sin IVA
+  precioCable: number;  // USD por cable troncal, sin IVA
+  notas: string;
+  fechaActualizacion: string;
+}

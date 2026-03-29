@@ -1,4 +1,11 @@
-import { CotizacionData, CotizacionGuardada } from "./types";
+import {
+  CotizacionData,
+  CotizacionGuardada,
+  CatalogoPanel,
+  CatalogoMicro,
+} from "./types";
+
+// ── Cotizaciones ──────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = "cotizaciones_paneles";
 
@@ -37,4 +44,64 @@ export function cargarCotizacion(nombre: string): CotizacionData | null {
 export function eliminarCotizacion(nombre: string): void {
   const lista = listarCotizaciones().filter((c) => c.nombre !== nombre);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(lista));
+}
+
+// ── Catálogo — Paneles ────────────────────────────────────────────────────────
+
+const CAT_PANELES_KEY = "catalogo_paneles";
+
+export function listarCatalogoPaneles(): CatalogoPanel[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CAT_PANELES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function guardarCatalogoPanel(panel: CatalogoPanel): void {
+  const lista = listarCatalogoPaneles();
+  const idx = lista.findIndex((p) => p.id === panel.id);
+  if (idx >= 0) {
+    lista[idx] = panel;
+  } else {
+    lista.push(panel);
+  }
+  localStorage.setItem(CAT_PANELES_KEY, JSON.stringify(lista));
+}
+
+export function eliminarCatalogoPanel(id: string): void {
+  const lista = listarCatalogoPaneles().filter((p) => p.id !== id);
+  localStorage.setItem(CAT_PANELES_KEY, JSON.stringify(lista));
+}
+
+// ── Catálogo — Microinversores ────────────────────────────────────────────────
+
+const CAT_MICROS_KEY = "catalogo_micros";
+
+export function listarCatalogoMicros(): CatalogoMicro[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CAT_MICROS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function guardarCatalogoMicro(micro: CatalogoMicro): void {
+  const lista = listarCatalogoMicros();
+  const idx = lista.findIndex((m) => m.id === micro.id);
+  if (idx >= 0) {
+    lista[idx] = micro;
+  } else {
+    lista.push(micro);
+  }
+  localStorage.setItem(CAT_MICROS_KEY, JSON.stringify(lista));
+}
+
+export function eliminarCatalogoMicro(id: string): void {
+  const lista = listarCatalogoMicros().filter((m) => m.id !== id);
+  localStorage.setItem(CAT_MICROS_KEY, JSON.stringify(lista));
 }
