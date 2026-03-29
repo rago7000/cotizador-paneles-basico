@@ -661,15 +661,6 @@ export default function Home() {
                 />
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
-                <Field label="Servicio de logística (Flete)">
-                  <NumInput value={fletePaneles} onChange={setFletePaneles} step={0.01} />
-                </Field>
-                <Field label="Garantía contra daños de mercancía">
-                  <NumInput value={garantiaPaneles} onChange={setGarantiaPaneles} step={0.01} />
-                </Field>
-              </div>
-
               {/* Desglose calculado */}
               {cantidadNum > 0 && potenciaNum > 0 && precioNum > 0 && (
                 <div className="rounded-xl border border-zinc-800 overflow-hidden">
@@ -691,24 +682,30 @@ export default function Home() {
                   </div>
 
                   {/* Flete */}
-                  {fletePanelesNum > 0 && (
-                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
-                      <span className="text-xs text-zinc-300">Servicio de logística (Flete)</span>
-                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
-                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
-                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fletePanelesNum)}</span>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                    <span className="text-xs text-zinc-300">Servicio de logística (Flete)</span>
+                    <span className="text-xs text-center text-zinc-400 font-mono">1</span>
+                    <input
+                      type="number" min={0} step={0.01}
+                      value={fletePaneles}
+                      onChange={(e) => setFletePaneles(e.target.value)}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
+                    />
+                    <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fletePanelesNum)}</span>
+                  </div>
 
                   {/* Garantía */}
-                  {garantiaPanelesNum > 0 && (
-                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
-                      <span className="text-xs text-zinc-300">Garantía contra daños de mercancía</span>
-                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
-                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
-                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(garantiaPanelesNum)}</span>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                    <span className="text-xs text-zinc-300">Garantía contra daños de mercancía</span>
+                    <span className="text-xs text-center text-zinc-400 font-mono">1</span>
+                    <input
+                      type="number" min={0} step={0.01}
+                      value={garantiaPaneles}
+                      onChange={(e) => setGarantiaPaneles(e.target.value)}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
+                    />
+                    <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(garantiaPanelesNum)}</span>
+                  </div>
 
                   {/* Total */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
@@ -823,14 +820,17 @@ export default function Home() {
                   )}
 
                   {/* Flete */}
-                  {fleteMicrosNum > 0 && (
-                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
-                      <span className="text-xs text-zinc-300">Flete</span>
-                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
-                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
-                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fleteMicrosNum)}</span>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                    <span className="text-xs text-zinc-300">Flete microinversores</span>
+                    <span className="text-xs text-center text-zinc-400 font-mono">1</span>
+                    <input
+                      type="number" min={0} step={0.01}
+                      value={fleteMicros}
+                      onChange={(e) => setFleteMicros(e.target.value)}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
+                    />
+                    <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fleteMicrosNum)}</span>
+                  </div>
 
                   {/* Total */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
@@ -882,11 +882,6 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="border-t border-zinc-800 pt-4">
-                <Field label="Flete microinversores (USD)">
-                  <NumInput value={fleteMicros} onChange={setFleteMicros} step={0.01} />
-                </Field>
-              </div>
             </SectionCard>
 
             {/* 3. ESTRUCTURA */}
