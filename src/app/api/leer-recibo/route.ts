@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import Anthropic from "@anthropic-ai/sdk";
 
 const PROMPT = `Eres un extractor de datos de recibos de CFE (Comisión Federal de Electricidad de México).
 
@@ -50,17 +49,23 @@ export async function POST(req: NextRequest) {
   const buffer = await file.arrayBuffer();
   const base64 = Buffer.from(buffer).toString("base64");
 
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
   try {
-    const { text } = await generateText({
-      model: anthropic("claude-3-5-sonnet-20241022"),
+    const response = await client.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
           content: [
             {
-              type: "file",
-              data: base64,
-              mediaType: "application/pdf",
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: base64,
+              },
             },
             {
               type: "text",
@@ -71,9 +76,11 @@ export async function POST(req: NextRequest) {
       ],
     });
 
+    const text =
+      response.content[0].type === "text" ? response.content[0].text.trim() : "";
+
     // Strip markdown fences if model wraps the JSON
     const jsonStr = text
-      .trim()
       .replace(/^```(?:json)?\n?/, "")
       .replace(/\n?```$/, "")
       .trim();
