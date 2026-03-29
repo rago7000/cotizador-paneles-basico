@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { text } = await generateText({
-      model: anthropic("claude-opus-4.5"),
+      model: anthropic("claude-3-5-sonnet-20241022"),
       messages: [
         {
           role: "user",
