@@ -17,7 +17,8 @@ export interface CotizacionData {
   // Tipos de cambio personalizados (vacío = usar DOF global)
   tcCustomPaneles: string;
   tcCustomMicros: string;
-  tcSnapshot?: string;  // TC DOF at save time
+  tcSnapshot?: string;   // TC DOF at save time
+  tcFrozen?: boolean;    // true = usar tcSnapshot en vez del DOF en vivo
   // Paneles
   cantidad: string;
   potencia: string;
