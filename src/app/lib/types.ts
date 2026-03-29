@@ -14,6 +14,9 @@ export interface TipoCambioData {
 export interface CotizacionData {
   nombre: string;
   fecha: string;
+  // Tipos de cambio personalizados (vacío = usar DOF global)
+  tcCustomPaneles: string;
+  tcCustomMicros: string;
   // Paneles
   cantidad: string;
   potencia: string;

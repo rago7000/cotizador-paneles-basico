@@ -252,6 +252,65 @@ function PartidaRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+function TcCustomRow({
+  tcGlobal,
+  value,
+  onChange,
+}: {
+  tcGlobal: number;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const isCustom = Number(value) > 0;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/30">
+      <button
+        onClick={() => onChange(isCustom ? "" : String(tcGlobal || ""))}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors shrink-0 ${
+          isCustom ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300"
+        }`}
+      >
+        <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors ${
+          isCustom ? "border-amber-400 bg-amber-400" : "border-zinc-600"
+        }`}>
+          {isCustom && (
+            <svg className="w-2.5 h-2.5 text-zinc-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+        TC personalizado
+      </button>
+
+      {isCustom ? (
+        <div className="flex items-center gap-1.5 flex-1">
+          <span className="text-xs text-zinc-500">$</span>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-28 rounded border border-amber-400/50 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 font-mono outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20"
+            autoFocus
+          />
+          <span className="text-xs text-zinc-500">MXN/USD</span>
+          {tcGlobal > 0 && (
+            <span className="text-xs text-zinc-600 ml-1">
+              (DOF: ${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+            </span>
+          )}
+        </div>
+      ) : (
+        <span className="text-xs text-zinc-600">
+          Usando DOF{tcGlobal > 0 ? `: $${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function SaveToCatalogBanner({
   label,
   onSave,
@@ -345,6 +404,10 @@ export default function Home() {
   const [mostrarPDF, setMostrarPDF] = useState(false);
   const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
 
+  // Tipos de cambio personalizados por sección
+  const [tcCustomPaneles, setTcCustomPaneles] = useState("");
+  const [tcCustomMicros, setTcCustomMicros] = useState("");
+
   // Catálogo
   const [catalogoPaneles, setCatalogoPaneles] = useState<CatalogoPanel[]>([]);
   const [catalogoMicros, setCatalogoMicros] = useState<CatalogoMicro[]>([]);
@@ -395,13 +458,15 @@ export default function Home() {
   );
 
   const tcVal = tc?.tipoCambio || 0;
+  const tcPaneles = Number(tcCustomPaneles) > 0 ? Number(tcCustomPaneles) : tcVal;
+  const tcMicros  = Number(tcCustomMicros)  > 0 ? Number(tcCustomMicros)  : tcVal;
 
   const totalPanelesUSD = costoPanelesUSD + fletePanelesNum + garantiaPanelesNum;
-  const partidaPanelesMXN = totalPanelesUSD * tcVal;
+  const partidaPanelesMXN = totalPanelesUSD * tcPaneles;
 
   const totalInversoresUSD =
     costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + fleteMicrosNum;
-  const partidaInversoresMXN = totalInversoresUSD * tcVal;
+  const partidaInversoresMXN = totalInversoresUSD * tcMicros;
 
   const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
   const partidaTornilleriaMXN = costoTornilleriaMXN;
@@ -434,6 +499,7 @@ export default function Home() {
   const getFormData = (): CotizacionData => ({
     nombre: nombreCotizacion,
     fecha: new Date().toISOString(),
+    tcCustomPaneles, tcCustomMicros,
     cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
     precioMicroinversor, precioCable, precioECU, incluyeECU,
     precioHerramienta, incluyeHerramienta, fleteMicros,
@@ -452,6 +518,8 @@ export default function Home() {
     const data = cargarCotizacion(nombre);
     if (!data) return;
     setNombreCotizacion(data.nombre);
+    setTcCustomPaneles(data.tcCustomPaneles ?? "");
+    setTcCustomMicros(data.tcCustomMicros ?? "");
     setCantidad(data.cantidad);
     setPotencia(data.potencia);
     setPrecioPorWatt(data.precioPorWatt);
@@ -707,13 +775,33 @@ export default function Home() {
                     <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(garantiaPanelesNum)}</span>
                   </div>
 
-                  {/* Total */}
+                  {/* Total USD */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
                     <span className="text-xs text-zinc-500">
                       {cantidadNum} × {potenciaNum}W × ${fmtUSD(precioNum)}/W
                     </span>
                     <span className="text-sm font-semibold text-amber-400 font-mono">
                       ${fmtUSD(totalPanelesUSD)} USD
+                    </span>
+                  </div>
+
+                  {/* TC personalizado */}
+                  <TcCustomRow
+                    tcGlobal={tcVal}
+                    value={tcCustomPaneles}
+                    onChange={setTcCustomPaneles}
+                  />
+
+                  {/* Total MXN */}
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-400 font-medium">
+                      Total paneles en MXN
+                      {Number(tcCustomPaneles) > 0 && (
+                        <span className="ml-1.5 text-amber-400/70">(TC personalizado)</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold text-zinc-100 font-mono">
+                      ${fmt(partidaPanelesMXN)} MXN
                     </span>
                   </div>
                 </div>
@@ -832,13 +920,33 @@ export default function Home() {
                     <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fleteMicrosNum)}</span>
                   </div>
 
-                  {/* Total */}
+                  {/* Total USD */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
                     <span className="text-xs text-zinc-500">
                       {cantidadNum} paneles ÷ {panelesPorMicro} = {cantidadMicros} micros
                     </span>
                     <span className="text-sm font-semibold text-amber-400 font-mono">
                       ${fmtUSD(totalInversoresUSD)} USD
+                    </span>
+                  </div>
+
+                  {/* TC personalizado */}
+                  <TcCustomRow
+                    tcGlobal={tcVal}
+                    value={tcCustomMicros}
+                    onChange={setTcCustomMicros}
+                  />
+
+                  {/* Total MXN */}
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-400 font-medium">
+                      Total inversores en MXN
+                      {Number(tcCustomMicros) > 0 && (
+                        <span className="ml-1.5 text-amber-400/70">(TC personalizado)</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold text-zinc-100 font-mono">
+                      ${fmt(partidaInversoresMXN)} MXN
                     </span>
                   </div>
                 </div>
