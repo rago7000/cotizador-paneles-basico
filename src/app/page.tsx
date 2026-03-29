@@ -732,16 +732,74 @@ export default function Home() {
                 </Field>
               </div>
 
-              {/* Resumen calculado */}
+              {/* Desglose calculado */}
               {cantidadNum > 0 && precioMicroNum > 0 && (
-                <div className="rounded-lg bg-amber-400/5 border border-amber-400/20 px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">
-                    {cantidadNum} paneles ÷ {panelesPorMicro} = <strong className="text-zinc-200">{cantidadMicros} microinversores</strong>
-                    {precioCableNum > 0 && ` · ${cantidadMicros} cables`}
-                  </span>
-                  <span className="text-sm font-semibold text-amber-400 font-mono">
-                    {fmtUSD(cantidadMicros * precioMicroNum)} USD
-                  </span>
+                <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                  {/* header */}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                    <span>Concepto</span>
+                    <span className="text-center">Cant.</span>
+                    <span className="text-right">Precio</span>
+                    <span className="text-right">Subtotal</span>
+                  </div>
+
+                  {/* Microinversores */}
+                  <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                    <span className="text-xs text-zinc-300">Microinversor{microSeleccionado ? ` ${microSeleccionado.modelo}` : ""}</span>
+                    <span className="text-xs text-center text-zinc-400 font-mono">{cantidadMicros}</span>
+                    <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(precioMicroNum)}</span>
+                    <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoMicrosUSD)}</span>
+                  </div>
+
+                  {/* Cables */}
+                  {precioCableNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">Cable troncal</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">{cantidadMicros}</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(precioCableNum)}</span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoCablesUSD)}</span>
+                    </div>
+                  )}
+
+                  {/* ECU */}
+                  {incluyeECU && precioECUNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">ECU-R Monitoreo</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">1</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(precioECUNum)}</span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoECUUSD)}</span>
+                    </div>
+                  )}
+
+                  {/* Herramienta */}
+                  {incluyeHerramienta && precioHerramientaNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">Herramienta desconectora</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">1</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(precioHerramientaNum)}</span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoHerramientaUSD)}</span>
+                    </div>
+                  )}
+
+                  {/* Flete */}
+                  {fleteMicrosNum > 0 && (
+                    <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+                      <span className="text-xs text-zinc-300">Flete</span>
+                      <span className="text-xs text-center text-zinc-400 font-mono">—</span>
+                      <span className="text-xs text-right text-zinc-400 font-mono"></span>
+                      <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fleteMicrosNum)}</span>
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
+                    <span className="text-xs text-zinc-500">
+                      {cantidadNum} paneles ÷ {panelesPorMicro} = {cantidadMicros} micros
+                    </span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">
+                      ${fmtUSD(totalInversoresUSD)} USD
+                    </span>
+                  </div>
                 </div>
               )}
 
