@@ -40,6 +40,24 @@ export interface CotizacionData {
   tornilleria: LineItem[];
   // Generales
   generales: LineItem[];
+  // Recibo CFE (opcional — se guarda si el usuario subió uno)
+  reciboCFE?: {
+    nombre: string;
+    direccion: string;
+    noServicio: string;
+    tarifa: string;
+    periodoInicio: string;
+    periodoFin: string;
+    diasPeriodo: number;
+    consumoKwh: number;
+    consumoMensualPromedio: number;
+    totalFacturado: number;
+    historico: { periodo: string; kwh: number; importe: number }[];
+  } | null;
+  reciboPDFBase64?: string | null;
+  // Simulador de minisplits
+  minisplits?: { id: string; cantidad: number; toneladas: string; horasDia: number; tipo: "inverter" | "convencional" }[];
+  minisplitTemporada?: "anual" | "temporada";
 }
 
 export interface CotizacionGuardada {
@@ -48,20 +66,68 @@ export interface CotizacionGuardada {
   data: CotizacionData;
 }
 
-// ── Catálogo ──────────────────────────────────────────────────────────────────
+// ── Catálogo (legacy — se mantienen para migración) ──────────────────────────
 
 export interface CatalogoPanel {
   id: string;
   marca: string;
   modelo: string;
-  potencia: number;       // W
-  precioPorWatt: number;  // USD sin IVA
+  potencia: number;
+  precioPorWatt: number;
   notas: string;
   fechaActualizacion: string;
 }
 
+export interface CatalogoMicro {
+  id: string;
+  marca: string;
+  modelo: string;
+  precio: number;
+  precioCable: number;
+  panelesPorUnidad: number;
+  notas: string;
+  fechaActualizacion: string;
+}
+
+// ── Catálogo v2: Proveedores + Productos + Ofertas ───────────────────────────
+
+export interface Proveedor {
+  id: string;
+  nombre: string;
+  contacto: string;
+  telefono: string;
+  notas: string;
+}
+
+export interface ProductoPanel {
+  id: string;
+  marca: string;
+  modelo: string;
+  potencia: number; // W
+}
+
+export interface ProductoMicro {
+  id: string;
+  marca: string;
+  modelo: string;
+  panelesPorUnidad: number;
+}
+
+export interface Oferta {
+  id: string;
+  proveedorId: string;
+  productoId: string;
+  tipo: "panel" | "micro";
+  precio: number;          // panel: USD/W sin IVA · micro: USD/unidad sin IVA
+  precioCable?: number;    // solo micros
+  fecha: string;           // ISO date
+  notas: string;
+}
+
+// ── Seguimiento ──────────────────────────────────────────────────────────────
+
 export interface SeguimientoItem {
-  key: string;       // matches a ConceptoCotizado key
+  key: string;
   realMXN: string;
   proveedor: string;
   notas: string;
@@ -70,16 +136,5 @@ export interface SeguimientoItem {
 export interface SeguimientoData {
   cotizacionNombre: string;
   items: SeguimientoItem[];
-  fechaActualizacion: string;
-}
-
-export interface CatalogoMicro {
-  id: string;
-  marca: string;
-  modelo: string;
-  precio: number;            // USD por unidad, sin IVA
-  precioCable: number;       // USD por cable troncal, sin IVA
-  panelesPorUnidad: number;  // cuántos paneles soporta cada microinversor
-  notas: string;
   fechaActualizacion: string;
 }
