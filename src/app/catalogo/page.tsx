@@ -38,11 +38,25 @@ const fmt2 = (n: number) =>
 const fmt3 = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-const fmtDate = (iso: string) => {
+const fmtDateTime = (iso: string) => {
   try {
-    return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "Sin fecha";
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) +
+      " " + d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
   } catch {
-    return iso;
+    return "Sin fecha";
+  }
+};
+
+const toLocalInput = (iso?: string) => {
+  try {
+    const d = iso ? new Date(iso) : new Date();
+    if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 16);
+    const offset = d.getTimezoneOffset();
+    return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 16);
+  } catch {
+    return new Date().toISOString().slice(0, 16);
   }
 };
 
@@ -534,6 +548,7 @@ function OfertaForm({
     productoId: initial?.productoId ?? "",
     precio: initial ? String(initial.precio) : "",
     precioCable: initial?.precioCable != null ? String(initial.precioCable) : "",
+    fecha: toLocalInput(initial?.fecha),
     notas: initial?.notas ?? "",
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -588,6 +603,10 @@ function OfertaForm({
           </div>
         )}
         <div>
+          <label className={labelCls}>Fecha y hora</label>
+          <input className={inputCls} type="datetime-local" value={form.fecha} onChange={(e) => set("fecha", e.target.value)} />
+        </div>
+        <div>
           <label className={labelCls}>Notas</label>
           <input className={inputCls} value={form.notas} onChange={(e) => set("notas", e.target.value)} placeholder="Condiciones, vigencia, etc." />
         </div>
@@ -613,7 +632,7 @@ function OfertaForm({
               tipo: form.tipo,
               precio: Number(form.precio),
               precioCable: form.tipo === "micro" && form.precioCable ? Number(form.precioCable) : undefined,
-              fecha: initial?.fecha || new Date().toISOString(),
+              fecha: new Date(form.fecha).toISOString(),
               notas: form.notas.trim(),
             });
           }}
@@ -741,7 +760,7 @@ function TabOfertas({
                       <p className="text-xs text-zinc-500 font-mono">+${fmt2(o.precioCable)} cable</p>
                     )}
                   </div>
-                  <p className="hidden sm:block text-xs text-zinc-500 text-right">{fmtDate(o.fecha)}</p>
+                  <p className="hidden sm:block text-xs text-zinc-500 text-right">{fmtDateTime(o.fecha)}</p>
                   <div className="hidden sm:flex justify-center"><IconTrend dir={trend} /></div>
                   <div className="flex gap-1 shrink-0 sm:justify-end" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => { setEditing(o); setAdding(false); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" title="Editar"><IconEdit /></button>
@@ -758,7 +777,7 @@ function TabOfertas({
                     <div className="space-y-1">
                       {historialPrecios(o.productoId, o.proveedorId, ofertas).map((h) => (
                         <div key={h.id} className="flex items-center gap-4 text-xs">
-                          <span className="text-zinc-500 w-20">{fmtDate(h.fecha)}</span>
+                          <span className="text-zinc-500 w-20">{fmtDateTime(h.fecha)}</span>
                           <span className="text-amber-400 font-mono font-semibold">
                             ${h.tipo === "panel" ? fmt3(h.precio) + "/W" : fmt2(h.precio)}
                           </span>
