@@ -388,12 +388,47 @@ function TabProductos({
   const [addingMicro, setAddingMicro] = useState(false);
   const [editingMicro, setEditingMicro] = useState<ProductoMicro | null>(null);
 
+  // Search & filters
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroMarca, setFiltroMarca] = useState("");
+  const [ordenPaneles, setOrdenPaneles] = useState<"nombre" | "potencia" | "precio">("nombre");
+
+  const marcasPaneles = useMemo(() => [...new Set(paneles.map((p) => p.marca))].sort(), [paneles]);
+  const marcasMicros = useMemo(() => [...new Set(micros.map((m) => m.marca))].sort(), [micros]);
+
+  const q = busqueda.toLowerCase().trim();
+
+  const panelesFiltrados = useMemo(() => {
+    let list = paneles.filter((p) => {
+      if (q && !`${p.marca} ${p.modelo}`.toLowerCase().includes(q)) return false;
+      if (filtroMarca && p.marca !== filtroMarca) return false;
+      return true;
+    });
+    if (ordenPaneles === "potencia") list = [...list].sort((a, b) => b.potencia - a.potencia);
+    else if (ordenPaneles === "precio") list = [...list].sort((a, b) => {
+      const pa = mejorOferta(a.id, ofertas)?.precio ?? Infinity;
+      const pb = mejorOferta(b.id, ofertas)?.precio ?? Infinity;
+      return pa - pb;
+    });
+    else list = [...list].sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
+    return list;
+  }, [paneles, ofertas, q, filtroMarca, ordenPaneles]);
+
+  const microsFiltrados = useMemo(() => {
+    let list = micros.filter((m) => {
+      if (q && !`${m.marca} ${m.modelo}`.toLowerCase().includes(q)) return false;
+      if (filtroMarca && m.marca !== filtroMarca) return false;
+      return true;
+    });
+    return list.sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
+  }, [micros, q, filtroMarca]);
+
   const handleSavePanel = (p: ProductoPanel) => { guardarProductoPanel(p); reload(); setAddingPanel(false); setEditingPanel(null); };
   const handleDeletePanel = (id: string) => { eliminarProductoPanel(id); reload(); };
   const handleSaveMicro = (m: ProductoMicro) => { guardarProductoMicro(m); reload(); setAddingMicro(false); setEditingMicro(null); };
   const handleDeleteMicro = (id: string) => { eliminarProductoMicro(id); reload(); };
 
-  const clearForms = () => { setAddingPanel(false); setEditingPanel(null); setAddingMicro(false); setEditingMicro(null); };
+  const clearForms = () => { setAddingPanel(false); setEditingPanel(null); setAddingMicro(false); setEditingMicro(null); setBusqueda(""); setFiltroMarca(""); };
 
   return (
     <div className="space-y-4">
@@ -402,7 +437,7 @@ function TabProductos({
         {(["paneles", "micros"] as const).map((t) => (
           <button
             key={t}
-            onClick={() => { setSubTab(t); clearForms(); }}
+            onClick={() => { setSubTab(t); clearForms(); setFiltroMarca(""); }}
             className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
               subTab === t ? "border-amber-400 text-amber-400" : "border-transparent text-zinc-500 hover:text-zinc-300"
             }`}
@@ -414,6 +449,62 @@ function TabProductos({
           </button>
         ))}
       </div>
+
+      {/* ── Search & Filters ── */}
+      {!addingPanel && !editingPanel && !addingMicro && !editingMicro && (paneles.length > 0 || micros.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar marca o modelo..."
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/15"
+            />
+            {busqueda && (
+              <button onClick={() => setBusqueda("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
+          </div>
+
+          {/* Filter by brand */}
+          <select
+            value={filtroMarca}
+            onChange={(e) => setFiltroMarca(e.target.value)}
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400"
+          >
+            <option value="">Todas las marcas</option>
+            {(subTab === "paneles" ? marcasPaneles : marcasMicros).map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          {/* Sort (paneles only) */}
+          {subTab === "paneles" && (
+            <select
+              value={ordenPaneles}
+              onChange={(e) => setOrdenPaneles(e.target.value as "nombre" | "potencia" | "precio")}
+              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400"
+            >
+              <option value="nombre">Ordenar: Nombre</option>
+              <option value="potencia">Ordenar: Potencia</option>
+              <option value="precio">Ordenar: Precio</option>
+            </select>
+          )}
+
+          {/* Result count */}
+          {(busqueda || filtroMarca) && (
+            <span className="text-[10px] text-zinc-600">
+              {subTab === "paneles" ? panelesFiltrados.length : microsFiltrados.length} resultado{(subTab === "paneles" ? panelesFiltrados.length : microsFiltrados.length) !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── Paneles ── */}
       {subTab === "paneles" && (
@@ -430,7 +521,11 @@ function TabProductos({
             <EmptyState label="No hay paneles registrados" onAdd={() => setAddingPanel(true)} />
           )}
 
-          {!addingPanel && !editingPanel && paneles.length > 0 && (
+          {!addingPanel && !editingPanel && paneles.length > 0 && panelesFiltrados.length === 0 && (
+            <p className="text-center text-sm text-zinc-600 py-8">Sin resultados para &ldquo;{busqueda || filtroMarca}&rdquo;</p>
+          )}
+
+          {!addingPanel && !editingPanel && panelesFiltrados.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 overflow-hidden">
               <div className="hidden sm:grid grid-cols-[1fr_80px_120px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
                 <span>Panel</span>
@@ -438,7 +533,7 @@ function TabProductos({
                 <span className="text-right">Mejor precio</span>
                 <span />
               </div>
-              {paneles.map((p, i) => {
+              {panelesFiltrados.map((p, i) => {
                 const best = mejorOferta(p.id, ofertas);
                 return (
                   <div
@@ -486,7 +581,11 @@ function TabProductos({
             <EmptyState label="No hay microinversores registrados" onAdd={() => setAddingMicro(true)} />
           )}
 
-          {!addingMicro && !editingMicro && micros.length > 0 && (
+          {!addingMicro && !editingMicro && micros.length > 0 && microsFiltrados.length === 0 && (
+            <p className="text-center text-sm text-zinc-600 py-8">Sin resultados para &ldquo;{busqueda || filtroMarca}&rdquo;</p>
+          )}
+
+          {!addingMicro && !editingMicro && microsFiltrados.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 overflow-hidden">
               <div className="hidden sm:grid grid-cols-[1fr_80px_120px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
                 <span>Microinversor</span>
@@ -494,7 +593,7 @@ function TabProductos({
                 <span className="text-right">Mejor precio</span>
                 <span />
               </div>
-              {micros.map((m, i) => {
+              {microsFiltrados.map((m, i) => {
                 const best = mejorOferta(m.id, ofertas);
                 return (
                   <div
