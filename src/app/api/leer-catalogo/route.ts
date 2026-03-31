@@ -53,6 +53,56 @@ REGLAS:
 - "fechaDocumento": busca en el documento cualquier indicación de fecha: "precios de febrero 2026", "vigencia: enero-marzo 2026", "actualizado al 15/02/2026", etc. Extrae la fecha más relevante en formato YYYY-MM-DD. Si solo dice mes y año, usa el día 1. Si no encuentras ninguna fecha, deja "".
 - Responde SOLO con el JSON, absolutamente nada más.`;
 
+/**
+ * Attempt to repair truncated JSON by closing open strings, arrays and objects.
+ * This handles the case where Claude's response is cut off mid-JSON.
+ */
+function repairTruncatedJSON(json: string): string {
+  let s = json.trimEnd();
+
+  // Remove trailing comma
+  s = s.replace(/,\s*$/, "");
+
+  // If we're inside an unterminated string, close it
+  // Count unescaped quotes to see if we're inside a string
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '"' && (i === 0 || s[i - 1] !== '\\')) {
+      inString = !inString;
+    }
+  }
+  if (inString) {
+    s += '"';
+  }
+
+  // Remove any trailing key without value like `"key":`  or `"key": `
+  s = s.replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+
+  // Count open brackets/braces and close them
+  let openBraces = 0;
+  let openBrackets = 0;
+  inString = false;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '"' && (i === 0 || s[i - 1] !== '\\')) {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (s[i] === '{') openBraces++;
+    else if (s[i] === '}') openBraces--;
+    else if (s[i] === '[') openBrackets++;
+    else if (s[i] === ']') openBrackets--;
+  }
+
+  // Remove trailing comma before we close
+  s = s.replace(/,\s*$/, "");
+
+  for (let i = 0; i < openBrackets; i++) s += "]";
+  for (let i = 0; i < openBraces; i++) s += "}";
+
+  return s;
+}
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 500 });
@@ -101,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: "user",
@@ -116,6 +166,11 @@ export async function POST(req: NextRequest) {
       ],
     });
 
+    // Check if response was truncated
+    if (response.stop_reason === "max_tokens") {
+      console.warn("[leer-catalogo] Response truncated (max_tokens reached)");
+    }
+
     const text =
       response.content[0].type === "text" ? response.content[0].text.trim() : "";
 
@@ -124,7 +179,14 @@ export async function POST(req: NextRequest) {
       .replace(/\n?```$/, "")
       .trim();
 
-    const data = JSON.parse(jsonStr);
+    let data;
+    try {
+      data = JSON.parse(jsonStr);
+    } catch {
+      // If JSON is truncated, try to repair it by closing open structures
+      const repaired = repairTruncatedJSON(jsonStr);
+      data = JSON.parse(repaired);
+    }
     return NextResponse.json(data);
   } catch (err: unknown) {
     console.error("[leer-catalogo]", err);
