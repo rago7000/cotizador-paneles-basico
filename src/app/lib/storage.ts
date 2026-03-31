@@ -335,24 +335,91 @@ export function consolidarProveedores(): boolean {
  * Merges duplicate products (same normalized marca+modelo) into a single entity.
  * Updates all ofertas to point to the surviving product.
  */
+// Extract the core model code from a description string.
+// E.g. "TRINA BIFACIAL TSM-NEG19RC.20-630W" → "tsm-neg19rc.20-630w"
+// E.g. "RENESOLA N-TYPE BIFACIAL RS5J-640NBG-E1" → "rs5j-640nbg-e1"
+// Strategy: find the token that looks most like a model code (has digits + letters + dashes/dots)
+function extractModelCode(modelo: string): string {
+  const norm = modelo.trim().toLowerCase();
+  // Split into tokens and score each by "model-code-likeness"
+  const tokens = norm.split(/\s+/);
+  let best = "";
+  let bestScore = 0;
+  for (const t of tokens) {
+    const hasDigit = /\d/.test(t);
+    const hasDash = /[-.]/.test(t);
+    const hasLetter = /[a-z]/.test(t);
+    const len = t.length;
+    // Skip common descriptive words
+    if (/^(bifacial|doble|vidrio|anti-dust|n-type|topcon|black|frame|type|mono|poly|perc|hjt|half|cut|cell)$/.test(t)) continue;
+    // Skip brand names that may appear in model field
+    if (/^(trina|canadian|solar|renesola|longi|jinko|ja|risen|hanwha|qcells|aps)$/.test(t)) continue;
+    const score = (hasDigit ? 3 : 0) + (hasDash ? 2 : 0) + (hasLetter ? 1 : 0) + (len > 6 ? 2 : 0);
+    if (score > bestScore) { bestScore = score; best = t; }
+  }
+  return best || normalizeName(modelo);
+}
+
+// Check if two panels are the same product using fuzzy model matching
+function isSamePanel(a: ProductoPanel, b: ProductoPanel): boolean {
+  if (normalizeName(a.marca) !== normalizeName(b.marca)) return false;
+  // Exact match after normalization
+  if (normalizeName(a.modelo) === normalizeName(b.modelo)) return true;
+  // Same potencia + one modelo contains the other
+  if (a.potencia === b.potencia) {
+    const na = normalizeName(a.modelo);
+    const nb = normalizeName(b.modelo);
+    if (na.includes(nb) || nb.includes(na)) return true;
+  }
+  // Same core model code + same potencia
+  if (a.potencia === b.potencia) {
+    const ca = extractModelCode(a.modelo);
+    const cb = extractModelCode(b.modelo);
+    if (ca && cb && ca === cb) return true;
+  }
+  return false;
+}
+
+function isSameMicro(a: ProductoMicro, b: ProductoMicro): boolean {
+  if (normalizeName(a.marca) !== normalizeName(b.marca)) return false;
+  if (normalizeName(a.modelo) === normalizeName(b.modelo)) return true;
+  const na = normalizeName(a.modelo);
+  const nb = normalizeName(b.modelo);
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const ca = extractModelCode(a.modelo);
+  const cb = extractModelCode(b.modelo);
+  if (ca && cb && ca === cb) return true;
+  return false;
+}
+
 export function consolidarProductos(): boolean {
   if (typeof window === "undefined") return false;
 
   let changed = false;
 
-  // Panels
+  // ── Panels: fuzzy grouping ──
   const paneles = listarProductosPaneles();
-  const panelGroups = new Map<string, ProductoPanel[]>();
-  for (const p of paneles) {
-    const key = `${normalizeName(p.marca)}::${normalizeName(p.modelo)}`;
-    const g = panelGroups.get(key) || [];
-    g.push(p);
-    panelGroups.set(key, g);
-  }
   const panelIdMap = new Map<string, string>();
   const panelRemove = new Set<string>();
-  for (const [, group] of panelGroups) {
-    if (group.length <= 1) continue;
+  // Build groups using pairwise comparison
+  const panelGroups: ProductoPanel[][] = [];
+  const assigned = new Set<string>();
+  for (let i = 0; i < paneles.length; i++) {
+    if (assigned.has(paneles[i].id)) continue;
+    const group = [paneles[i]];
+    assigned.add(paneles[i].id);
+    for (let j = i + 1; j < paneles.length; j++) {
+      if (assigned.has(paneles[j].id)) continue;
+      if (isSamePanel(paneles[i], paneles[j])) {
+        group.push(paneles[j]);
+        assigned.add(paneles[j].id);
+      }
+    }
+    if (group.length > 1) panelGroups.push(group);
+  }
+  for (const group of panelGroups) {
+    // Keep the one with the shortest modelo (cleaner name)
+    group.sort((a, b) => a.modelo.length - b.modelo.length);
     const keep = group[0];
     for (let i = 1; i < group.length; i++) {
       panelIdMap.set(group[i].id, keep.id);
@@ -360,19 +427,27 @@ export function consolidarProductos(): boolean {
     }
   }
 
-  // Micros
+  // ── Micros: fuzzy grouping ──
   const micros = listarProductosMicros();
-  const microGroups = new Map<string, ProductoMicro[]>();
-  for (const m of micros) {
-    const key = `${normalizeName(m.marca)}::${normalizeName(m.modelo)}`;
-    const g = microGroups.get(key) || [];
-    g.push(m);
-    microGroups.set(key, g);
-  }
   const microIdMap = new Map<string, string>();
   const microRemove = new Set<string>();
-  for (const [, group] of microGroups) {
-    if (group.length <= 1) continue;
+  const microGroups: ProductoMicro[][] = [];
+  const mAssigned = new Set<string>();
+  for (let i = 0; i < micros.length; i++) {
+    if (mAssigned.has(micros[i].id)) continue;
+    const group = [micros[i]];
+    mAssigned.add(micros[i].id);
+    for (let j = i + 1; j < micros.length; j++) {
+      if (mAssigned.has(micros[j].id)) continue;
+      if (isSameMicro(micros[i], micros[j])) {
+        group.push(micros[j]);
+        mAssigned.add(micros[j].id);
+      }
+    }
+    if (group.length > 1) microGroups.push(group);
+  }
+  for (const group of microGroups) {
+    group.sort((a, b) => a.modelo.length - b.modelo.length);
     const keep = group[0];
     for (let i = 1; i < group.length; i++) {
       microIdMap.set(group[i].id, keep.id);
