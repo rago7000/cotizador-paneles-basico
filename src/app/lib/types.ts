@@ -113,6 +113,7 @@ export interface ProductoPanel {
   marca: string;
   modelo: string;
   potencia: number; // W
+  aliases?: string[]; // nombres alternativos fusionados desde otros PDFs
 }
 
 export interface ProductoMicro {
@@ -120,6 +121,7 @@ export interface ProductoMicro {
   marca: string;
   modelo: string;
   panelesPorUnidad: number;
+  aliases?: string[]; // nombres alternativos fusionados
 }
 
 export interface PrecioTier {

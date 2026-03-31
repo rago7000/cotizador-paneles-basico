@@ -190,6 +190,28 @@ function ProveedorForm({
   );
 }
 
+function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div className="relative flex-1 min-w-[180px]">
+      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || "Buscar..."}
+        className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-8 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/15"
+      />
+      {value && (
+        <button onClick={() => onChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TabProveedores({
   proveedores,
   reload,
@@ -199,6 +221,7 @@ function TabProveedores({
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Proveedor | null>(null);
+  const [busqueda, setBusqueda] = useState("");
 
   const handleSave = (p: Proveedor) => {
     guardarProveedor(p);
@@ -212,9 +235,26 @@ function TabProveedores({
     reload();
   };
 
+  const q = busqueda.toLowerCase().trim();
+  const filtrados = useMemo(() => {
+    if (!q) return proveedores;
+    return proveedores.filter((p) =>
+      `${p.nombre} ${p.contacto} ${p.notas}`.toLowerCase().includes(q)
+    );
+  }, [proveedores, q]);
+
   return (
     <div className="space-y-3">
-      {!adding && !editing && (
+      {!adding && !editing && proveedores.length > 0 && (
+        <div className="flex items-center gap-2">
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar proveedor..." />
+          <button onClick={() => setAdding(true)} className={btnPrimary}>
+            <IconPlus /> Nuevo proveedor
+          </button>
+        </div>
+      )}
+
+      {!adding && !editing && proveedores.length === 0 && (
         <div className="flex justify-end">
           <button onClick={() => setAdding(true)} className={btnPrimary}>
             <IconPlus /> Nuevo proveedor
@@ -229,7 +269,11 @@ function TabProveedores({
         <EmptyState label="No hay proveedores registrados" onAdd={() => setAdding(true)} />
       )}
 
-      {!adding && !editing && proveedores.length > 0 && (
+      {!adding && !editing && proveedores.length > 0 && filtrados.length === 0 && (
+        <p className="text-center text-sm text-zinc-600 py-8">Sin resultados para &ldquo;{busqueda}&rdquo;</p>
+      )}
+
+      {!adding && !editing && filtrados.length > 0 && (
         <div className="rounded-2xl border border-zinc-800 overflow-hidden">
           <div className="hidden sm:grid grid-cols-[1fr_1fr_140px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
             <span>Proveedor</span>
@@ -237,7 +281,7 @@ function TabProveedores({
             <span>Teléfono</span>
             <span />
           </div>
-          {proveedores.map((p, i) => (
+          {filtrados.map((p, i) => (
             <div
               key={p.id}
               className={`flex sm:grid sm:grid-cols-[1fr_1fr_140px_36px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""}`}
@@ -400,7 +444,7 @@ function TabProductos({
 
   const panelesFiltrados = useMemo(() => {
     let list = paneles.filter((p) => {
-      if (q && !`${p.marca} ${p.modelo}`.toLowerCase().includes(q)) return false;
+      if (q && !`${p.marca} ${p.modelo} ${(p.aliases || []).join(" ")}`.toLowerCase().includes(q)) return false;
       if (filtroMarca && p.marca !== filtroMarca) return false;
       return true;
     });
@@ -416,7 +460,7 @@ function TabProductos({
 
   const microsFiltrados = useMemo(() => {
     let list = micros.filter((m) => {
-      if (q && !`${m.marca} ${m.modelo}`.toLowerCase().includes(q)) return false;
+      if (q && !`${m.marca} ${m.modelo} ${(m.aliases || []).join(" ")}`.toLowerCase().includes(q)) return false;
       if (filtroMarca && m.marca !== filtroMarca) return false;
       return true;
     });
@@ -453,26 +497,7 @@ function TabProductos({
       {/* ── Search & Filters ── */}
       {!addingPanel && !editingPanel && !addingMicro && !editingMicro && (paneles.length > 0 || micros.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[180px]">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar marca o modelo..."
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/15"
-            />
-            {busqueda && (
-              <button onClick={() => setBusqueda("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            )}
-          </div>
-
-          {/* Filter by brand */}
+          <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar marca o modelo..." />
           <select
             value={filtroMarca}
             onChange={(e) => setFiltroMarca(e.target.value)}
@@ -542,9 +567,23 @@ function TabProductos({
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-zinc-100 truncate">{p.marca} — {p.modelo}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {ofertasPorProducto(p.id, ofertas).length} oferta{ofertasPorProducto(p.id, ofertas).length !== 1 ? "s" : ""}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-zinc-500">
+                          {ofertasPorProducto(p.id, ofertas).length} oferta{ofertasPorProducto(p.id, ofertas).length !== 1 ? "s" : ""}
+                        </span>
+                        {p.aliases && p.aliases.length > 0 && (
+                          <span className="text-[10px] text-zinc-600" title={`Nombres fusionados:\n${p.aliases.join("\n")}`}>
+                            +{p.aliases.length} alias
+                          </span>
+                        )}
+                      </div>
+                      {p.aliases && p.aliases.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {p.aliases.map((a, ai) => (
+                            <p key={ai} className="text-[10px] text-zinc-600 truncate">aka: {a}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <p className="hidden sm:block text-sm text-zinc-300 text-right font-mono">{p.potencia}W</p>
                     <div className="hidden sm:block text-right">
@@ -602,9 +641,23 @@ function TabProductos({
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-zinc-100 truncate">{m.marca} — {m.modelo}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {ofertasPorProducto(m.id, ofertas).length} oferta{ofertasPorProducto(m.id, ofertas).length !== 1 ? "s" : ""}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-zinc-500">
+                          {ofertasPorProducto(m.id, ofertas).length} oferta{ofertasPorProducto(m.id, ofertas).length !== 1 ? "s" : ""}
+                        </span>
+                        {m.aliases && m.aliases.length > 0 && (
+                          <span className="text-[10px] text-zinc-600" title={`Nombres fusionados:\n${m.aliases.join("\n")}`}>
+                            +{m.aliases.length} alias
+                          </span>
+                        )}
+                      </div>
+                      {m.aliases && m.aliases.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {m.aliases.map((a, ai) => (
+                            <p key={ai} className="text-[10px] text-zinc-600 truncate">aka: {a}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <p className="hidden sm:block text-sm text-zinc-300 text-center font-mono">{m.panelesPorUnidad}</p>
                     <div className="hidden sm:block text-right">
@@ -1384,6 +1437,7 @@ function TabOfertas({
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Oferta | null>(null);
   const [importing, setImporting] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const [filterProv, setFilterProv] = useState("");
   const [filterTipo, setFilterTipo] = useState<"" | "panel" | "micro">("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -1409,12 +1463,18 @@ function TabOfertas({
 
   const [viewingArchivo, setViewingArchivo] = useState<ArchivoProveedor | null>(null);
 
+  const bq = busqueda.toLowerCase().trim();
   const filtered = useMemo(() => {
     let list = [...ofertas];
     if (filterProv) list = list.filter((o) => o.proveedorId === filterProv);
     if (filterTipo) list = list.filter((o) => o.tipo === filterTipo);
+    if (bq) list = list.filter((o) => {
+      const prod = prodMap.get(o.productoId) || "";
+      const prov = provMap.get(o.proveedorId) || "";
+      return `${prod} ${prov} ${o.notas || ""}`.toLowerCase().includes(bq);
+    });
     return list.sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [ofertas, filterProv, filterTipo]);
+  }, [ofertas, filterProv, filterTipo, bq, prodMap, provMap]);
 
   const handleSave = (o: Oferta) => {
     guardarOferta(o);
@@ -1431,12 +1491,13 @@ function TabOfertas({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select className={`${inputCls} w-auto min-w-[160px]`} value={filterProv} onChange={(e) => setFilterProv(e.target.value)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar producto o proveedor..." />
+        <select className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400" value={filterProv} onChange={(e) => setFilterProv(e.target.value)}>
           <option value="">Todos los proveedores</option>
           {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
-        <select className={`${inputCls} w-auto min-w-[140px]`} value={filterTipo} onChange={(e) => setFilterTipo(e.target.value as "" | "panel" | "micro")}>
+        <select className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400" value={filterTipo} onChange={(e) => setFilterTipo(e.target.value as "" | "panel" | "micro")}>
           <option value="">Todo tipo</option>
           <option value="panel">Paneles</option>
           <option value="micro">Microinversores</option>

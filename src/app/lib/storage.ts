@@ -421,10 +421,17 @@ export function consolidarProductos(): boolean {
     // Keep the one with the shortest modelo (cleaner name)
     group.sort((a, b) => a.modelo.length - b.modelo.length);
     const keep = group[0];
+    // Collect all alternate names as aliases
+    const existingAliases = new Set(keep.aliases || []);
     for (let i = 1; i < group.length; i++) {
+      const alt = `${group[i].marca} — ${group[i].modelo}`;
+      existingAliases.add(alt);
+      // Also carry over any aliases from the removed product
+      if (group[i].aliases) group[i].aliases!.forEach((a) => existingAliases.add(a));
       panelIdMap.set(group[i].id, keep.id);
       panelRemove.add(group[i].id);
     }
+    keep.aliases = [...existingAliases];
   }
 
   // ── Micros: fuzzy grouping ──
@@ -449,10 +456,15 @@ export function consolidarProductos(): boolean {
   for (const group of microGroups) {
     group.sort((a, b) => a.modelo.length - b.modelo.length);
     const keep = group[0];
+    const existingAliases = new Set(keep.aliases || []);
     for (let i = 1; i < group.length; i++) {
+      const alt = `${group[i].marca} — ${group[i].modelo}`;
+      existingAliases.add(alt);
+      if (group[i].aliases) group[i].aliases!.forEach((a) => existingAliases.add(a));
       microIdMap.set(group[i].id, keep.id);
       microRemove.add(group[i].id);
     }
+    keep.aliases = [...existingAliases];
   }
 
   // Update ofertas with new product IDs
@@ -466,14 +478,14 @@ export function consolidarProductos(): boolean {
     if (ofChanged) localStorage.setItem(OFERTAS_KEY, JSON.stringify(ofertas));
   }
 
-  // Remove duplicate products
-  if (panelRemove.size > 0) {
+  // Remove duplicate products and save updated aliases
+  if (panelRemove.size > 0 || panelGroups.length > 0) {
     localStorage.setItem(PROD_PANELES_KEY, JSON.stringify(paneles.filter((p) => !panelRemove.has(p.id))));
-    changed = true;
+    if (panelRemove.size > 0) changed = true;
   }
-  if (microRemove.size > 0) {
+  if (microRemove.size > 0 || microGroups.length > 0) {
     localStorage.setItem(PROD_MICROS_KEY, JSON.stringify(micros.filter((m) => !microRemove.has(m.id))));
-    changed = true;
+    if (microRemove.size > 0) changed = true;
   }
 
   return changed;
