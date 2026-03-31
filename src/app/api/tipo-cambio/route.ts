@@ -16,8 +16,12 @@ async function fetchBanxico() {
   const dato = data?.bmx?.series?.[0]?.datos?.[0];
   if (!dato || dato.dato === "N/E") return null;
 
+  // Banxico sometimes uses comma as decimal separator
+  const valor = parseFloat(String(dato.dato).replace(",", "."));
+  if (isNaN(valor)) return null;
+
   return {
-    tipoCambio: parseFloat(dato.dato),
+    tipoCambio: valor,
     fecha: dato.fecha,
     fuente: "Banxico - Tipo de cambio FIX (DOF)",
   };
@@ -46,7 +50,11 @@ async function fetchExchangeRateAPI() {
 
 export async function GET() {
   try {
-    const result = (await fetchBanxico()) || (await fetchExchangeRateAPI());
+    const banxico = await fetchBanxico();
+    if (!banxico) {
+      console.warn("[tipo-cambio] Banxico no disponible (BANXICO_TOKEN=%s), usando fallback", BANXICO_TOKEN ? "set" : "MISSING");
+    }
+    const result = banxico || (await fetchExchangeRateAPI());
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
