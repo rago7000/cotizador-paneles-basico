@@ -20,6 +20,8 @@ import {
   tendenciaOferta,
   historialPrecios,
   migrarCatalogoLegacy,
+  consolidarProveedores,
+  consolidarProductos,
   guardarArchivoProveedor,
   listarArchivosProveedor,
   obtenerArchivoProveedor,
@@ -1420,6 +1422,8 @@ export default function CatalogoPage() {
 
   useEffect(() => {
     migrarCatalogoLegacy();
+    consolidarProveedores();
+    consolidarProductos();
     reload();
   }, []);
 

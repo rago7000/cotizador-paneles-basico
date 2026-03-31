@@ -255,6 +255,155 @@ export function historialPrecios(productoId: string, proveedorId: string, oferta
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
+// ── Consolidar proveedores duplicados ────────────────────────────────────────
+
+const normalizeName = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").trim();
+
+/**
+ * Merges proveedores with the same normalized name into a single entity.
+ * Updates all references in ofertas and archivos_proveedor.
+ * Returns true if any merges were performed.
+ */
+export function consolidarProveedores(): boolean {
+  if (typeof window === "undefined") return false;
+  const proveedores = listarProveedores();
+  if (proveedores.length <= 1) return false;
+
+  // Group by normalized name
+  const groups = new Map<string, Proveedor[]>();
+  for (const p of proveedores) {
+    const key = normalizeName(p.nombre);
+    const group = groups.get(key) || [];
+    group.push(p);
+    groups.set(key, group);
+  }
+
+  // Find groups with duplicates
+  const merges: { keep: Proveedor; remove: string[] }[] = [];
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+    // Keep the one with the longest name (most complete), or first
+    const sorted = [...group].sort((a, b) => b.nombre.length - a.nombre.length || a.id.localeCompare(b.id));
+    const keep = sorted[0];
+    const removeIds = sorted.slice(1).map((p) => p.id);
+    merges.push({ keep, remove: removeIds });
+  }
+
+  if (merges.length === 0) return false;
+
+  // Build a mapping: old ID → new ID
+  const idMap = new Map<string, string>();
+  for (const { keep, remove } of merges) {
+    for (const oldId of remove) {
+      idMap.set(oldId, keep.id);
+    }
+  }
+
+  // Update ofertas
+  const ofertas = listarOfertas();
+  let ofertasChanged = false;
+  for (const o of ofertas) {
+    const newId = idMap.get(o.proveedorId);
+    if (newId) { o.proveedorId = newId; ofertasChanged = true; }
+  }
+  if (ofertasChanged) {
+    localStorage.setItem(OFERTAS_KEY, JSON.stringify(ofertas));
+  }
+
+  // Update archivos
+  const archivos = listarArchivosProveedor();
+  let archivosChanged = false;
+  for (const a of archivos) {
+    const newId = idMap.get(a.proveedorId);
+    if (newId) { a.proveedorId = newId; archivosChanged = true; }
+  }
+  if (archivosChanged) {
+    localStorage.setItem(ARCHIVOS_PROV_KEY, JSON.stringify(archivos));
+  }
+
+  // Remove duplicate proveedores
+  const removeSet = new Set<string>();
+  for (const { remove } of merges) remove.forEach((id) => removeSet.add(id));
+  const cleaned = proveedores.filter((p) => !removeSet.has(p.id));
+  localStorage.setItem(PROVEEDORES_KEY, JSON.stringify(cleaned));
+
+  return true;
+}
+
+/**
+ * Merges duplicate products (same normalized marca+modelo) into a single entity.
+ * Updates all ofertas to point to the surviving product.
+ */
+export function consolidarProductos(): boolean {
+  if (typeof window === "undefined") return false;
+
+  let changed = false;
+
+  // Panels
+  const paneles = listarProductosPaneles();
+  const panelGroups = new Map<string, ProductoPanel[]>();
+  for (const p of paneles) {
+    const key = `${normalizeName(p.marca)}::${normalizeName(p.modelo)}`;
+    const g = panelGroups.get(key) || [];
+    g.push(p);
+    panelGroups.set(key, g);
+  }
+  const panelIdMap = new Map<string, string>();
+  const panelRemove = new Set<string>();
+  for (const [, group] of panelGroups) {
+    if (group.length <= 1) continue;
+    const keep = group[0];
+    for (let i = 1; i < group.length; i++) {
+      panelIdMap.set(group[i].id, keep.id);
+      panelRemove.add(group[i].id);
+    }
+  }
+
+  // Micros
+  const micros = listarProductosMicros();
+  const microGroups = new Map<string, ProductoMicro[]>();
+  for (const m of micros) {
+    const key = `${normalizeName(m.marca)}::${normalizeName(m.modelo)}`;
+    const g = microGroups.get(key) || [];
+    g.push(m);
+    microGroups.set(key, g);
+  }
+  const microIdMap = new Map<string, string>();
+  const microRemove = new Set<string>();
+  for (const [, group] of microGroups) {
+    if (group.length <= 1) continue;
+    const keep = group[0];
+    for (let i = 1; i < group.length; i++) {
+      microIdMap.set(group[i].id, keep.id);
+      microRemove.add(group[i].id);
+    }
+  }
+
+  // Update ofertas with new product IDs
+  if (panelIdMap.size > 0 || microIdMap.size > 0) {
+    const ofertas = listarOfertas();
+    let ofChanged = false;
+    for (const o of ofertas) {
+      const newId = panelIdMap.get(o.productoId) || microIdMap.get(o.productoId);
+      if (newId) { o.productoId = newId; ofChanged = true; }
+    }
+    if (ofChanged) localStorage.setItem(OFERTAS_KEY, JSON.stringify(ofertas));
+  }
+
+  // Remove duplicate products
+  if (panelRemove.size > 0) {
+    localStorage.setItem(PROD_PANELES_KEY, JSON.stringify(paneles.filter((p) => !panelRemove.has(p.id))));
+    changed = true;
+  }
+  if (microRemove.size > 0) {
+    localStorage.setItem(PROD_MICROS_KEY, JSON.stringify(micros.filter((m) => !microRemove.has(m.id))));
+    changed = true;
+  }
+
+  return changed;
+}
+
 // ── Archivos de proveedores (PDFs importados) ──────────────────────────────
 
 const ARCHIVOS_PROV_KEY = "archivos_proveedor";
