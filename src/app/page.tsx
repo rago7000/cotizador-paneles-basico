@@ -489,6 +489,7 @@ export default function Home() {
   const [nombreVariante, setNombreVariante] = useState("");
   const [mostrarVariantes, setMostrarVariantes] = useState(false);
   const [mostrarPDFCliente, setMostrarPDFCliente] = useState(false);
+  const [mostrarComparador, setMostrarComparador] = useState(false);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -2243,8 +2244,8 @@ export default function Home() {
 
                             {/* Comparación: mejor para cliente vs mejor para nosotros */}
                             {variantes.length >= 2 && (
-                              <div className="px-4 py-3 bg-zinc-900/80 border-t border-zinc-700 space-y-1.5">
-                                <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide mb-2">Comparación</p>
+                              <div className="px-4 py-3 bg-zinc-900/80 border-t border-zinc-700 space-y-2">
+                                <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">Comparación</p>
                                 {(() => {
                                   const mejorCliente = [...variantes].sort((a, b) => a.precios.total - b.precios.total)[0];
                                   const mejorNosotros = [...variantes].sort((a, b) => b.precios.utilidadNeta - a.precios.utilidadNeta)[0];
@@ -2261,6 +2262,12 @@ export default function Home() {
                                     </>
                                   );
                                 })()}
+                                <button
+                                  onClick={() => setMostrarComparador((v) => !v)}
+                                  className="w-full text-xs text-center py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors mt-1"
+                                >
+                                  {mostrarComparador ? "Cerrar comparador" : "Ver comparador completo"}
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2374,6 +2381,131 @@ export default function Home() {
               vigenciaDias={15}
               notas=""
             />
+          </div>
+        )}
+        {/* ── Comparador de variantes ──────────────────────────────── */}
+        {mostrarComparador && variantes.length >= 2 && (
+          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+              <span className="text-sm font-medium text-zinc-300">Comparador de variantes</span>
+              <button
+                onClick={() => setMostrarComparador(false)}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left px-4 py-3 text-zinc-500 font-medium w-36">Concepto</th>
+                    {variantes.map((v) => (
+                      <th key={v.id} className="text-right px-4 py-3 text-zinc-300 font-semibold min-w-[140px]">
+                        {v.nombre}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Config de utilidad */}
+                  <tr className="border-b border-zinc-800/50 bg-zinc-800/20">
+                    <td className="px-4 py-2 text-zinc-500">Utilidad</td>
+                    {variantes.map((v) => (
+                      <td key={v.id} className="px-4 py-2 text-right text-zinc-400 font-mono">
+                        {v.utilidad.tipo === "global" ? `${v.utilidad.globalPct}%` : "por partida"}
+                        {v.utilidad.montoFijo > 0 && ` +$${fmt(v.utilidad.montoFijo)}`}
+                      </td>
+                    ))}
+                  </tr>
+                  {/* Partidas */}
+                  {[
+                    ["Paneles", (v: CotizacionCliente) => v.precios.paneles],
+                    ["Inversores", (v: CotizacionCliente) => v.precios.inversores],
+                    ["Estructura", (v: CotizacionCliente) => v.precios.estructura],
+                    ["Tornillería", (v: CotizacionCliente) => v.precios.tornilleria],
+                    ["Generales", (v: CotizacionCliente) => v.precios.generales],
+                  ].map(([label, getter]) => {
+                    const fn = getter as (v: CotizacionCliente) => number;
+                    const anyNonZero = variantes.some((v) => fn(v) > 0);
+                    if (!anyNonZero) return null;
+                    return (
+                      <tr key={label as string} className="border-b border-zinc-800/50">
+                        <td className="px-4 py-2 text-zinc-500">{label as string}</td>
+                        {variantes.map((v) => (
+                          <td key={v.id} className="px-4 py-2 text-right text-zinc-300 font-mono">
+                            ${fmt(fn(v))}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                  {/* Subtotal */}
+                  <tr className="border-b border-zinc-800 bg-zinc-800/20">
+                    <td className="px-4 py-2 text-zinc-400 font-medium">Subtotal</td>
+                    {variantes.map((v) => (
+                      <td key={v.id} className="px-4 py-2 text-right text-zinc-300 font-mono font-medium">
+                        ${fmt(v.precios.subtotal)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-zinc-800/50">
+                    <td className="px-4 py-2 text-zinc-500">IVA 16%</td>
+                    {variantes.map((v) => (
+                      <td key={v.id} className="px-4 py-2 text-right text-zinc-400 font-mono">
+                        ${fmt(v.precios.iva)}
+                      </td>
+                    ))}
+                  </tr>
+                  {/* Total */}
+                  <tr className="border-b border-zinc-700 bg-emerald-400/5">
+                    <td className="px-4 py-3 text-emerald-400 font-semibold">Total cliente</td>
+                    {variantes.map((v) => {
+                      const isMin = v.precios.total === Math.min(...variantes.map((x) => x.precios.total));
+                      return (
+                        <td key={v.id} className={`px-4 py-3 text-right font-mono font-bold text-lg ${isMin ? "text-emerald-400" : "text-zinc-300"}`}>
+                          ${fmt(v.precios.total)}
+                          {isMin && <span className="block text-[10px] font-normal text-emerald-400/60">mejor precio</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  {/* Métricas */}
+                  <tr className="border-b border-zinc-800/50">
+                    <td className="px-4 py-2 text-zinc-500">Precio / panel</td>
+                    {variantes.map((v) => (
+                      <td key={v.id} className="px-4 py-2 text-right text-emerald-300 font-mono font-medium">
+                        ${fmt(v.precios.porPanel)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-zinc-800/50">
+                    <td className="px-4 py-2 text-zinc-500">Precio / Watt</td>
+                    {variantes.map((v) => (
+                      <td key={v.id} className="px-4 py-2 text-right text-emerald-300 font-mono">
+                        ${fmt(v.precios.porWatt)}
+                      </td>
+                    ))}
+                  </tr>
+                  {/* Utilidad */}
+                  <tr className="bg-amber-400/5">
+                    <td className="px-4 py-3 text-amber-400 font-semibold">Utilidad neta</td>
+                    {variantes.map((v) => {
+                      const isMax = v.precios.utilidadNeta === Math.max(...variantes.map((x) => x.precios.utilidadNeta));
+                      return (
+                        <td key={v.id} className={`px-4 py-3 text-right font-mono font-bold text-lg ${isMax ? "text-amber-400" : "text-zinc-300"}`}>
+                          ${fmt(v.precios.utilidadNeta)}
+                          <span className="block text-[10px] font-normal text-zinc-500">{v.precios.utilidadPct.toFixed(1)}%</span>
+                          {isMax && <span className="block text-[10px] font-normal text-amber-400/60">mayor utilidad</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
