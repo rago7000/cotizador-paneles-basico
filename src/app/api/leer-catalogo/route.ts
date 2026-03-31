@@ -128,7 +128,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err: unknown) {
     console.error("[leer-catalogo]", err);
-    const msg = err instanceof Error ? err.message : "Error procesando el PDF";
+    let msg = err instanceof Error ? err.message : "Error procesando el archivo";
+    // Friendly messages for common API errors
+    if (msg.includes("Overloaded") || msg.includes("529")) {
+      msg = "El servicio de IA está saturado en este momento. Intenta de nuevo en unos segundos.";
+    } else if (msg.includes("rate") || msg.includes("429")) {
+      msg = "Demasiadas solicitudes. Espera un momento e intenta de nuevo.";
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
