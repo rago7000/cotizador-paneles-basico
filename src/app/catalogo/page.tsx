@@ -1170,6 +1170,102 @@ function ImportadorPDF({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ARCHIVO VIEWER MODAL — vista previa PDF/imagen + condiciones
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ArchivoViewerModal({ archivo, onClose }: { archivo: ArchivoProveedor; onClose: () => void }) {
+  const [tab, setTab] = useState<"preview" | "condiciones">("preview");
+
+  const isPdf = archivo.nombre.toLowerCase().endsWith(".pdf");
+  const dataUrl = archivo.base64
+    ? isPdf
+      ? `data:application/pdf;base64,${archivo.base64}`
+      : `data:image/${archivo.nombre.toLowerCase().endsWith(".png") ? "png" : "jpeg"};base64,${archivo.base64}`
+    : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-5xl h-[90vh] flex flex-col m-4" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100">{archivo.nombre}</h3>
+            <p className="text-[10px] text-zinc-500">
+              Importado {fmtDateTime(archivo.fechaImportacion)}
+              {archivo.fechaDocumento && <> · Precios de <span className="text-emerald-400">{archivo.fechaDocumento}</span></>}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {dataUrl && (
+              <a
+                href={dataUrl}
+                download={archivo.nombre}
+                className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+              >
+                Descargar
+              </a>
+            )}
+            <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none px-2">&times;</button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 px-5 py-2 border-b border-zinc-800 shrink-0">
+          <button
+            onClick={() => setTab("preview")}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${tab === "preview" ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
+          >
+            Vista previa
+          </button>
+          {(archivo.resumenCondiciones || archivo.condiciones) && (
+            <button
+              onClick={() => setTab("condiciones")}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${tab === "condiciones" ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              Condiciones
+            </button>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {tab === "preview" && dataUrl && (
+            isPdf ? (
+              <iframe src={dataUrl} className="w-full h-full border-0" title={archivo.nombre} />
+            ) : (
+              <div className="w-full h-full overflow-auto flex items-start justify-center p-4 bg-zinc-950">
+                <img src={dataUrl} alt={archivo.nombre} className="max-w-full h-auto" />
+              </div>
+            )
+          )}
+          {tab === "preview" && !dataUrl && (
+            <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
+              No hay vista previa disponible
+            </div>
+          )}
+          {tab === "condiciones" && (
+            <div className="overflow-y-auto h-full p-5 space-y-4">
+              {archivo.resumenCondiciones && (
+                <div>
+                  <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-2">Puntos clave para la compra</h4>
+                  <div className="text-xs text-zinc-300 whitespace-pre-line leading-relaxed">{archivo.resumenCondiciones}</div>
+                </div>
+              )}
+              {archivo.condiciones && (
+                <div>
+                  <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Condiciones completas del proveedor</h4>
+                  <div className="text-[11px] text-zinc-500 whitespace-pre-line leading-relaxed p-3 rounded-lg bg-zinc-800/50">{archivo.condiciones}</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // TAB 3 — OFERTAS
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1351,49 +1447,9 @@ function TabOfertas({
         </div>
       )}
 
-      {/* Modal: ver archivo PDF de origen */}
+      {/* Modal: ver archivo de origen */}
       {viewingArchivo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setViewingArchivo(null)}>
-          <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-100">{viewingArchivo.nombre}</h3>
-                <p className="text-[10px] text-zinc-500">
-                  Importado {fmtDateTime(viewingArchivo.fechaImportacion)}
-                  {viewingArchivo.fechaDocumento && <> · Precios de <span className="text-emerald-400">{viewingArchivo.fechaDocumento}</span></>}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {viewingArchivo.base64 && (
-                  <a
-                    href={`data:application/pdf;base64,${viewingArchivo.base64}`}
-                    download={viewingArchivo.nombre}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
-                  >
-                    Descargar PDF
-                  </a>
-                )}
-                <button onClick={() => setViewingArchivo(null)} className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none px-2">&times;</button>
-              </div>
-            </div>
-
-            {/* Resumen de condiciones */}
-            {viewingArchivo.resumenCondiciones && (
-              <div className="px-5 py-4 border-b border-zinc-800">
-                <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-2">Puntos clave para la compra</h4>
-                <div className="text-xs text-zinc-300 whitespace-pre-line leading-relaxed">{viewingArchivo.resumenCondiciones}</div>
-              </div>
-            )}
-
-            {/* Condiciones completas */}
-            {viewingArchivo.condiciones && (
-              <div className="px-5 py-4">
-                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Condiciones completas del proveedor</h4>
-                <div className="text-[11px] text-zinc-500 whitespace-pre-line leading-relaxed max-h-60 overflow-y-auto p-3 rounded-lg bg-zinc-800/50">{viewingArchivo.condiciones}</div>
-              </div>
-            )}
-          </div>
-        </div>
+        <ArchivoViewerModal archivo={viewingArchivo} onClose={() => setViewingArchivo(null)} />
       )}
     </div>
   );
