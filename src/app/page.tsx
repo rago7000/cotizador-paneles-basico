@@ -1930,18 +1930,32 @@ export default function Home() {
                 <>
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-xs uppercase tracking-wide font-medium ${tcFrozen ? "text-amber-400" : "text-zinc-500"}`}>
-                      {tcFrozen ? "🔒 TC Congelado" : "Tipo de cambio DOF"}
+                      {tcFrozen ? "TC Manual" : "Tipo de cambio DOF"}
                     </span>
                     <span className="text-xs text-zinc-600">
-                      {tcFrozen ? "fijo en cotización" : tc?.fecha}
+                      {tcFrozen ? "editable — escribe el del DOF" : tc?.fecha}
                     </span>
                   </div>
 
                   <div className="flex items-end justify-between gap-2">
                     <div className="flex items-end gap-2">
-                      <span className="text-2xl font-bold text-zinc-100 font-mono">
-                        ${tcVal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                      </span>
+                      {tcFrozen ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-zinc-500 text-xl font-mono">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.0001}
+                            value={tcSnapshotLocal}
+                            onChange={(e) => setTcSnapshotLocal(e.target.value)}
+                            className="w-32 text-2xl font-bold text-amber-300 font-mono bg-transparent border-b border-amber-400/40 outline-none focus:border-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-2xl font-bold text-zinc-100 font-mono">
+                          ${tcVal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        </span>
+                      )}
                       <span className="text-sm text-zinc-500 mb-0.5">MXN/USD</span>
                     </div>
 
@@ -1950,6 +1964,7 @@ export default function Home() {
                       onClick={() => {
                         if (tcFrozen) {
                           setTcFrozen(false);
+                          setTcSnapshotLocal("");
                         } else {
                           const snap = String(tcLive || tcVal);
                           setTcSnapshotLocal(snap);
@@ -1957,7 +1972,7 @@ export default function Home() {
                         }
                       }}
                       disabled={!tcLive && !tcFrozen}
-                      title={tcFrozen ? "Descongelar — volver al DOF en vivo" : "Congelar este TC en la cotización"}
+                      title={tcFrozen ? "Descongelar — volver al DOF en vivo" : "Fijar TC manualmente (puedes escribir el del DOF)"}
                       className={`shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                         tcFrozen
                           ? "bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/10"
@@ -1969,23 +1984,25 @@ export default function Home() {
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                           </svg>
-                          Descongelar
+                          Soltar
                         </>
                       ) : (
                         <>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z M12 7a4 4 0 00-4 4" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a4 4 0 014 4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
-                          Congelar
+                          Editar
                         </>
                       )}
                     </button>
                   </div>
 
-                  {tcFrozen && tcLive > 0 && tcLive !== tcVal && (
-                    <p className="text-xs text-zinc-600 mt-1.5">
-                      DOF hoy: ${fmt(tcLive)} — diferencia: {tcVal > tcLive ? "+" : ""}{fmt(tcVal - tcLive)}
+                  {tcFrozen && (
+                    <p className="text-xs text-zinc-500 mt-1.5">
+                      Escribe el TC del DOF para pagos. API: ${tcLive.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                      {Number(tcSnapshotLocal) > 0 && tcLive > 0 && Number(tcSnapshotLocal) !== tcLive && (
+                        <span className="text-zinc-600"> (dif: {Number(tcSnapshotLocal) > tcLive ? "+" : ""}{(Number(tcSnapshotLocal) - tcLive).toFixed(4)})</span>
+                      )}
                     </p>
                   )}
                   {!tcFrozen && tc && (
