@@ -8,6 +8,7 @@ import {
   ProductoPanel,
   ProductoMicro,
   Oferta,
+  CotizacionCliente,
 } from "./types";
 
 // ── Cotizaciones ──────────────────────────────────────────────────────────────
@@ -251,6 +252,29 @@ export function historialPrecios(productoId: string, proveedorId: string, oferta
   return ofertas
     .filter((o) => o.productoId === productoId && o.proveedorId === proveedorId)
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+// ── Cotizaciones Cliente ────────────────────────────────────────────────────
+
+const COT_CLIENTE_KEY = "cotizaciones_cliente";
+
+export function listarCotizacionesCliente(cotizacionBase?: string): CotizacionCliente[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const all: CotizacionCliente[] = JSON.parse(localStorage.getItem(COT_CLIENTE_KEY) || "[]");
+    return cotizacionBase ? all.filter((c) => c.cotizacionBase === cotizacionBase) : all;
+  } catch { return []; }
+}
+
+export function guardarCotizacionCliente(c: CotizacionCliente): void {
+  const lista = listarCotizacionesCliente();
+  const idx = lista.findIndex((x) => x.id === c.id);
+  if (idx >= 0) lista[idx] = c; else lista.push(c);
+  localStorage.setItem(COT_CLIENTE_KEY, JSON.stringify(lista));
+}
+
+export function eliminarCotizacionCliente(id: string): void {
+  localStorage.setItem(COT_CLIENTE_KEY, JSON.stringify(listarCotizacionesCliente().filter((x) => x.id !== id)));
 }
 
 // ── Migración de catálogo legacy ─────────────────────────────────────────────

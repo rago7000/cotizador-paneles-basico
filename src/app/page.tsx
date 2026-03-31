@@ -14,6 +14,9 @@ import {
   guardarCatalogoMicro,
   guardarSeguimiento,
   cargarSeguimiento,
+  listarCotizacionesCliente,
+  guardarCotizacionCliente,
+  eliminarCotizacionCliente,
 } from "./lib/storage";
 import type {
   CotizacionData,
@@ -24,6 +27,7 @@ import type {
   CatalogoMicro,
   SeguimientoData,
   UtilidadConfig,
+  CotizacionCliente,
 } from "./lib/types";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -469,6 +473,9 @@ export default function Home() {
   const utilidadDefault: UtilidadConfig = { tipo: "global", globalPct: 25, panelesPct: 25, inversoresPct: 25, estructuraPct: 25, tornilleriaPct: 25, generalesPct: 25, montoFijo: 0 };
   const [mostrarPrecioCliente, setMostrarPrecioCliente] = useState(false);
   const [utilidad, setUtilidad] = useState<UtilidadConfig>(utilidadDefault);
+  const [variantes, setVariantes] = useState<CotizacionCliente[]>([]);
+  const [nombreVariante, setNombreVariante] = useState("");
+  const [mostrarVariantes, setMostrarVariantes] = useState(false);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -600,6 +607,7 @@ export default function Home() {
     if (!nombreCotizacion.trim()) { setMsgGuardado("err"); setTimeout(() => setMsgGuardado(""), 2500); return; }
     guardarCotizacion(getFormData());
     setCotizacionesGuardadas(listarCotizaciones());
+    setVariantes(listarCotizacionesCliente(nombreCotizacion.trim()));
     setMsgGuardado("ok");
     setTimeout(() => setMsgGuardado(""), 2500);
   };
@@ -638,8 +646,63 @@ export default function Home() {
     } else {
       setMostrarPrecioCliente(false);
     }
+    setVariantes(listarCotizacionesCliente(data.nombre));
     setReciboDetalle(false);
     setMostrarGuardadas(false);
+  };
+
+  const handleGuardarVariante = () => {
+    if (!nombreCotizacion.trim() || !nombreVariante.trim() || subtotalMXN <= 0) return;
+    const c: CotizacionCliente = {
+      id: uid(),
+      cotizacionBase: nombreCotizacion,
+      nombre: nombreVariante,
+      fecha: new Date().toISOString(),
+      utilidad: { ...utilidad },
+      costos: {
+        paneles: partidaPanelesMXN,
+        inversores: partidaInversoresMXN,
+        estructura: partidaEstructuraMXN,
+        tornilleria: partidaTornilleriaMXN,
+        generales: partidaGeneralesMXN,
+        subtotal: subtotalMXN,
+        iva: ivaMXN,
+        total: totalMXN,
+        cantidadPaneles: cantidadNum,
+        potenciaW: potenciaNum,
+      },
+      precios: {
+        paneles: clientePanelesMXN,
+        inversores: clienteInversoresMXN,
+        estructura: clienteEstructuraMXN,
+        tornilleria: clienteTornilleriaMXN,
+        generales: clienteGeneralesMXN,
+        montoFijo: utilidad.montoFijo,
+        subtotal: clienteSubtotalMXN,
+        iva: clienteIvaMXN,
+        total: clienteTotalMXN,
+        porPanel: clientePorPanel,
+        porWatt: clientePorWatt,
+        utilidadNeta: utilidadNetaMXN,
+        utilidadPct: utilidadNetaPct,
+      },
+      notas: "",
+      vigenciaDias: 15,
+    };
+    guardarCotizacionCliente(c);
+    setVariantes(listarCotizacionesCliente(nombreCotizacion));
+    setNombreVariante("");
+    setMostrarVariantes(true);
+  };
+
+  const handleEliminarVariante = (id: string) => {
+    eliminarCotizacionCliente(id);
+    setVariantes(listarCotizacionesCliente(nombreCotizacion));
+  };
+
+  const handleCargarVariante = (v: CotizacionCliente) => {
+    setUtilidad(v.utilidad);
+    setMostrarPrecioCliente(true);
   };
 
   const handleEliminar = (nombre: string) => {
@@ -2083,6 +2146,114 @@ export default function Home() {
                         <span className="text-lg font-bold text-amber-400 font-mono">${fmt(utilidadNetaMXN)}</span>
                       </div>
                     </div>
+
+                    {/* Guardar variante */}
+                    {nombreCotizacion.trim() && (
+                      <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            value={nombreVariante}
+                            onChange={(e) => setNombreVariante(e.target.value)}
+                            placeholder="Nombre de variante (ej: Opción A)"
+                            className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-emerald-400"
+                          />
+                          <button
+                            onClick={handleGuardarVariante}
+                            disabled={!nombreVariante.trim()}
+                            className="rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                        {!nombreCotizacion.trim() && (
+                          <p className="text-[10px] text-red-400">Primero guarda la cotización de costos</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Lista de variantes guardadas */}
+                    {variantes.length > 0 && (
+                      <div className="border-t border-zinc-800">
+                        <button
+                          onClick={() => setMostrarVariantes((v) => !v)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-zinc-800/50 transition-colors"
+                        >
+                          <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">
+                            {variantes.length} variante{variantes.length > 1 ? "s" : ""} guardada{variantes.length > 1 ? "s" : ""}
+                          </span>
+                          <span className="text-xs text-zinc-600">{mostrarVariantes ? "▲" : "▼"}</span>
+                        </button>
+
+                        {mostrarVariantes && (
+                          <div className="space-y-px">
+                            {variantes.map((v) => (
+                              <div key={v.id} className="px-4 py-3 bg-zinc-800/30 border-t border-zinc-800/50">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <p className="text-xs font-medium text-zinc-300">{v.nombre}</p>
+                                    <p className="text-[10px] text-zinc-600">
+                                      {v.utilidad.tipo === "global" ? `${v.utilidad.globalPct}% global` : "% por partida"}
+                                      {v.utilidad.montoFijo > 0 && ` + $${fmt(v.utilidad.montoFijo)}`}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      onClick={() => handleCargarVariante(v)}
+                                      className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                                    >
+                                      Usar
+                                    </button>
+                                    <button
+                                      onClick={() => handleEliminarVariante(v.id)}
+                                      className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <p className="text-[10px] text-zinc-600">Total</p>
+                                    <p className="text-xs font-bold text-emerald-400 font-mono">${fmt(v.precios.total)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-zinc-600">Por panel</p>
+                                    <p className="text-xs font-bold text-emerald-300 font-mono">${fmt(v.precios.porPanel)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-zinc-600">Utilidad</p>
+                                    <p className="text-xs font-bold text-amber-400 font-mono">${fmt(v.precios.utilidadNeta)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Comparación: mejor para cliente vs mejor para nosotros */}
+                            {variantes.length >= 2 && (
+                              <div className="px-4 py-3 bg-zinc-900/80 border-t border-zinc-700 space-y-1.5">
+                                <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide mb-2">Comparación</p>
+                                {(() => {
+                                  const mejorCliente = [...variantes].sort((a, b) => a.precios.total - b.precios.total)[0];
+                                  const mejorNosotros = [...variantes].sort((a, b) => b.precios.utilidadNeta - a.precios.utilidadNeta)[0];
+                                  return (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] text-zinc-500">Mejor para cliente</span>
+                                        <span className="text-xs text-emerald-400 font-medium">{mejorCliente.nombre} — ${fmt(mejorCliente.precios.total)}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] text-zinc-500">Mejor para nosotros</span>
+                                        <span className="text-xs text-amber-400 font-medium">{mejorNosotros.nombre} — ${fmt(mejorNosotros.precios.utilidadNeta)}</span>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

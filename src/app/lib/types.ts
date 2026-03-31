@@ -139,6 +139,47 @@ export interface UtilidadConfig {
   montoFijo: number; // MXN adicional
 }
 
+// ── Cotización Cliente (variantes) ───────────────────────────────────────────
+
+export interface CotizacionCliente {
+  id: string;
+  cotizacionBase: string;      // nombre de la cotización de costos
+  nombre: string;              // ej: "Opción A — 30%", "Opción B — por partida"
+  fecha: string;               // ISO
+  utilidad: UtilidadConfig;
+  // Snapshot de costos al momento de guardar
+  costos: {
+    paneles: number;
+    inversores: number;
+    estructura: number;
+    tornilleria: number;
+    generales: number;
+    subtotal: number;
+    iva: number;
+    total: number;
+    cantidadPaneles: number;
+    potenciaW: number;
+  };
+  // Precios calculados al cliente
+  precios: {
+    paneles: number;
+    inversores: number;
+    estructura: number;
+    tornilleria: number;
+    generales: number;
+    montoFijo: number;
+    subtotal: number;
+    iva: number;
+    total: number;
+    porPanel: number;
+    porWatt: number;
+    utilidadNeta: number;
+    utilidadPct: number;
+  };
+  notas: string;
+  vigenciaDias: number;
+}
+
 // ── Seguimiento ──────────────────────────────────────────────────────────────
 
 export interface SeguimientoItem {
