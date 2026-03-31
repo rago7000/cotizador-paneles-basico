@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import AppNav from "./components/AppNav";
 import {
@@ -466,6 +466,9 @@ export default function Home() {
   const [catalogoMicros, setCatalogoMicros] = useState<CatalogoMicro[]>([]);
   const [pickerPanel, setPickerPanel] = useState(false);
   const [pickerMicro, setPickerMicro] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerMarca, setPickerMarca] = useState("");
+  const [pickerOrden, setPickerOrden] = useState<"nombre" | "potencia" | "precio">("nombre");
   // "¿Guardar en catálogo?" tras llenar campos manualmente
   const [sugerirGuardarPanel, setSugerirGuardarPanel] = useState(false);
   const [sugerirGuardarMicro, setSugerirGuardarMicro] = useState(false);
@@ -499,6 +502,32 @@ export default function Home() {
   const [mostrarVariantes, setMostrarVariantes] = useState(false);
   const [mostrarPDFCliente, setMostrarPDFCliente] = useState(false);
   const [mostrarComparador, setMostrarComparador] = useState(false);
+
+  // ── Picker: filtered/sorted lists ─────────────────────────────────────────
+  const pq = pickerSearch.toLowerCase().trim();
+  const pickerMarcasPaneles = useMemo(() => [...new Set(catalogoPaneles.map((p) => p.marca))].sort(), [catalogoPaneles]);
+  const pickerMarcasMicros = useMemo(() => [...new Set(catalogoMicros.map((m) => m.marca))].sort(), [catalogoMicros]);
+
+  const pickerPanelesFiltrados = useMemo(() => {
+    let list = catalogoPaneles.filter((p) => {
+      if (pq && !`${p.marca} ${p.modelo}`.toLowerCase().includes(pq)) return false;
+      if (pickerMarca && p.marca !== pickerMarca) return false;
+      return true;
+    });
+    if (pickerOrden === "potencia") list = [...list].sort((a, b) => b.potencia - a.potencia);
+    else if (pickerOrden === "precio") list = [...list].sort((a, b) => a.precioPorWatt - b.precioPorWatt);
+    else list = [...list].sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
+    return list;
+  }, [catalogoPaneles, pq, pickerMarca, pickerOrden]);
+
+  const pickerMicrosFiltrados = useMemo(() => {
+    let list = catalogoMicros.filter((m) => {
+      if (pq && !`${m.marca} ${m.modelo}`.toLowerCase().includes(pq)) return false;
+      if (pickerMarca && m.marca !== pickerMarca) return false;
+      return true;
+    });
+    return list.sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
+  }, [catalogoMicros, pq, pickerMarca]);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -2683,25 +2712,64 @@ export default function Home() {
 
       {/* ── Modal: Picker paneles ────────────────────────────────────────── */}
       {pickerPanel && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setPickerPanel(false)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { setPickerPanel(false); setPickerSearch(""); setPickerMarca(""); }}>
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-100">Seleccionar panel del catálogo</h2>
-              <button onClick={() => setPickerPanel(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={() => { setPickerPanel(false); setPickerSearch(""); setPickerMarca(""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            {/* Search & filters */}
+            {catalogoPaneles.length > 0 && (
+              <div className="px-4 py-3 border-b border-zinc-800 space-y-2">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Buscar marca o modelo..."
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-8 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
+                    autoFocus
+                  />
+                  {pickerSearch && (
+                    <button onClick={() => setPickerSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <select value={pickerMarca} onChange={(e) => setPickerMarca(e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                    <option value="">Todas las marcas</option>
+                    {pickerMarcasPaneles.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <select value={pickerOrden} onChange={(e) => setPickerOrden(e.target.value as "nombre" | "potencia" | "precio")} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                    <option value="nombre">Nombre</option>
+                    <option value="potencia">Potencia</option>
+                    <option value="precio">Precio</option>
+                  </select>
+                  {(pickerSearch || pickerMarca) && (
+                    <span className="self-center text-[10px] text-zinc-600 whitespace-nowrap">{pickerPanelesFiltrados.length} result.</span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="max-h-[50vh] overflow-y-auto">
               {catalogoPaneles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-zinc-600 text-sm">
                   <p>No hay paneles en el catálogo</p>
                   <a href="/catalogo" className="mt-2 text-xs text-amber-400 hover:text-amber-300">Ir al catálogo →</a>
                 </div>
+              ) : pickerPanelesFiltrados.length === 0 ? (
+                <p className="text-center text-sm text-zinc-600 py-8">Sin resultados</p>
               ) : (
                 <div className="divide-y divide-zinc-800">
-                  {catalogoPaneles.map((p) => (
-                    <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                  {pickerPanelesFiltrados.map((p) => (
+                    <button key={p.id} onClick={() => { seleccionarPanel(p); setPickerSearch(""); setPickerMarca(""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD3(p.precioPorWatt)}/W</p>
@@ -2730,25 +2798,59 @@ export default function Home() {
 
       {/* ── Modal: Picker micros ──────────────────────────────────────────── */}
       {pickerMicro && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setPickerMicro(false)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { setPickerMicro(false); setPickerSearch(""); setPickerMarca(""); }}>
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-100">Seleccionar microinversor del catálogo</h2>
-              <button onClick={() => setPickerMicro(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={() => { setPickerMicro(false); setPickerSearch(""); setPickerMarca(""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            {/* Search & filters */}
+            {catalogoMicros.length > 0 && (
+              <div className="px-4 py-3 border-b border-zinc-800 space-y-2">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Buscar marca o modelo..."
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-8 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
+                    autoFocus
+                  />
+                  {pickerSearch && (
+                    <button onClick={() => setPickerSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <select value={pickerMarca} onChange={(e) => setPickerMarca(e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                    <option value="">Todas las marcas</option>
+                    {pickerMarcasMicros.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  {(pickerSearch || pickerMarca) && (
+                    <span className="self-center text-[10px] text-zinc-600 whitespace-nowrap">{pickerMicrosFiltrados.length} result.</span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="max-h-[50vh] overflow-y-auto">
               {catalogoMicros.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-zinc-600 text-sm">
                   <p>No hay microinversores en el catálogo</p>
                   <a href="/catalogo" className="mt-2 text-xs text-amber-400 hover:text-amber-300">Ir al catálogo →</a>
                 </div>
+              ) : pickerMicrosFiltrados.length === 0 ? (
+                <p className="text-center text-sm text-zinc-600 py-8">Sin resultados</p>
               ) : (
                 <div className="divide-y divide-zinc-800">
-                  {catalogoMicros.map((m) => (
-                    <button key={m.id} onClick={() => seleccionarMicro(m)} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                  {pickerMicrosFiltrados.map((m) => (
+                    <button key={m.id} onClick={() => { seleccionarMicro(m); setPickerSearch(""); setPickerMarca(""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
