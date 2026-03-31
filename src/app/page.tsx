@@ -2042,7 +2042,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="bg-emerald-400/5 border-t border-emerald-400/20 px-4 py-4">
+                    <div className="bg-emerald-400/5 border-t border-emerald-400/20 px-4 py-4 space-y-3">
                       <div className="flex items-end justify-between">
                         <span className="text-sm font-semibold text-zinc-300">Total cliente</span>
                         <div className="text-right">
@@ -2052,17 +2052,22 @@ export default function Home() {
                           <div className="text-xs text-zinc-500 mt-0.5">MXN con IVA</div>
                         </div>
                       </div>
+                      {cantidadNum > 0 && (
+                        <div className="flex items-end justify-between pt-2 border-t border-emerald-400/10">
+                          <div>
+                            <span className="text-xs font-semibold text-zinc-400">Precio por panel</span>
+                            <p className="text-[10px] text-zinc-600">Total ÷ {cantidadNum} paneles</p>
+                          </div>
+                          <span className="text-xl font-bold text-emerald-300 font-mono">${fmt(clientePorPanel)}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Métricas */}
                     {cantidadNum > 0 && (
-                      <div className="border-t border-zinc-800 px-4 py-3 grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-[10px] text-zinc-600 uppercase">Por panel</p>
-                          <p className="text-sm font-bold text-emerald-400 font-mono">${fmt(clientePorPanel)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-zinc-600 uppercase">Por Watt</p>
+                      <div className="border-t border-zinc-800 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] text-zinc-600 uppercase">Precio por Watt</p>
                           <p className="text-sm font-bold text-emerald-400 font-mono">${fmt(clientePorWatt)}</p>
                         </div>
                       </div>
