@@ -247,10 +247,14 @@ function LineItemTable({
 }
 
 function PartidaRow({ label, value }: { label: string; value: number }) {
+  const conIva = value * 1.16;
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-zinc-800 last:border-0">
       <span className="text-xs font-medium text-zinc-400 tracking-wide uppercase">{label}</span>
-      <span className="text-sm font-semibold text-zinc-100 font-mono">${fmt(value)}</span>
+      <div className="text-right">
+        <span className="text-sm font-semibold text-zinc-100 font-mono">${fmt(conIva)}</span>
+        <p className="text-[10px] text-zinc-600 font-mono">${fmt(value)} + IVA</p>
+      </div>
     </div>
   );
 }
