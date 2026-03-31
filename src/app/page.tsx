@@ -405,8 +405,8 @@ export default function Home() {
   const [garantiaPaneles, setGarantiaPaneles] = useState("20");
   const [precioMicroinversor, setPrecioMicroinversor] = useState("");
   const [precioCable, setPrecioCable] = useState("");
-  const [precioECU, setPrecioECU] = useState("");
-  const [incluyeECU, setIncluyeECU] = useState(false);
+  const [precioECU, setPrecioECU] = useState("145");
+  const [incluyeECU, setIncluyeECU] = useState(true);
   const [precioHerramienta, setPrecioHerramienta] = useState("");
   const [incluyeHerramienta, setIncluyeHerramienta] = useState(false);
   const [fleteMicros, setFleteMicros] = useState("35");
@@ -446,7 +446,19 @@ export default function Home() {
   const [reciboCFE, setReciboCFE] = useState<ReciboCFEData | null>(null);
   const [loadingRecibo, setLoadingRecibo] = useState(false);
   const [errorRecibo, setErrorRecibo] = useState("");
+  const [reciboDetalle, setReciboDetalle] = useState(false);
+  const [reciboPDFBase64, setReciboPDFBase64] = useState<string | null>(null);
+  const [reciboUltimoAnio, setReciboUltimoAnio] = useState(true); // true = último año (6 bim), false = todo
   const reciboInputRef = useRef<HTMLInputElement>(null);
+
+  // Minisplits — incremento de consumo
+  interface Minisplit { id: string; cantidad: number; toneladas: string; horasDia: number; tipo: "inverter" | "convencional" }
+  const [minisplits, setMinisplits] = useState<Minisplit[]>([]);
+  const [minisplitTemporada, setMinisplitTemporada] = useState<"anual" | "temporada">("temporada"); // temporada = 6 meses
+  const addMinisplit = () => setMinisplits((prev) => [...prev, { id: uid(), cantidad: 1, toneladas: "1", horasDia: 8, tipo: "inverter" }]);
+  const removeMinisplit = (id: string) => setMinisplits((prev) => prev.filter((m) => m.id !== id));
+  const updateMinisplit = (id: string, field: keyof Minisplit, value: string | number) =>
+    setMinisplits((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -522,7 +534,17 @@ export default function Home() {
   useEffect(() => {
     setCotizacionesGuardadas(listarCotizaciones());
     setCatalogoPaneles(listarCatalogoPaneles());
-    setCatalogoMicros(listarCatalogoMicros());
+    const micros = listarCatalogoMicros();
+    setCatalogoMicros(micros);
+    // Auto-select DS3D if available and no micro selected yet
+    if (!precioMicroinversor) {
+      const ds3d = micros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
+      if (ds3d) {
+        setPrecioMicroinversor(String(ds3d.precio));
+        setPrecioCable(String(ds3d.precioCable));
+        setMicroSeleccionado(ds3d);
+      }
+    }
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -536,6 +558,10 @@ export default function Home() {
     precioMicroinversor, precioCable, precioECU, incluyeECU,
     precioHerramienta, incluyeHerramienta, fleteMicros,
     aluminio, fleteAluminio, tornilleria, generales,
+    reciboCFE,
+    reciboPDFBase64,
+    minisplits: minisplits.length > 0 ? minisplits : undefined,
+    minisplitTemporada: minisplits.length > 0 ? minisplitTemporada : undefined,
   });
 
   const handleGuardar = () => {
@@ -570,6 +596,11 @@ export default function Home() {
     setFleteAluminio(data.fleteAluminio);
     setTornilleria(data.tornilleria);
     setGenerales(data.generales);
+    setReciboCFE(data.reciboCFE ?? null);
+    setReciboPDFBase64(data.reciboPDFBase64 ?? null);
+    setMinisplits(data.minisplits ?? []);
+    setMinisplitTemporada(data.minisplitTemporada ?? "temporada");
+    setReciboDetalle(false);
     setMostrarGuardadas(false);
   };
 
@@ -643,6 +674,14 @@ export default function Home() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setReciboCFE(data);
+      // Save PDF as base64 for later viewing
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip "data:application/pdf;base64," prefix
+        setReciboPDFBase64(result);
+      };
+      reader.readAsDataURL(file);
       // Auto-fill quote name if empty
       if (data.nombre && !nombreCotizacion.trim()) {
         setNombreCotizacion(data.nombre);
@@ -661,10 +700,60 @@ export default function Home() {
       ? reciboCFE.consumoMensualPromedio
       : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
     : 0;
-  const kWpSugerido = consumoMensualCFE / (5.5 * 30 * 0.8);
-  const panelesSugeridosCFE = reciboCFE
-    ? Math.ceil((kWpSugerido * 1000) / (Number(potencia) || 545))
+  const GEN_POR_KWP = 5.5 * 30 * 0.8; // 132 kWh/mes por kWp
+  const panelW = Number(potencia) || 545;
+
+  // Histórico filtrado según toggle (último año = 6 bimestres, o todo)
+  const historicoFiltrado = reciboCFE
+    ? reciboUltimoAnio
+      ? reciboCFE.historico.slice(0, 6)
+      : reciboCFE.historico
+    : [];
+  const periodosUsados = historicoFiltrado.length;
+
+  // Consumo mensual promedio (recalculado con el rango seleccionado)
+  const consumoMensualCalc = reciboCFE
+    ? historicoFiltrado.length > 0
+      ? Math.round(historicoFiltrado.reduce((s, h) => s + h.kwh, 0) / historicoFiltrado.length / 2)
+      : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
     : 0;
+
+  // Propuesta 1: Promedio histórico
+  const kWpPromedio = consumoMensualCalc / GEN_POR_KWP;
+  const panelesPromedio = reciboCFE ? Math.ceil((kWpPromedio * 1000) / panelW) : 0;
+
+  // Propuesta 2: Período más alto (referencia)
+  const maxHistKwh = reciboCFE
+    ? Math.max(reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh))
+    : 0;
+  const consumoMensualMax = Math.round(maxHistKwh / 2); // bimestral → mensual
+  const kWpMax = consumoMensualMax / GEN_POR_KWP;
+  const panelesMax = reciboCFE ? Math.ceil((kWpMax * 1000) / panelW) : 0;
+
+  // Propuesta 3: Equilibrada — percentil ~75 para no depender del acumulado
+  const todosKwh = reciboCFE
+    ? [reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh)].sort((a, b) => a - b)
+    : [];
+  const p75Index = Math.floor(todosKwh.length * 0.75);
+  const consumoP75 = todosKwh.length > 0 ? Math.round(todosKwh[p75Index] / 2) : 0;
+  const kWpEquilibrado = consumoP75 / GEN_POR_KWP;
+  const panelesEquilibrado = reciboCFE ? Math.ceil((kWpEquilibrado * 1000) / panelW) : 0;
+
+  // Propuesta 4: Con incremento de minisplits
+  const WATTS_POR_TON = { inverter: 900, convencional: 1400 };
+  const minisplitKwhMes = minisplits.reduce((sum, m) => {
+    const watts = m.cantidad * Number(m.toneladas) * WATTS_POR_TON[m.tipo];
+    return sum + (watts * m.horasDia * 30) / 1000;
+  }, 0);
+  // Si es temporada (6 meses), prorrateamos: el consumo solo ocurre 6 de 12 meses → promedio anual = kwhMes * 6/12
+  const minisplitKwhMesProm = minisplitTemporada === "temporada" ? Math.round(minisplitKwhMes / 2) : Math.round(minisplitKwhMes);
+  const consumoConIncremento = consumoMensualCalc + minisplitKwhMesProm;
+  const kWpConIncremento = consumoConIncremento / GEN_POR_KWP;
+  const panelesConIncremento = reciboCFE ? Math.ceil((kWpConIncremento * 1000) / panelW) : 0;
+
+  // Backward compat aliases
+  const kWpSugerido = kWpPromedio;
+  const panelesSugeridosCFE = panelesPromedio;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -754,7 +843,11 @@ export default function Home() {
             {reciboCFE ? (
               /* Loaded state */
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-emerald-500/10">
+                {/* Header — clickable to toggle detail */}
+                <button
+                  onClick={() => setReciboDetalle(!reciboDetalle)}
+                  className="w-full flex items-center justify-between px-5 py-3 border-b border-emerald-500/10 hover:bg-emerald-500/5 transition-colors text-left"
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-emerald-400">⚡</span>
                     <span className="text-sm font-semibold text-zinc-100">Recibo CFE</span>
@@ -763,14 +856,25 @@ export default function Home() {
                       Tarifa {reciboCFE.tarifa}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setReciboCFE(null)}
-                    className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs px-1"
-                    title="Cerrar"
-                  >
-                    ✕
-                  </button>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">{reciboDetalle ? "Ocultar" : "Ver detalle"}</span>
+                    <svg
+                      className={`w-4 h-4 text-zinc-500 transition-transform ${reciboDetalle ? "rotate-180" : ""}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setReciboCFE(null); setReciboDetalle(false); }}
+                      className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs px-1 ml-1"
+                      title="Cerrar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </button>
+
+                {/* Summary metrics */}
                 <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-5">
                   <div>
                     <div className="text-xs text-zinc-500 mb-0.5 uppercase tracking-wide">Consumo período</div>
@@ -793,20 +897,379 @@ export default function Home() {
                     <div className="text-xs text-zinc-600 mt-0.5">MXN con IVA</div>
                   </div>
                 </div>
+
+                {/* ── Expandable detail ──────────────────────────────────────── */}
+                {reciboDetalle && (
+                  <div className="border-t border-emerald-500/10 px-5 py-5 space-y-6">
+
+                    {/* Datos del servicio */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Datos del servicio</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                        <div className="space-y-0.5">
+                          <span className="text-xs text-zinc-600">Titular</span>
+                          <p className="text-zinc-200">{reciboCFE.nombre}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-xs text-zinc-600">No. de Servicio</span>
+                          <p className="text-zinc-200 font-mono">{reciboCFE.noServicio || "—"}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-xs text-zinc-600">Dirección</span>
+                          <p className="text-zinc-200">{reciboCFE.direccion || "—"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historial de consumo — tabla */}
+                    {reciboCFE.historico.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">
+                          Consumo histórico ({reciboCFE.historico.length} períodos)
+                        </h4>
+                        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                          <div className="grid grid-cols-[1fr_80px_100px_80px] gap-2 px-4 py-2 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                            <span>Período</span>
+                            <span className="text-right">kWh</span>
+                            <span className="text-right">Importe</span>
+                            <span className="text-right">kWh/mes</span>
+                          </div>
+                          {(() => {
+                            const allKwh = [reciboCFE.consumoKwh, ...reciboCFE.historico.map((x) => x.kwh)];
+                            const maxKwh = Math.max(...allKwh);
+                            const maxHistoricoKwh = reciboCFE.historico.length > 0 ? Math.max(...reciboCFE.historico.map((x) => x.kwh)) : 0;
+                            const currentMensual = Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1));
+                            const currentBarPct = maxKwh > 0 ? (reciboCFE.consumoKwh / maxKwh) * 100 : 0;
+                            const isCurrentMax = reciboCFE.consumoKwh >= maxHistoricoKwh;
+                            return (
+                              <>
+                                {/* Current period row — highlighted */}
+                                <div className="grid grid-cols-[1fr_80px_100px_80px] gap-2 px-4 py-2.5 border-t border-amber-500/30 items-center relative bg-amber-500/5">
+                                  <div className="absolute inset-y-0 left-0 bg-amber-500/10" style={{ width: `${currentBarPct}%` }} />
+                                  <span className="text-xs text-amber-400 relative font-semibold">
+                                    {reciboCFE.periodoInicio} – {reciboCFE.periodoFin}
+                                    <span className="ml-2 text-[10px] bg-amber-400/15 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">ACTUAL</span>
+                                    {isCurrentMax && <span className="ml-1 text-[10px] bg-red-400/15 text-red-400 px-1.5 py-0.5 rounded-full font-medium">PICO</span>}
+                                  </span>
+                                  <span className="text-xs text-amber-400 font-mono text-right relative font-bold">{reciboCFE.consumoKwh.toLocaleString()}</span>
+                                  <span className="text-xs text-amber-400/70 font-mono text-right relative">${fmt(reciboCFE.totalFacturado)}</span>
+                                  <span className="text-xs text-amber-400/60 font-mono text-right relative">~{currentMensual}</span>
+                                </div>
+                                {/* Historic periods */}
+                                {reciboCFE.historico.map((h, i) => {
+                                  const mensual = Math.round(h.kwh / 2);
+                                  const barPct = maxKwh > 0 ? (h.kwh / maxKwh) * 100 : 0;
+                                  const isMax = !isCurrentMax && h.kwh === maxHistoricoKwh;
+                                  return (
+                                    <div
+                                      key={i}
+                                      className={`grid grid-cols-[1fr_80px_100px_80px] gap-2 px-4 py-2.5 border-t items-center relative ${isMax ? "border-red-500/30 bg-red-500/5" : "border-zinc-800/60"}`}
+                                    >
+                                      <div className={`absolute inset-y-0 left-0 ${isMax ? "bg-red-500/10" : "bg-emerald-500/5"}`} style={{ width: `${barPct}%` }} />
+                                      <span className={`text-xs relative ${isMax ? "text-red-400 font-semibold" : "text-zinc-300"}`}>
+                                        {h.periodo}
+                                        {isMax && <span className="ml-2 text-[10px] bg-red-400/15 text-red-400 px-1.5 py-0.5 rounded-full font-medium">PICO</span>}
+                                      </span>
+                                      <span className={`text-xs font-mono text-right relative font-medium ${isMax ? "text-red-400" : "text-zinc-100"}`}>{h.kwh.toLocaleString()}</span>
+                                      <span className={`text-xs font-mono text-right relative ${isMax ? "text-red-400/70" : "text-zinc-400"}`}>{h.importe > 0 ? `$${fmt(h.importe)}` : "—"}</span>
+                                      <span className={`text-xs font-mono text-right relative ${isMax ? "text-red-400/60" : "text-zinc-500"}`}>~{mensual}</span>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            );
+                          })()}
+                          {/* Average row */}
+                          <div className="grid grid-cols-[1fr_80px_100px_80px] gap-2 px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
+                            <span className="text-xs font-semibold text-zinc-400 uppercase">Promedio</span>
+                            <span className="text-xs text-zinc-200 font-mono text-right font-semibold">
+                              {Math.round(reciboCFE.historico.reduce((s, h) => s + h.kwh, 0) / reciboCFE.historico.length).toLocaleString()}
+                            </span>
+                            <span className="text-xs text-zinc-400 font-mono text-right">
+                              ${fmt(reciboCFE.historico.reduce((s, h) => s + h.importe, 0) / reciboCFE.historico.length)}
+                            </span>
+                            <span className="text-xs text-amber-400 font-mono text-right font-semibold">
+                              ~{Math.round(consumoMensualCFE)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-red-400/60 mt-2 flex items-center gap-1">
+                          <span className="inline-block bg-red-400/15 text-red-400 px-1.5 py-0.5 rounded-full font-medium text-[10px]">PICO</span>
+                          Bimestre de mayor consumo — se usa como referencia para la propuesta &quot;Máxima&quot;.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Propuestas de sistema */}
+                    <div>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                          Propuestas de sistema <span className="normal-case font-normal text-zinc-600">· {panelW}W · HSP 5.5 · 132 kWh/kWp/mes</span>
+                        </h4>
+                        <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5 shrink-0">
+                          <button
+                            onClick={() => setReciboUltimoAnio(true)}
+                            className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                          >
+                            Último año ({Math.min(6, reciboCFE.historico.length)} bim)
+                          </button>
+                          <button
+                            onClick={() => setReciboUltimoAnio(false)}
+                            className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${!reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                          >
+                            Todo el historial ({reciboCFE.historico.length} bim)
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-zinc-600 mb-3">
+                        {reciboUltimoAnio
+                          ? `Usando los últimos ${Math.min(6, reciboCFE.historico.length)} bimestres + período actual para calcular promedio, P75 y máximo.`
+                          : `Usando todo el historial (${reciboCFE.historico.length} bimestres) + período actual.`
+                        }
+                      </p>
+                      {(() => {
+                        const genPanelBim = Math.round(panelW / 1000 * 132 * 2); // kWh por panel por bimestre
+                        const consumoPromBim = consumoMensualCalc * 2;
+                        const consumoEquilBim = consumoP75 * 2;
+                        const consumoMaxBim = maxHistKwh; // ya es bimestral
+                        const genPromedioBim = panelesPromedio * genPanelBim;
+                        const genEquilibradoBim = panelesEquilibrado * genPanelBim;
+                        const genMaxBim = panelesMax * genPanelBim;
+                        return (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Propuesta 1: Promedio */}
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Promedio</span>
+                            <span className="text-[10px] bg-emerald-400/15 text-emerald-400 px-1.5 py-0.5 rounded-full">Recomendada</span>
+                          </div>
+                          <div className="text-center py-2">
+                            <div className="text-3xl font-bold text-emerald-400">{panelesPromedio}</div>
+                            <div className="text-xs text-zinc-500 mt-0.5">paneles</div>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo mensual</span><span className="text-zinc-300 font-mono">{consumoMensualCalc} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo bimestral</span><span className="text-zinc-100 font-mono font-semibold">{consumoPromBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpPromedio.toFixed(2)} kWp</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5"><span className="text-zinc-500">Gen. por panel/bim</span><span className="text-zinc-300 font-mono">{genPanelBim} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Gen. total/bimestre</span><span className="text-emerald-400 font-mono font-semibold">{genPromedioBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5">
+                              <span className="text-zinc-500">Diferencia</span>
+                              <span className={`font-mono font-semibold ${genPromedioBim >= consumoPromBim ? "text-emerald-400" : "text-red-400"}`}>
+                                {genPromedioBim >= consumoPromBim ? "+" : ""}{(genPromedioBim - consumoPromBim).toLocaleString()} kWh
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-zinc-600 leading-tight">Cubre el promedio de todos los períodos. Meses altos generan un poco de deuda con CFE, meses bajos acumulan excedente.</p>
+                          <button
+                            onClick={() => setCantidad(String(panelesPromedio))}
+                            className="w-full text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
+                          >
+                            Aplicar {panelesPromedio} paneles
+                          </button>
+                        </div>
+
+                        {/* Propuesta 2: Equilibrada (P75) */}
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Equilibrada</span>
+                            <span className="text-[10px] bg-amber-400/15 text-amber-400 px-1.5 py-0.5 rounded-full">P75</span>
+                          </div>
+                          <div className="text-center py-2">
+                            <div className="text-3xl font-bold text-amber-400">{panelesEquilibrado}</div>
+                            <div className="text-xs text-zinc-500 mt-0.5">paneles</div>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo mensual</span><span className="text-zinc-300 font-mono">{consumoP75} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo bimestral</span><span className="text-zinc-100 font-mono font-semibold">{consumoEquilBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpEquilibrado.toFixed(2)} kWp</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5"><span className="text-zinc-500">Gen. por panel/bim</span><span className="text-zinc-300 font-mono">{genPanelBim} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Gen. total/bimestre</span><span className="text-amber-400 font-mono font-semibold">{genEquilibradoBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5">
+                              <span className="text-zinc-500">Diferencia</span>
+                              <span className={`font-mono font-semibold ${genEquilibradoBim >= consumoEquilBim ? "text-emerald-400" : "text-red-400"}`}>
+                                {genEquilibradoBim >= consumoEquilBim ? "+" : ""}{(genEquilibradoBim - consumoEquilBim).toLocaleString()} kWh
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-zinc-600 leading-tight">Cubre el 75% de los períodos sin depender del acumulado. Reduce al mínimo la deuda con CFE en meses de alto consumo.</p>
+                          <button
+                            onClick={() => setCantidad(String(panelesEquilibrado))}
+                            className="w-full text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
+                          >
+                            Aplicar {panelesEquilibrado} paneles
+                          </button>
+                        </div>
+
+                        {/* Propuesta 3: Máxima (referencia) */}
+                        <div className="rounded-xl border border-zinc-700 bg-zinc-800/30 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Máxima</span>
+                            <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded-full">Referencia</span>
+                          </div>
+                          <div className="text-center py-2">
+                            <div className="text-3xl font-bold text-zinc-300">{panelesMax}</div>
+                            <div className="text-xs text-zinc-500 mt-0.5">paneles</div>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo mensual</span><span className="text-zinc-300 font-mono">{consumoMensualMax} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Consumo bimestral</span><span className="text-zinc-100 font-mono font-semibold">{consumoMaxBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpMax.toFixed(2)} kWp</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5"><span className="text-zinc-500">Gen. por panel/bim</span><span className="text-zinc-300 font-mono">{genPanelBim} kWh</span></div>
+                            <div className="flex justify-between"><span className="text-zinc-500">Gen. total/bimestre</span><span className="text-zinc-100 font-mono font-semibold">{genMaxBim.toLocaleString()} kWh</span></div>
+                            <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 mt-1.5">
+                              <span className="text-zinc-500">Diferencia</span>
+                              <span className={`font-mono font-semibold ${genMaxBim >= consumoMaxBim ? "text-emerald-400" : "text-red-400"}`}>
+                                {genMaxBim >= consumoMaxBim ? "+" : ""}{(genMaxBim - consumoMaxBim).toLocaleString()} kWh
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-zinc-600 leading-tight">Cubriría hasta el bimestre de mayor consumo. Puede resultar sobredimensionado — solo como referencia.</p>
+                          <button
+                            onClick={() => setCantidad(String(panelesMax))}
+                            className="w-full text-xs text-zinc-400 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-600 rounded-lg px-3 py-1.5 transition-colors mt-1"
+                          >
+                            Aplicar {panelesMax} paneles
+                          </button>
+                        </div>
+                      </div>
+                        );
+                      })()}
+
+                      {/* Propuesta 4: Con incremento (minisplits) — full width below */}
+                      <div className={`mt-3 rounded-xl border p-4 space-y-3 ${minisplits.length > 0 ? "border-cyan-500/20 bg-cyan-500/5" : "border-dashed border-zinc-700 bg-zinc-800/10"}`}>
+                        {minisplits.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-start">
+                            {/* Left: configurator */}
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wide">Incremento por minisplits</span>
+                                  <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5">
+                                    <button
+                                      onClick={() => setMinisplitTemporada("temporada")}
+                                      className={`text-[11px] px-2.5 py-0.5 rounded-md transition-colors font-medium ${minisplitTemporada === "temporada" ? "bg-cyan-400/15 text-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                                    >
+                                      Temporada
+                                    </button>
+                                    <button
+                                      onClick={() => setMinisplitTemporada("anual")}
+                                      className={`text-[11px] px-2.5 py-0.5 rounded-md transition-colors font-medium ${minisplitTemporada === "anual" ? "bg-cyan-400/15 text-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                                    >
+                                      Todo el año
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                {minisplits.map((m) => {
+                                  const wPerUnit = Number(m.toneladas) * WATTS_POR_TON[m.tipo];
+                                  const kwhMesUnit = Math.round((wPerUnit * m.horasDia * 30) / 1000);
+                                  return (
+                                  <div key={m.id} className="flex flex-wrap items-center gap-2">
+                                    <select value={m.cantidad} onChange={(e) => updateMinisplit(m.id, "cantidad", Number(e.target.value))} className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-100 w-14 focus:border-cyan-500/50 focus:outline-none">
+                                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}×</option>)}
+                                    </select>
+                                    <select value={m.toneladas} onChange={(e) => updateMinisplit(m.id, "toneladas", e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-100 focus:border-cyan-500/50 focus:outline-none">
+                                      {["1", "1.5", "2", "2.5", "3"].map((t) => <option key={t} value={t}>{t} Ton</option>)}
+                                    </select>
+                                    <div className="flex items-center gap-1">
+                                      <input type="number" min={1} max={24} value={m.horasDia} onChange={(e) => updateMinisplit(m.id, "horasDia", Math.min(24, Math.max(1, Number(e.target.value))))} className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-100 w-14 focus:border-cyan-500/50 focus:outline-none text-center" />
+                                      <span className="text-[10px] text-zinc-500">h/día</span>
+                                    </div>
+                                    <select value={m.tipo} onChange={(e) => updateMinisplit(m.id, "tipo", e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-100 focus:border-cyan-500/50 focus:outline-none">
+                                      <option value="inverter">Inverter</option>
+                                      <option value="convencional">Convencional</option>
+                                    </select>
+                                    <span className="text-[10px] text-cyan-400/70 font-mono">{(kwhMesUnit * m.cantidad).toLocaleString()} kWh/mes</span>
+                                    <button onClick={() => removeMinisplit(m.id)} className="text-zinc-600 hover:text-red-400 transition-colors text-xs px-1" title="Eliminar">✕</button>
+                                  </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <button onClick={addMinisplit} className="text-[11px] text-cyan-400/70 hover:text-cyan-400 transition-colors">+ Agregar equipo</button>
+                                <span className="text-xs text-zinc-500">Total: <span className="text-cyan-400 font-mono font-semibold">{Math.round(minisplitKwhMes)} kWh/mes</span>{minisplitTemporada === "temporada" && <span className="text-zinc-600 ml-1">(prom. anual: {minisplitKwhMesProm})</span>}</span>
+                              </div>
+                            </div>
+
+                            {/* Right: result card */}
+                            <div className="sm:w-56 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wide">Con incremento</span>
+                                <span className="text-[10px] bg-cyan-400/15 text-cyan-400 px-1.5 py-0.5 rounded-full">+Minisplits</span>
+                              </div>
+                              <div className="text-center py-1">
+                                <div className="text-3xl font-bold text-cyan-400">{panelesConIncremento}</div>
+                                <div className="text-xs text-zinc-500">paneles</div>
+                              </div>
+                              <div className="space-y-1.5 text-xs">
+                                <div className="flex justify-between"><span className="text-zinc-500">Actual</span><span className="text-zinc-300 font-mono">{consumoMensualCalc} kWh/mes</span></div>
+                                <div className="flex justify-between"><span className="text-cyan-400/70">+ Minisplits</span><span className="text-cyan-400 font-mono font-semibold">+{minisplitKwhMesProm}</span></div>
+                                <div className="flex justify-between border-t border-zinc-800/60 pt-1.5"><span className="text-zinc-500">Total</span><span className="text-zinc-100 font-mono font-semibold">{consumoConIncremento} kWh/mes</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-500">Bimestre</span><span className="text-zinc-100 font-mono font-semibold">{(consumoConIncremento * 2).toLocaleString()} kWh</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpConIncremento.toFixed(2)} kWp</span></div>
+                              </div>
+                              <button
+                                onClick={() => setCantidad(String(panelesConIncremento))}
+                                className="w-full text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-400/25 hover:border-cyan-400/50 rounded-lg px-3 py-1.5 transition-colors"
+                              >
+                                Aplicar {panelesConIncremento} paneles
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-zinc-500">¿El cliente planea agregar minisplits u otra carga?</span>
+                            </div>
+                            <button
+                              onClick={addMinisplit}
+                              className="text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-400/25 hover:border-cyan-400/50 rounded-lg px-4 py-1.5 transition-colors shrink-0"
+                            >
+                              + Simular incremento
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+
+
+                      <p className="text-xs text-zinc-600 mt-2">
+                        * HSP 5.5 estimadas para norte de México. Fórmula: consumo mensual ÷ 132 = kWp → × 1000 ÷ {panelW}W = paneles.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action row */}
-                <div className="px-5 pb-4 flex flex-wrap items-center gap-2">
+                <div className="px-5 pb-4 flex flex-wrap items-center gap-2 border-t border-emerald-500/10 pt-3">
                   <button
                     onClick={() => setNombreCotizacion(reciboCFE.nombre)}
                     className="text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors"
                   >
                     Usar nombre del cliente
                   </button>
-                  {panelesSugeridosCFE > 0 && (
+                  <button
+                    onClick={() => setReciboDetalle(!reciboDetalle)}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    {reciboDetalle ? "Ocultar desglose" : "Ver desglose"}
+                  </button>
+                  {reciboPDFBase64 && (
                     <button
-                      onClick={() => setCantidad(String(panelesSugeridosCFE))}
-                      className="text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors"
+                      onClick={() => {
+                        const win = window.open();
+                        if (win) {
+                          win.document.write(`<iframe src="${reciboPDFBase64}" style="border:0;width:100%;height:100%" />`);
+                          win.document.title = "Recibo CFE — " + reciboCFE.nombre;
+                        }
+                      }}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors"
                     >
-                      Aplicar {panelesSugeridosCFE} paneles sugeridos
+                      Ver PDF original
                     </button>
                   )}
                   <button
@@ -815,23 +1278,6 @@ export default function Home() {
                   >
                     Cambiar recibo
                   </button>
-                  {/* Mini historical chart */}
-                  {reciboCFE.historico.length > 0 && (
-                    <div className="ml-auto flex items-end gap-1 h-8">
-                      {reciboCFE.historico.slice(-8).map((h, i) => {
-                        const maxKwh = Math.max(...reciboCFE.historico.slice(-8).map((x) => x.kwh));
-                        const pct = maxKwh > 0 ? (h.kwh / maxKwh) * 100 : 0;
-                        return (
-                          <div
-                            key={i}
-                            title={`${h.periodo}: ${h.kwh} kWh`}
-                            className="w-3 rounded-t bg-emerald-500/40 hover:bg-emerald-400/60 transition-colors cursor-default"
-                            style={{ height: `${Math.max(pct, 8)}%` }}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
             ) : (
@@ -1174,7 +1620,7 @@ export default function Home() {
                 {incluyeECU && (
                   <div className="pl-12">
                     <Field label="Precio ECU-R (USD)">
-                      <NumInput value={precioECU} onChange={setPrecioECU} placeholder="Ej: 95.00" step={0.01} />
+                      <NumInput value={precioECU} onChange={setPrecioECU} placeholder="Ej: 145.00" step={0.01} />
                     </Field>
                   </div>
                 )}
