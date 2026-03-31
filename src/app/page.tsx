@@ -1443,16 +1443,24 @@ export default function Home() {
                   />
 
                   {/* Total MXN */}
-                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/60">
+                  <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-700 bg-zinc-800/60">
                     <span className="text-xs text-zinc-400 font-medium">
-                      Total paneles en MXN
+                      Subtotal paneles
                       {Number(tcCustomPaneles) > 0 && (
                         <span className="ml-1.5 text-amber-400/70">(TC personalizado)</span>
                       )}
                     </span>
-                    <span className="text-sm font-semibold text-zinc-100 font-mono">
-                      ${fmt(partidaPanelesMXN)} MXN
+                    <span className="text-xs text-zinc-300 font-mono">
+                      ${fmt(partidaPanelesMXN)}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-500">IVA 16%</span>
+                    <span className="text-xs text-zinc-400 font-mono">${fmt(partidaPanelesMXN * 0.16)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
+                    <span className="text-xs text-zinc-300 font-semibold">Total paneles</span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaPanelesMXN * 1.16)} MXN</span>
                   </div>
                 </div>
               )}
@@ -1588,16 +1596,24 @@ export default function Home() {
                   />
 
                   {/* Total MXN */}
-                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/60">
+                  <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-700 bg-zinc-800/60">
                     <span className="text-xs text-zinc-400 font-medium">
-                      Total inversores en MXN
+                      Subtotal inversores
                       {Number(tcCustomMicros) > 0 && (
                         <span className="ml-1.5 text-amber-400/70">(TC personalizado)</span>
                       )}
                     </span>
-                    <span className="text-sm font-semibold text-zinc-100 font-mono">
-                      ${fmt(partidaInversoresMXN)} MXN
+                    <span className="text-xs text-zinc-300 font-mono">
+                      ${fmt(partidaInversoresMXN)}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-500">IVA 16%</span>
+                    <span className="text-xs text-zinc-400 font-mono">${fmt(partidaInversoresMXN * 0.16)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
+                    <span className="text-xs text-zinc-300 font-semibold">Total inversores</span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaInversoresMXN * 1.16)} MXN</span>
                   </div>
                 </div>
               )}
@@ -1652,6 +1668,22 @@ export default function Home() {
               <Field label="Flete" hint="MXN con IVA incluido — se descuenta el IVA para no cobrar doble">
                 <NumInput value={fleteAluminio} onChange={setFleteAluminio} step={0.01} />
               </Field>
+              {partidaEstructuraMXN > 0 && (
+                <div className="rounded-xl border border-zinc-800 overflow-hidden mt-3">
+                  <div className="flex items-center justify-between px-4 py-2 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-400">Subtotal estructura</span>
+                    <span className="text-xs text-zinc-300 font-mono">${fmt(partidaEstructuraMXN)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-500">IVA 16%</span>
+                    <span className="text-xs text-zinc-400 font-mono">${fmt(partidaEstructuraMXN * 0.16)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
+                    <span className="text-xs text-zinc-300 font-semibold">Total estructura</span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaEstructuraMXN * 1.16)} MXN</span>
+                  </div>
+                </div>
+              )}
             </SectionCard>
 
             {/* 4. TORNILLERIA */}
@@ -1661,6 +1693,22 @@ export default function Home() {
                 onChange={updateTornilleria}
                 currency="MXN"
               />
+              {partidaTornilleriaMXN > 0 && (
+                <div className="rounded-xl border border-zinc-800 overflow-hidden mt-3">
+                  <div className="flex items-center justify-between px-4 py-2 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-400">Subtotal tornillería</span>
+                    <span className="text-xs text-zinc-300 font-mono">${fmt(partidaTornilleriaMXN)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-500">IVA 16%</span>
+                    <span className="text-xs text-zinc-400 font-mono">${fmt(partidaTornilleriaMXN * 0.16)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
+                    <span className="text-xs text-zinc-300 font-semibold">Total tornillería</span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaTornilleriaMXN * 1.16)} MXN</span>
+                  </div>
+                </div>
+              )}
             </SectionCard>
 
             {/* 5. GENERALES */}
@@ -1670,6 +1718,22 @@ export default function Home() {
                 onChange={updateGeneral}
                 currency="MXN"
               />
+              {partidaGeneralesMXN > 0 && (
+                <div className="rounded-xl border border-zinc-800 overflow-hidden mt-3">
+                  <div className="flex items-center justify-between px-4 py-2 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-400">Subtotal generales</span>
+                    <span className="text-xs text-zinc-300 font-mono">${fmt(partidaGeneralesMXN)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
+                    <span className="text-xs text-zinc-500">IVA 16%</span>
+                    <span className="text-xs text-zinc-400 font-mono">${fmt(partidaGeneralesMXN * 0.16)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
+                    <span className="text-xs text-zinc-300 font-semibold">Total generales</span>
+                    <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaGeneralesMXN * 1.16)} MXN</span>
+                  </div>
+                </div>
+              )}
             </SectionCard>
           </div>
 
