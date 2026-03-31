@@ -16,6 +16,11 @@ Analiza este documento (PDF de un proveedor) y devuelve ÚNICAMENTE un objeto JS
       "potencia": 0,
       "panelesPorUnidad": 0,
       "precio": 0,
+      "precioTiers": [
+        {"etiqueta": "1 panel", "precio": 0.159},
+        {"etiqueta": "1 pallet (36 pzas)", "precio": 0.156},
+        {"etiqueta": "+5 pallets", "precio": 0.153}
+      ],
       "moneda": "USD" | "MXN",
       "unidad": "por_watt" | "por_unidad",
       "notas": ""
@@ -35,7 +40,8 @@ REGLAS:
   - "otro": fletes, garantías, servicios, cualquier otra cosa
 - "potencia" solo para paneles (en Watts). Para otros tipos usa 0.
 - "panelesPorUnidad" solo para microinversores. Para otros tipos usa 0.
-- "precio" siempre como número (sin símbolos de moneda)
+- "precio" debe ser el precio más común o el de menor volumen (ej: precio por 1 unidad/panel). Siempre como número.
+- "precioTiers": si hay múltiples precios por volumen/cantidad, extráelos TODOS como array. Cada tier tiene "etiqueta" (descripción de la cantidad) y "precio" (número). Si solo hay un precio, deja precioTiers como array vacío [].
 - "unidad": usa "por_watt" solo para paneles cuyo precio esté expresado por Watt. Para todo lo demás usa "por_unidad".
 - Si el precio es por Watt, pon el precio por Watt (no el total del panel).
 - Todos los valores numéricos deben ser números, no strings.

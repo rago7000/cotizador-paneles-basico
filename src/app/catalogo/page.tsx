@@ -26,6 +26,7 @@ import type {
   ProductoPanel,
   ProductoMicro,
   Oferta,
+  PrecioTier,
 } from "../lib/types";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -551,6 +552,7 @@ function OfertaForm({
     fecha: toLocalInput(initial?.fecha),
     notas: initial?.notas ?? "",
   });
+  const [tiers, setTiers] = useState<PrecioTier[]>(initial?.precioTiers ?? []);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const productos = form.tipo === "panel"
@@ -612,6 +614,44 @@ function OfertaForm({
         </div>
       </div>
 
+      {/* Tiers de volumen */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-zinc-500">Precios por volumen (opcional)</label>
+          <button
+            type="button"
+            onClick={() => setTiers((t) => [...t, { etiqueta: "", precio: 0 }])}
+            className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            + Agregar tier
+          </button>
+        </div>
+        {tiers.map((t, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              className={`${inputCls} w-40`}
+              value={t.etiqueta}
+              onChange={(e) => setTiers((prev) => prev.map((tt, idx) => idx === i ? { ...tt, etiqueta: e.target.value } : tt))}
+              placeholder="ej: 1 pallet (36 pzas)"
+            />
+            <input
+              className={`${inputCls} w-24`}
+              type="number"
+              step={0.001}
+              value={t.precio || ""}
+              onChange={(e) => setTiers((prev) => prev.map((tt, idx) => idx === i ? { ...tt, precio: Number(e.target.value) || 0 } : tt))}
+              placeholder="0.156"
+            />
+            <button
+              onClick={() => setTiers((prev) => prev.filter((_, idx) => idx !== i))}
+              className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
       {selectedPanel && form.precio && Number(form.precio) > 0 && (
         <div className="rounded-lg bg-amber-400/5 border border-amber-400/20 px-4 py-2.5 flex items-center justify-between">
           <span className="text-xs text-zinc-400">Precio por panel ({selectedPanel.potencia}W)</span>
@@ -625,12 +665,14 @@ function OfertaForm({
         <button
           onClick={() => {
             if (!valid) return;
+            const validTiers = tiers.filter((t) => t.etiqueta.trim() && t.precio > 0);
             onSave({
               id: initial?.id || uid(),
               proveedorId: form.proveedorId,
               productoId: form.productoId,
               tipo: form.tipo,
               precio: Number(form.precio),
+              precioTiers: validTiers.length > 0 ? validTiers : undefined,
               precioCable: form.tipo === "micro" && form.precioCable ? Number(form.precioCable) : undefined,
               fecha: new Date(form.fecha).toISOString(),
               notas: form.notas.trim(),
@@ -651,6 +693,11 @@ function OfertaForm({
 // IMPORTADOR PDF — extrae precios de PDFs de proveedores con AI
 // ══════════════════════════════════════════════════════════════════════════════
 
+interface ImportTier {
+  etiqueta: string;
+  precio: number;
+}
+
 interface ImportItem {
   selected: boolean;
   tipo: string;
@@ -660,6 +707,7 @@ interface ImportItem {
   potencia: number;
   panelesPorUnidad: number;
   precio: number;
+  precioTiers: ImportTier[];
   moneda: string;
   unidad: string;
   notas: string;
@@ -700,19 +748,25 @@ function ImportadorPDF({
       const data = await res.json();
       if (data.error) { setError(data.error); setStep("upload"); return; }
 
-      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => ({
-        selected: true,
-        tipo: String(it.tipo || "otro"),
-        marca: String(it.marca || ""),
-        modelo: String(it.modelo || ""),
-        descripcion: String(it.descripcion || ""),
-        potencia: Number(it.potencia) || 0,
-        panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
-        precio: Number(it.precio) || 0,
-        moneda: String(it.moneda || "USD"),
-        unidad: String(it.unidad || "por_unidad"),
-        notas: String(it.notas || ""),
-      }));
+      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => {
+        const tiers: ImportTier[] = Array.isArray(it.precioTiers)
+          ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({ etiqueta: String(t.etiqueta || ""), precio: Number(t.precio) || 0 })).filter((t) => t.precio > 0)
+          : [];
+        return {
+          selected: true,
+          tipo: String(it.tipo || "otro"),
+          marca: String(it.marca || ""),
+          modelo: String(it.modelo || ""),
+          descripcion: String(it.descripcion || ""),
+          potencia: Number(it.potencia) || 0,
+          panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
+          precio: Number(it.precio) || 0,
+          precioTiers: tiers,
+          moneda: String(it.moneda || "USD"),
+          unidad: String(it.unidad || "por_unidad"),
+          notas: String(it.notas || ""),
+        };
+      });
 
       if (extracted.length === 0) { setError("No se encontraron productos en el PDF"); setStep("upload"); return; }
 
@@ -783,6 +837,7 @@ function ImportadorPDF({
           productoId: prodId,
           tipo: it.tipo as "panel" | "micro",
           precio: it.precio,
+          precioTiers: it.precioTiers.length > 0 ? it.precioTiers : undefined,
           precioCable: it.tipo === "micro" ? 0 : undefined,
           fecha: new Date().toISOString(),
           notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
@@ -931,13 +986,36 @@ function ImportadorPDF({
                   />
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <input
-                    type="number"
-                    step="0.001"
-                    className="bg-transparent border-none text-xs text-zinc-100 font-mono outline-none w-20 text-right"
-                    value={it.precio}
-                    onChange={(e) => updateItem(i, "precio", Number(e.target.value) || 0)}
-                  />
+                  <div className="flex flex-col items-end gap-0.5">
+                    <input
+                      type="number"
+                      step="0.001"
+                      className="bg-transparent border-none text-xs text-zinc-100 font-mono outline-none w-20 text-right"
+                      value={it.precio}
+                      onChange={(e) => updateItem(i, "precio", Number(e.target.value) || 0)}
+                    />
+                    {it.precioTiers.length > 0 && (
+                      <div className="space-y-px">
+                        {it.precioTiers.map((t, ti) => (
+                          <div key={ti} className="flex items-center gap-1 text-[10px]">
+                            <span className="text-zinc-600">{t.etiqueta}:</span>
+                            <span className={`font-mono ${t.precio === it.precio ? "text-emerald-400" : "text-zinc-500"}`}>
+                              {t.precio}
+                            </span>
+                            {t.precio !== it.precio && (
+                              <button
+                                onClick={() => updateItem(i, "precio", t.precio)}
+                                className="text-[9px] text-emerald-400/60 hover:text-emerald-400 transition-colors"
+                                title="Usar este precio"
+                              >
+                                usar
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-center">
                   <select
@@ -1111,6 +1189,11 @@ function TabOfertas({
                     </p>
                     {o.precioCable != null && o.precioCable > 0 && (
                       <p className="text-xs text-zinc-500 font-mono">+${fmt2(o.precioCable)} cable</p>
+                    )}
+                    {o.precioTiers && o.precioTiers.length > 0 && (
+                      <p className="text-[10px] text-zinc-600 mt-0.5">
+                        {o.precioTiers.map((t) => `${t.etiqueta}: $${o.tipo === "panel" ? fmt3(t.precio) : fmt2(t.precio)}`).join(" · ")}
+                      </p>
                     )}
                   </div>
                   <p className="hidden sm:block text-xs text-zinc-500 text-right">{fmtDateTime(o.fecha)}</p>

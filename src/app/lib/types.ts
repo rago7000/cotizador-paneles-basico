@@ -115,12 +115,18 @@ export interface ProductoMicro {
   panelesPorUnidad: number;
 }
 
+export interface PrecioTier {
+  etiqueta: string;   // ej: "1 panel", "1 pallet (36 pzas)", "+5 pallets"
+  precio: number;
+}
+
 export interface Oferta {
   id: string;
   proveedorId: string;
   productoId: string;
   tipo: "panel" | "micro";
-  precio: number;          // panel: USD/W sin IVA · micro: USD/unidad sin IVA
+  precio: number;          // panel: USD/W sin IVA · micro: USD/unidad sin IVA — precio en uso
+  precioTiers?: PrecioTier[];  // tiers de volumen (1 panel, 1 pallet, etc.)
   precioCable?: number;    // solo micros
   fecha: string;           // ISO date
   notas: string;
@@ -175,6 +181,14 @@ export interface CotizacionCliente {
     porWatt: number;
     utilidadNeta: number;
     utilidadPct: number;
+  };
+  roi?: {
+    costoCFEporKwh: number;
+    generacionMensualKwh: number;
+    ahorroMensual: number;
+    ahorroAnual: number;
+    meses: number;
+    anios: number;
   };
   notas: string;
   vigenciaDias: number;
