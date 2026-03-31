@@ -452,8 +452,9 @@ export default function Home() {
   const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
 
   // TC congelado / manual
-  const [tcFrozen, setTcFrozen] = useState(false);
-  const [tcSnapshotLocal, setTcSnapshotLocal] = useState(""); // valor guardado al congelar
+  const [tcFrozen, setTcFrozen] = useState(false);     // congelado (no editable)
+  const [tcManual, setTcManual] = useState(false);      // modo manual (editable)
+  const [tcSnapshotLocal, setTcSnapshotLocal] = useState(""); // valor guardado
   const [tcUsarManana, setTcUsarManana] = useState(false); // toggle hoy/mañana
 
   // Tipos de cambio personalizados por sección
@@ -538,7 +539,7 @@ export default function Home() {
   );
 
   const tcLive = (tcUsarManana && tc?.tipoCambioAlt) ? tc.tipoCambioAlt : (tc?.tipoCambio || 0);
-  const tcVal = (tcFrozen && Number(tcSnapshotLocal) > 0) ? Number(tcSnapshotLocal) : tcLive;
+  const tcVal = ((tcFrozen || tcManual) && Number(tcSnapshotLocal) > 0) ? Number(tcSnapshotLocal) : tcLive;
   const tcPaneles = Number(tcCustomPaneles) > 0 ? Number(tcCustomPaneles) : tcVal;
   const tcMicros  = Number(tcCustomMicros)  > 0 ? Number(tcCustomMicros)  : tcVal;
 
@@ -677,8 +678,8 @@ export default function Home() {
     nombre: nombreCotizacion,
     fecha: new Date().toISOString(),
     tcCustomPaneles, tcCustomMicros,
-    tcSnapshot: tcFrozen ? tcSnapshotLocal : String(tcLive),
-    tcFrozen,
+    tcSnapshot: (tcFrozen || tcManual) ? tcSnapshotLocal : String(tcLive),
+    tcFrozen: tcFrozen || tcManual,
     cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
     precioMicroinversor, precioCable, precioECU, incluyeECU,
     precioHerramienta, incluyeHerramienta, fleteMicros,
@@ -1929,20 +1930,24 @@ export default function Home() {
           <div className="lg:sticky lg:top-20 h-fit space-y-4">
 
             {/* Tipo de cambio */}
-            <div className={`rounded-2xl border p-4 transition-colors ${tcFrozen ? "border-amber-400/40 bg-amber-400/5" : "border-zinc-800 bg-zinc-900"}`}>
-              {tc || tcFrozen ? (
+            <div className={`rounded-2xl border p-4 transition-colors ${
+              tcFrozen ? "border-blue-400/40 bg-blue-400/5" : tcManual ? "border-amber-400/40 bg-amber-400/5" : "border-zinc-800 bg-zinc-900"
+            }`}>
+              {tc || tcFrozen || tcManual ? (
                 <>
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs uppercase tracking-wide font-medium ${tcFrozen ? "text-amber-400" : "text-zinc-500"}`}>
-                      {tcFrozen ? "TC Manual" : "Tipo de cambio FIX"}
+                    <span className={`text-xs uppercase tracking-wide font-medium ${
+                      tcFrozen ? "text-blue-400" : tcManual ? "text-amber-400" : "text-zinc-500"
+                    }`}>
+                      {tcManual ? "TC Manual" : tcFrozen ? "TC Congelado" : "Tipo de cambio FIX"}
                     </span>
                     <span className="text-xs text-zinc-600">
-                      {tcFrozen ? "editable" : tc?.fecha}
+                      {tcManual ? "editable" : tcFrozen ? "fijo en cotización" : tc?.fecha}
                     </span>
                   </div>
 
-                  {/* Hoy / Mañana toggle — only when NOT frozen and alt rate exists */}
-                  {!tcFrozen && tc?.tipoCambioAlt && (
+                  {/* Hoy / Mañana toggle — only when live mode and alt rate exists */}
+                  {!tcFrozen && !tcManual && tc?.tipoCambioAlt && (
                     <div className="flex rounded-lg border border-zinc-700 overflow-hidden mb-2">
                       <button
                         onClick={() => setTcUsarManana(false)}
@@ -1969,7 +1974,7 @@ export default function Home() {
 
                   <div className="flex items-end justify-between gap-2">
                     <div className="flex items-end gap-2">
-                      {tcFrozen ? (
+                      {tcManual ? (
                         <div className="flex items-center gap-1">
                           <span className="text-zinc-500 text-xl font-mono">$</span>
                           <input
@@ -1982,29 +1987,33 @@ export default function Home() {
                           />
                         </div>
                       ) : (
-                        <span className="text-2xl font-bold text-zinc-100 font-mono">
+                        <span className={`text-2xl font-bold font-mono ${tcFrozen ? "text-blue-300" : "text-zinc-100"}`}>
                           ${tcVal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                         </span>
                       )}
                       <span className="text-sm text-zinc-500 mb-0.5">MXN/USD</span>
                     </div>
+                  </div>
 
-                    {/* Freeze / unfreeze button */}
+                  {/* Action buttons */}
+                  <div className="flex gap-1.5 mt-2.5">
+                    {/* Congelar / Descongelar */}
                     <button
                       onClick={() => {
                         if (tcFrozen) {
                           setTcFrozen(false);
                           setTcSnapshotLocal("");
                         } else {
-                          setTcSnapshotLocal(String(tcVal));
+                          setTcManual(false);
+                          setTcSnapshotLocal(String(tcLive || tcVal));
                           setTcFrozen(true);
                         }
                       }}
-                      disabled={!tcLive && !tcFrozen}
-                      title={tcFrozen ? "Volver al TC automático" : "Escribir TC manualmente"}
-                      className={`shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      disabled={!tcLive && !tcFrozen && !tcManual}
+                      title={tcFrozen ? "Descongelar — volver al DOF en vivo" : "Congelar este TC en la cotización"}
+                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                         tcFrozen
-                          ? "bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/10"
+                          ? "bg-blue-400/20 text-blue-300 border border-blue-400/40 hover:bg-blue-400/10"
                           : "border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
                       } disabled:opacity-30 disabled:cursor-not-allowed`}
                     >
@@ -2012,6 +2021,44 @@ export default function Home() {
                         <>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                          </svg>
+                          Descongelar
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z M12 7a4 4 0 00-4 4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a4 4 0 014 4" />
+                          </svg>
+                          Congelar
+                        </>
+                      )}
+                    </button>
+
+                    {/* Manual / Auto */}
+                    <button
+                      onClick={() => {
+                        if (tcManual) {
+                          setTcManual(false);
+                          setTcSnapshotLocal("");
+                        } else {
+                          setTcFrozen(false);
+                          setTcSnapshotLocal(String(tcLive || tcVal));
+                          setTcManual(true);
+                        }
+                      }}
+                      disabled={!tcLive && !tcFrozen && !tcManual}
+                      title={tcManual ? "Volver al TC automático" : "Escribir TC manualmente"}
+                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                        tcManual
+                          ? "bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/10"
+                          : "border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                      } disabled:opacity-30 disabled:cursor-not-allowed`}
+                    >
+                      {tcManual ? (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                           Auto
                         </>
@@ -2026,12 +2073,17 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {tcFrozen && (
+                  {tcManual && (
                     <p className="text-xs text-zinc-500 mt-1.5">
                       Escribe el TC exacto del DOF para tu pago
                     </p>
                   )}
-                  {!tcFrozen && tc && (
+                  {tcFrozen && tcLive > 0 && tcLive !== tcVal && (
+                    <p className="text-xs text-zinc-600 mt-1.5">
+                      DOF actual: ${tcLive.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                    </p>
+                  )}
+                  {!tcFrozen && !tcManual && tc && (
                     <p className="text-xs text-zinc-600 mt-1">
                       {tcUsarManana && tc.tipoCambioAlt ? tc.etiquetaAlt || "DOF mañana" : tc.etiqueta || tc.fuente}
                       {" — "}{tcUsarManana && tc.fechaAlt ? tc.fechaAlt : tc.fecha}
