@@ -23,6 +23,7 @@ import type {
   CatalogoPanel,
   CatalogoMicro,
   SeguimientoData,
+  UtilidadConfig,
 } from "./lib/types";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -464,6 +465,11 @@ export default function Home() {
   const updateMinisplit = (id: string, field: keyof Minisplit, value: string | number) =>
     setMinisplits((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
 
+  // Utilidad / Precio al cliente
+  const utilidadDefault: UtilidadConfig = { tipo: "global", globalPct: 25, panelesPct: 25, inversoresPct: 25, estructuraPct: 25, tornilleriaPct: 25, generalesPct: 25, montoFijo: 0 };
+  const [mostrarPrecioCliente, setMostrarPrecioCliente] = useState(false);
+  const [utilidad, setUtilidad] = useState<UtilidadConfig>(utilidadDefault);
+
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
   const potenciaNum = Number(potencia) || 0;
@@ -526,6 +532,27 @@ export default function Home() {
     partidaGeneralesMXN;
   const ivaMXN = subtotalMXN * 0.16;
   const totalMXN = subtotalMXN + ivaMXN;
+  const costoPorPanel = cantidadNum > 0 ? totalMXN / cantidadNum : 0;
+
+  // ── Precio al cliente ───────────────────────────────────────────────────
+  const pctPaneles = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.panelesPct;
+  const pctInversores = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.inversoresPct;
+  const pctEstructura = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.estructuraPct;
+  const pctTornilleria = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.tornilleriaPct;
+  const pctGenerales = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.generalesPct;
+
+  const clientePanelesMXN = partidaPanelesMXN * (1 + pctPaneles / 100);
+  const clienteInversoresMXN = partidaInversoresMXN * (1 + pctInversores / 100);
+  const clienteEstructuraMXN = partidaEstructuraMXN * (1 + pctEstructura / 100);
+  const clienteTornilleriaMXN = partidaTornilleriaMXN * (1 + pctTornilleria / 100);
+  const clienteGeneralesMXN = partidaGeneralesMXN * (1 + pctGenerales / 100);
+  const clienteSubtotalMXN = clientePanelesMXN + clienteInversoresMXN + clienteEstructuraMXN + clienteTornilleriaMXN + clienteGeneralesMXN + utilidad.montoFijo;
+  const clienteIvaMXN = clienteSubtotalMXN * 0.16;
+  const clienteTotalMXN = clienteSubtotalMXN + clienteIvaMXN;
+  const utilidadNetaMXN = clienteSubtotalMXN - subtotalMXN;
+  const utilidadNetaPct = subtotalMXN > 0 ? (utilidadNetaMXN / subtotalMXN) * 100 : 0;
+  const clientePorPanel = cantidadNum > 0 ? clienteTotalMXN / cantidadNum : 0;
+  const clientePorWatt = cantidadNum > 0 && potenciaNum > 0 ? clienteTotalMXN / (cantidadNum * potenciaNum) : 0;
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -566,6 +593,7 @@ export default function Home() {
     reciboPDFBase64,
     minisplits: minisplits.length > 0 ? minisplits : undefined,
     minisplitTemporada: minisplits.length > 0 ? minisplitTemporada : undefined,
+    utilidad: mostrarPrecioCliente ? utilidad : undefined,
   });
 
   const handleGuardar = () => {
@@ -604,6 +632,12 @@ export default function Home() {
     setReciboPDFBase64(data.reciboPDFBase64 ?? null);
     setMinisplits(data.minisplits ?? []);
     setMinisplitTemporada(data.minisplitTemporada ?? "temporada");
+    if (data.utilidad) {
+      setUtilidad(data.utilidad);
+      setMostrarPrecioCliente(true);
+    } else {
+      setMostrarPrecioCliente(false);
+    }
     setReciboDetalle(false);
     setMostrarGuardadas(false);
   };
@@ -1858,6 +1892,194 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+
+                {costoPorPanel > 0 && (
+                  <div className="border-t border-zinc-800 px-4 py-3 bg-zinc-800/40">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Costo por panel</span>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">Total ÷ {cantidadNum} paneles</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-cyan-400 font-mono">${fmt(costoPorPanel)}</span>
+                        <p className="text-[10px] text-zinc-600">MXN con IVA</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Precio al Cliente ──────────────────────────────────── */}
+            {subtotalMXN > 0 && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+                <button
+                  onClick={() => setMostrarPrecioCliente((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors"
+                >
+                  <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Precio al Cliente</h3>
+                  <span className="text-xs text-zinc-600">{mostrarPrecioCliente ? "▲" : "▼"}</span>
+                </button>
+
+                {mostrarPrecioCliente && (
+                  <div>
+                    {/* Tipo de utilidad */}
+                    <div className="px-4 py-3 border-b border-zinc-800 space-y-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setUtilidad((u) => ({ ...u, tipo: "global" }))}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${utilidad.tipo === "global" ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-600"}`}
+                        >
+                          % Global
+                        </button>
+                        <button
+                          onClick={() => setUtilidad((u) => ({ ...u, tipo: "por_partida" }))}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${utilidad.tipo === "por_partida" ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-600"}`}
+                        >
+                          % Por partida
+                        </button>
+                      </div>
+
+                      {utilidad.tipo === "global" ? (
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-zinc-500 w-20">Utilidad</label>
+                          <input
+                            type="number"
+                            value={utilidad.globalPct}
+                            onChange={(e) => setUtilidad((u) => ({ ...u, globalPct: Number(e.target.value) || 0 }))}
+                            className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                          />
+                          <span className="text-xs text-zinc-500">%</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {([
+                            ["panelesPct", "Paneles", partidaPanelesMXN],
+                            ["inversoresPct", "Inversores", partidaInversoresMXN],
+                            ["estructuraPct", "Estructura", partidaEstructuraMXN],
+                            ["tornilleriaPct", "Tornillería", partidaTornilleriaMXN],
+                            ["generalesPct", "Generales", partidaGeneralesMXN],
+                          ] as const).map(([key, label, val]) =>
+                            val > 0 ? (
+                              <div key={key} className="flex items-center gap-2">
+                                <label className="text-xs text-zinc-500 w-20">{label}</label>
+                                <input
+                                  type="number"
+                                  value={utilidad[key]}
+                                  onChange={(e) => setUtilidad((u) => ({ ...u, [key]: Number(e.target.value) || 0 }))}
+                                  className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                                />
+                                <span className="text-xs text-zinc-500">%</span>
+                              </div>
+                            ) : null
+                          )}
+                        </div>
+                      )}
+
+                      {/* Monto fijo adicional */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-zinc-500 w-20">+ Fijo</label>
+                        <input
+                          type="number"
+                          value={utilidad.montoFijo || ""}
+                          onChange={(e) => setUtilidad((u) => ({ ...u, montoFijo: Number(e.target.value) || 0 }))}
+                          placeholder="0"
+                          className="w-24 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400 placeholder-zinc-700"
+                        />
+                        <span className="text-xs text-zinc-500">MXN</span>
+                      </div>
+                    </div>
+
+                    {/* Desglose precio cliente */}
+                    <div className="px-4 py-2">
+                      {clientePanelesMXN > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Paneles</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(clientePanelesMXN * 1.16)}</span>
+                        </div>
+                      )}
+                      {clienteInversoresMXN > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Inversores</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(clienteInversoresMXN * 1.16)}</span>
+                        </div>
+                      )}
+                      {clienteEstructuraMXN > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Estructura</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(clienteEstructuraMXN * 1.16)}</span>
+                        </div>
+                      )}
+                      {clienteTornilleriaMXN > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Tornillería</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(clienteTornilleriaMXN * 1.16)}</span>
+                        </div>
+                      )}
+                      {clienteGeneralesMXN > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Generales</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(clienteGeneralesMXN * 1.16)}</span>
+                        </div>
+                      )}
+                      {utilidad.montoFijo > 0 && (
+                        <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                          <span className="text-xs text-zinc-400">Adicional fijo</span>
+                          <span className="text-xs font-mono text-zinc-300">${fmt(utilidad.montoFijo * 1.16)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Totales cliente */}
+                    <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
+                      <div className="flex justify-between text-xs text-zinc-400">
+                        <span>Subtotal</span>
+                        <span className="font-mono">${fmt(clienteSubtotalMXN)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-zinc-400">
+                        <span>IVA 16%</span>
+                        <span className="font-mono">${fmt(clienteIvaMXN)}</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-400/5 border-t border-emerald-400/20 px-4 py-4">
+                      <div className="flex items-end justify-between">
+                        <span className="text-sm font-semibold text-zinc-300">Total cliente</span>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-emerald-400 font-mono leading-none">
+                            ${fmt(clienteTotalMXN)}
+                          </div>
+                          <div className="text-xs text-zinc-500 mt-0.5">MXN con IVA</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Métricas */}
+                    {cantidadNum > 0 && (
+                      <div className="border-t border-zinc-800 px-4 py-3 grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-[10px] text-zinc-600 uppercase">Por panel</p>
+                          <p className="text-sm font-bold text-emerald-400 font-mono">${fmt(clientePorPanel)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-600 uppercase">Por Watt</p>
+                          <p className="text-sm font-bold text-emerald-400 font-mono">${fmt(clientePorWatt)}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Utilidad neta */}
+                    <div className="border-t border-zinc-800 px-4 py-3 bg-zinc-800/40">
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-[10px] text-zinc-600 uppercase">Utilidad neta</p>
+                          <p className="text-[10px] text-zinc-600">{utilidadNetaPct.toFixed(1)}% sobre costo</p>
+                        </div>
+                        <span className="text-lg font-bold text-amber-400 font-mono">${fmt(utilidadNetaMXN)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

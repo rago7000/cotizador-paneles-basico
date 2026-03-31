@@ -58,6 +58,8 @@ export interface CotizacionData {
   // Simulador de minisplits
   minisplits?: { id: string; cantidad: number; toneladas: string; horasDia: number; tipo: "inverter" | "convencional" }[];
   minisplitTemporada?: "anual" | "temporada";
+  // Utilidad / Precio al cliente
+  utilidad?: UtilidadConfig;
 }
 
 export interface CotizacionGuardada {
@@ -122,6 +124,19 @@ export interface Oferta {
   precioCable?: number;    // solo micros
   fecha: string;           // ISO date
   notas: string;
+}
+
+// ── Utilidad / Precio al cliente ─────────────────────────────────────────────
+
+export interface UtilidadConfig {
+  tipo: "global" | "por_partida";
+  globalPct: number;
+  panelesPct: number;
+  inversoresPct: number;
+  estructuraPct: number;
+  tornilleriaPct: number;
+  generalesPct: number;
+  montoFijo: number; // MXN adicional
 }
 
 // ── Seguimiento ──────────────────────────────────────────────────────────────
