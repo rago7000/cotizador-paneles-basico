@@ -491,6 +491,66 @@ export function consolidarProductos(): boolean {
   return changed;
 }
 
+// Reconstruct aliases from offer notas for products that were merged without saving aliases.
+// The notas contain the original PDF description (first segment before " · ").
+export function reconstruirAliases(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const paneles = listarProductosPaneles();
+  const micros = listarProductosMicros();
+  const ofertas = listarOfertas();
+  let changed = false;
+
+  for (const p of paneles) {
+    const ofertasProd = ofertas.filter((o) => o.productoId === p.id);
+    const existingAliases = new Set(p.aliases || []);
+    const before = existingAliases.size;
+    for (const o of ofertasProd) {
+      if (!o.notas) continue;
+      // The first segment of notas is the original descripcion from the PDF
+      const desc = o.notas.split(" · ")[0].trim();
+      if (!desc) continue;
+      // Only add if it's meaningfully different from the current modelo
+      if (normalizeName(desc) !== normalizeName(p.modelo) &&
+          normalizeName(desc) !== normalizeName(`${p.marca} ${p.modelo}`) &&
+          desc.length > 3) {
+        existingAliases.add(desc);
+      }
+    }
+    if (existingAliases.size > before) {
+      p.aliases = [...existingAliases];
+      changed = true;
+    }
+  }
+
+  for (const m of micros) {
+    const ofertasProd = ofertas.filter((o) => o.productoId === m.id);
+    const existingAliases = new Set(m.aliases || []);
+    const before = existingAliases.size;
+    for (const o of ofertasProd) {
+      if (!o.notas) continue;
+      const desc = o.notas.split(" · ")[0].trim();
+      if (!desc) continue;
+      if (normalizeName(desc) !== normalizeName(m.modelo) &&
+          normalizeName(desc) !== normalizeName(`${m.marca} ${m.modelo}`) &&
+          desc.length > 3) {
+        existingAliases.add(desc);
+      }
+    }
+    if (existingAliases.size > before) {
+      m.aliases = [...existingAliases];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    localStorage.setItem(PROD_PANELES_KEY, JSON.stringify(paneles));
+    localStorage.setItem(PROD_MICROS_KEY, JSON.stringify(micros));
+  }
+
+  return changed;
+}
+
 // ── Archivos de proveedores (PDFs importados) ──────────────────────────────
 
 const ARCHIVOS_PROV_KEY = "archivos_proveedor";
