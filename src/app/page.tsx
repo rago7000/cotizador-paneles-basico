@@ -93,6 +93,9 @@ const fmt = (n: number) =>
 const fmtUSD = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const fmtUSD3 = (n: number) =>
+  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionCard({
@@ -1535,7 +1538,7 @@ export default function Home() {
                     {panelSeleccionado.marca} — {panelSeleccionado.modelo}
                   </span>
                   <span className="text-xs text-zinc-500 font-mono">
-                    {panelSeleccionado.potencia}W · ${fmtUSD(panelSeleccionado.precioPorWatt)}/W
+                    {panelSeleccionado.potencia}W · {fmtUSD3(panelSeleccionado.precioPorWatt)}/W
                   </span>
                   <button onClick={() => setPanelSeleccionado(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1613,7 +1616,7 @@ export default function Home() {
                   {/* Total USD */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-700 bg-zinc-800/40">
                     <span className="text-xs text-zinc-500">
-                      {cantidadNum} × {potenciaNum}W × ${fmtUSD(precioNum)}/W
+                      {cantidadNum} × {potenciaNum}W × {fmtUSD3(precioNum)}/W
                     </span>
                     <span className="text-sm font-semibold text-amber-400 font-mono">
                       ${fmtUSD(totalPanelesUSD)} USD
@@ -2645,7 +2648,7 @@ export default function Home() {
                     <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div>
                         <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD(p.precioPorWatt)}/W</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD3(p.precioPorWatt)}/W</p>
                       </div>
                       <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">{fmtUSD(p.potencia * p.precioPorWatt)}/panel</span>
                     </button>
