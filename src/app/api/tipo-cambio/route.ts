@@ -2,29 +2,56 @@ import { NextResponse } from "next/server";
 
 const BANXICO_TOKEN = process.env.BANXICO_TOKEN;
 
+function parseBanxicoValue(raw: string): number | null {
+  const valor = parseFloat(String(raw).replace(",", "."));
+  return isNaN(valor) ? null : valor;
+}
+
 async function fetchBanxico() {
   if (!BANXICO_TOKEN) return null;
 
+  // Fetch last 2 data points to get both "today's DOF" and "tomorrow's DOF"
   const res = await fetch(
-    "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?mediaType=json",
+    "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/ult/2?mediaType=json",
     { headers: { "Bmx-Token": BANXICO_TOKEN } }
   );
 
   if (!res.ok) return null;
 
   const data = await res.json();
-  const dato = data?.bmx?.series?.[0]?.datos?.[0];
-  if (!dato || dato.dato === "N/E") return null;
+  const datos = data?.bmx?.series?.[0]?.datos;
+  if (!datos || datos.length === 0) return null;
 
-  // Banxico sometimes uses comma as decimal separator
-  const valor = parseFloat(String(dato.dato).replace(",", "."));
-  if (isNaN(valor)) return null;
+  // Filter valid entries
+  const valid = datos
+    .map((d: { fecha: string; dato: string }) => ({
+      fecha: d.fecha,
+      valor: parseBanxicoValue(d.dato),
+    }))
+    .filter((d: { valor: number | null }) => d.valor !== null);
 
-  return {
-    tipoCambio: valor,
-    fecha: dato.fecha,
-    fuente: "Banxico - Tipo de cambio FIX (DOF)",
+  if (valid.length === 0) return null;
+
+  // Banxico returns chronologically: [older, newer]
+  // The older one = published in today's DOF (for today's payments)
+  // The newer one = will be published in tomorrow's DOF (determined today)
+  const hoy = valid[0];
+  const manana = valid.length > 1 ? valid[1] : null;
+
+  const result: Record<string, unknown> = {
+    tipoCambio: hoy.valor,
+    fecha: hoy.fecha,
+    fuente: "Banxico FIX — publicado en DOF",
+    etiqueta: "DOF hoy (para pagos de hoy)",
   };
+
+  if (manana && manana.valor !== hoy.valor) {
+    result.tipoCambioAlt = manana.valor;
+    result.fechaAlt = manana.fecha;
+    result.etiquetaAlt = "DOF mañana (determinado hoy)";
+  }
+
+  return result;
 }
 
 async function fetchExchangeRateAPI() {

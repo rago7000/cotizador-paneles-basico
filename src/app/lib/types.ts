@@ -9,6 +9,11 @@ export interface TipoCambioData {
   tipoCambio: number;
   fecha: string;
   fuente: string;
+  // Segundo dato (si hay): el otro día disponible
+  tipoCambioAlt?: number;
+  fechaAlt?: string;
+  etiqueta?: string;    // "hoy" | "mañana"
+  etiquetaAlt?: string;
 }
 
 export interface CotizacionData {

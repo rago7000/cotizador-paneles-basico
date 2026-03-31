@@ -448,9 +448,10 @@ export default function Home() {
   const [mostrarPDF, setMostrarPDF] = useState(false);
   const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
 
-  // TC congelado
+  // TC congelado / manual
   const [tcFrozen, setTcFrozen] = useState(false);
   const [tcSnapshotLocal, setTcSnapshotLocal] = useState(""); // valor guardado al congelar
+  const [tcUsarManana, setTcUsarManana] = useState(false); // toggle hoy/mañana
 
   // Tipos de cambio personalizados por sección
   const [tcCustomPaneles, setTcCustomPaneles] = useState("");
@@ -533,7 +534,7 @@ export default function Home() {
     0
   );
 
-  const tcLive = tc?.tipoCambio || 0;
+  const tcLive = (tcUsarManana && tc?.tipoCambioAlt) ? tc.tipoCambioAlt : (tc?.tipoCambio || 0);
   const tcVal = (tcFrozen && Number(tcSnapshotLocal) > 0) ? Number(tcSnapshotLocal) : tcLive;
   const tcPaneles = Number(tcCustomPaneles) > 0 ? Number(tcCustomPaneles) : tcVal;
   const tcMicros  = Number(tcCustomMicros)  > 0 ? Number(tcCustomMicros)  : tcVal;
@@ -1930,12 +1931,38 @@ export default function Home() {
                 <>
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-xs uppercase tracking-wide font-medium ${tcFrozen ? "text-amber-400" : "text-zinc-500"}`}>
-                      {tcFrozen ? "TC Manual" : "Tipo de cambio DOF"}
+                      {tcFrozen ? "TC Manual" : "Tipo de cambio FIX"}
                     </span>
                     <span className="text-xs text-zinc-600">
-                      {tcFrozen ? "editable — escribe el del DOF" : tc?.fecha}
+                      {tcFrozen ? "editable" : tc?.fecha}
                     </span>
                   </div>
+
+                  {/* Hoy / Mañana toggle — only when NOT frozen and alt rate exists */}
+                  {!tcFrozen && tc?.tipoCambioAlt && (
+                    <div className="flex rounded-lg border border-zinc-700 overflow-hidden mb-2">
+                      <button
+                        onClick={() => setTcUsarManana(false)}
+                        className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+                          !tcUsarManana
+                            ? "bg-zinc-700 text-zinc-100"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        Hoy <span className="font-mono text-[10px] ml-1">${tc.tipoCambio.toFixed(4)}</span>
+                      </button>
+                      <button
+                        onClick={() => setTcUsarManana(true)}
+                        className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors border-l border-zinc-700 ${
+                          tcUsarManana
+                            ? "bg-zinc-700 text-zinc-100"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        Mañana <span className="font-mono text-[10px] ml-1">${tc.tipoCambioAlt.toFixed(4)}</span>
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex items-end justify-between gap-2">
                     <div className="flex items-end gap-2">
@@ -1966,13 +1993,12 @@ export default function Home() {
                           setTcFrozen(false);
                           setTcSnapshotLocal("");
                         } else {
-                          const snap = String(tcLive || tcVal);
-                          setTcSnapshotLocal(snap);
+                          setTcSnapshotLocal(String(tcVal));
                           setTcFrozen(true);
                         }
                       }}
                       disabled={!tcLive && !tcFrozen}
-                      title={tcFrozen ? "Descongelar — volver al DOF en vivo" : "Fijar TC manualmente (puedes escribir el del DOF)"}
+                      title={tcFrozen ? "Volver al TC automático" : "Escribir TC manualmente"}
                       className={`shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                         tcFrozen
                           ? "bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/10"
@@ -1984,14 +2010,14 @@ export default function Home() {
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                           </svg>
-                          Soltar
+                          Auto
                         </>
                       ) : (
                         <>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
-                          Editar
+                          Manual
                         </>
                       )}
                     </button>
@@ -1999,14 +2025,14 @@ export default function Home() {
 
                   {tcFrozen && (
                     <p className="text-xs text-zinc-500 mt-1.5">
-                      Escribe el TC del DOF para pagos. API: ${tcLive.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
-                      {Number(tcSnapshotLocal) > 0 && tcLive > 0 && Number(tcSnapshotLocal) !== tcLive && (
-                        <span className="text-zinc-600"> (dif: {Number(tcSnapshotLocal) > tcLive ? "+" : ""}{(Number(tcSnapshotLocal) - tcLive).toFixed(4)})</span>
-                      )}
+                      Escribe el TC exacto del DOF para tu pago
                     </p>
                   )}
                   {!tcFrozen && tc && (
-                    <p className="text-xs text-zinc-600 mt-1">{tc.fuente}</p>
+                    <p className="text-xs text-zinc-600 mt-1">
+                      {tcUsarManana && tc.tipoCambioAlt ? tc.etiquetaAlt || "DOF mañana" : tc.etiqueta || tc.fuente}
+                      {" — "}{tcUsarManana && tc.fechaAlt ? tc.fechaAlt : tc.fecha}
+                    </p>
                   )}
                 </>
               ) : tcError ? (
