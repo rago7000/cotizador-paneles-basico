@@ -326,13 +326,13 @@ function TcCustomRow({
           <span className="text-xs text-zinc-500">MXN/USD</span>
           {tcGlobal > 0 && (
             <span className="text-xs text-zinc-600 ml-1">
-              (DOF: ${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+              (DOF: ${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })})
             </span>
           )}
         </div>
       ) : (
         <span className="text-xs text-zinc-600">
-          Usando DOF{tcGlobal > 0 ? `: $${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+          Usando DOF{tcGlobal > 0 ? `: $${tcGlobal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "…"}
         </span>
       )}
     </div>
@@ -1940,7 +1940,7 @@ export default function Home() {
                   <div className="flex items-end justify-between gap-2">
                     <div className="flex items-end gap-2">
                       <span className="text-2xl font-bold text-zinc-100 font-mono">
-                        ${fmt(tcVal)}
+                        ${tcVal.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                       <span className="text-sm text-zinc-500 mb-0.5">MXN/USD</span>
                     </div>
