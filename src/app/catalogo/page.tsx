@@ -22,6 +22,7 @@ import {
   migrarCatalogoLegacy,
   consolidarProveedores,
   consolidarProductos,
+  reconstruirAliases,
   guardarArchivoProveedor,
   listarArchivosProveedor,
   obtenerArchivoProveedor,
@@ -1640,6 +1641,7 @@ export default function CatalogoPage() {
     migrarCatalogoLegacy();
     consolidarProveedores();
     consolidarProductos();
+    reconstruirAliases();
     reload();
   }, []);
 
