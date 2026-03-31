@@ -83,6 +83,7 @@ export interface CatalogoPanel {
   precioPorWatt: number;
   notas: string;
   fechaActualizacion: string;
+  totalOfertas?: number;
 }
 
 export interface CatalogoMicro {
@@ -94,6 +95,7 @@ export interface CatalogoMicro {
   panelesPorUnidad: number;
   notas: string;
   fechaActualizacion: string;
+  totalOfertas?: number;
 }
 
 // ── Catálogo v2: Proveedores + Productos + Ofertas ───────────────────────────

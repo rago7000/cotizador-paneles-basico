@@ -614,6 +614,7 @@ export default function Home() {
       .map((p) => {
         const best = mejorOferta(p.id, allOfertas);
         if (!best) return null;
+        const ofertasProducto = allOfertas.filter((o) => o.productoId === p.id);
         return {
           id: `v2_${p.id}`,
           marca: p.marca,
@@ -622,6 +623,7 @@ export default function Home() {
           precioPorWatt: best.precio,
           notas: best.notas || "",
           fechaActualizacion: best.fecha,
+          totalOfertas: ofertasProducto.length,
         } as CatalogoPanel;
       })
       .filter((x): x is CatalogoPanel => x !== null);
@@ -641,6 +643,7 @@ export default function Home() {
       .map((m) => {
         const best = mejorOferta(m.id, allOfertas);
         if (!best) return null;
+        const ofertasProducto = allOfertas.filter((o) => o.productoId === m.id);
         return {
           id: `v2_${m.id}`,
           marca: m.marca,
@@ -650,6 +653,7 @@ export default function Home() {
           panelesPorUnidad: m.panelesPorUnidad,
           notas: best.notas || "",
           fechaActualizacion: best.fecha,
+          totalOfertas: ofertasProducto.length,
         } as CatalogoMicro;
       })
       .filter((x): x is CatalogoMicro => x !== null);
@@ -2697,10 +2701,22 @@ export default function Home() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {catalogoPaneles.map((p) => (
-                    <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
-                      <div>
+                    <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD3(p.precioPorWatt)}/W</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {p.totalOfertas && p.totalOfertas > 0 && (
+                            <span className="text-[10px] text-zinc-600">
+                              {p.totalOfertas} {p.totalOfertas === 1 ? "cotización" : "cotizaciones"}
+                            </span>
+                          )}
+                          {p.fechaActualizacion && (
+                            <span className="text-[10px] text-zinc-600">
+                              · act. {p.fechaActualizacion}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">{fmtUSD(p.potencia * p.precioPorWatt)}/panel</span>
                     </button>
@@ -2732,13 +2748,25 @@ export default function Home() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {catalogoMicros.map((m) => (
-                    <button key={m.id} onClick={() => seleccionarMicro(m)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
-                      <div>
+                    <button key={m.id} onClick={() => seleccionarMicro(m)} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
                           {m.panelesPorUnidad ?? 4} panel{(m.panelesPorUnidad ?? 4) !== 1 ? "es" : ""}/micro
                           {m.precioCable > 0 && ` · cable ${fmtUSD(m.precioCable)}`}
                         </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {m.totalOfertas && m.totalOfertas > 0 && (
+                            <span className="text-[10px] text-zinc-600">
+                              {m.totalOfertas} {m.totalOfertas === 1 ? "cotización" : "cotizaciones"}
+                            </span>
+                          )}
+                          {m.fechaActualizacion && (
+                            <span className="text-[10px] text-zinc-600">
+                              · act. {m.fechaActualizacion}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">{fmtUSD(m.precio)} USD</span>
                     </button>
