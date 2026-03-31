@@ -44,6 +44,18 @@ const PDFViewerWrapper = dynamic(
   }
 );
 
+const PDFViewerClienteWrapper = dynamic(
+  () => import("./components/PDFViewerClienteWrapper"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-32 text-zinc-500 text-sm">
+        Cargando visor PDF…
+      </div>
+    ),
+  }
+);
+
 type AluminioItem = LineItem;
 type GeneralItem = LineItem;
 
@@ -476,6 +488,7 @@ export default function Home() {
   const [variantes, setVariantes] = useState<CotizacionCliente[]>([]);
   const [nombreVariante, setNombreVariante] = useState("");
   const [mostrarVariantes, setMostrarVariantes] = useState(false);
+  const [mostrarPDFCliente, setMostrarPDFCliente] = useState(false);
 
   // ── Numeric derivations ──────────────────────────────────────────────────
   const cantidadNum = Number(cantidad) || 0;
@@ -2259,17 +2272,31 @@ export default function Home() {
               </div>
             )}
 
-            {/* PDF Button */}
-            <button
-              onClick={() => setMostrarPDF((v) => !v)}
-              disabled={!tc}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              {mostrarPDF ? "Cerrar PDF" : "Ver PDF"}
-            </button>
+            {/* PDF Buttons */}
+            <div className="space-y-2">
+              <button
+                onClick={() => setMostrarPDF((v) => !v)}
+                disabled={!tc}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                {mostrarPDF ? "Cerrar PDF costos" : "PDF costos (interno)"}
+              </button>
+
+              {mostrarPrecioCliente && clienteTotalMXN > 0 && (
+                <button
+                  onClick={() => setMostrarPDFCliente((v) => !v)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-400/5 px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-emerald-400/10 hover:border-emerald-400/50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  {mostrarPDFCliente ? "Cerrar PDF cliente" : "PDF cotizacion cliente"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2306,6 +2333,46 @@ export default function Home() {
               tornilleria={tornilleria}
               generales={generales}
               tc={tc}
+            />
+          </div>
+        )}
+
+        {/* ── PDF Cliente Viewer ─────────────────────────────────────── */}
+        {mostrarPDFCliente && mostrarPrecioCliente && clienteTotalMXN > 0 && (
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-zinc-900 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+              <span className="text-sm font-medium text-emerald-400">PDF Cotizacion al Cliente</span>
+              <button
+                onClick={() => setMostrarPDFCliente(false)}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <PDFViewerClienteWrapper
+              nombreCotizacion={nombreCotizacion}
+              clienteNombre={reciboCFE?.nombre || ""}
+              cantidadPaneles={cantidadNum}
+              potenciaW={potenciaNum}
+              kWp={cantidadNum * potenciaNum / 1000}
+              generacionMensualKwh={cantidadNum * potenciaNum / 1000 * 132}
+              partidas={{
+                paneles: clientePanelesMXN * 1.16,
+                inversores: clienteInversoresMXN * 1.16,
+                estructura: clienteEstructuraMXN * 1.16,
+                tornilleria: clienteTornilleriaMXN * 1.16,
+                generales: clienteGeneralesMXN * 1.16,
+                montoFijo: utilidad.montoFijo * 1.16,
+              }}
+              subtotal={clienteSubtotalMXN}
+              iva={clienteIvaMXN}
+              total={clienteTotalMXN}
+              porPanel={clientePorPanel}
+              porWatt={clientePorWatt}
+              vigenciaDias={15}
+              notas=""
             />
           </div>
         )}
