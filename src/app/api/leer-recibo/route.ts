@@ -49,9 +49,31 @@ export async function POST(req: NextRequest) {
   const buffer = await file.arrayBuffer();
   const base64 = Buffer.from(buffer).toString("base64");
 
+  // Detect file type for Claude API
+  const mime = file.type || "application/pdf";
+  const isImage = mime.startsWith("image/");
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
+    const fileBlock = isImage
+      ? {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mime as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: base64,
+          },
+        }
+      : {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: base64,
+          },
+        };
+
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2048,
@@ -59,14 +81,7 @@ export async function POST(req: NextRequest) {
         {
           role: "user",
           content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64,
-              },
-            },
+            fileBlock,
             {
               type: "text",
               text: PROMPT,

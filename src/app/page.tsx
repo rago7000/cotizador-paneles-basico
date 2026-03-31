@@ -17,6 +17,10 @@ import {
   listarCotizacionesCliente,
   guardarCotizacionCliente,
   eliminarCotizacionCliente,
+  listarProductosPaneles,
+  listarProductosMicros,
+  listarOfertas,
+  mejorOferta,
 } from "./lib/storage";
 import type {
   CotizacionData,
@@ -575,6 +579,17 @@ export default function Home() {
   const clientePorPanel = cantidadNum > 0 ? clienteTotalMXN / cantidadNum : 0;
   const clientePorWatt = cantidadNum > 0 && potenciaNum > 0 ? clienteTotalMXN / (cantidadNum * potenciaNum) : 0;
 
+  // ── ROI del cliente ─────────────────────────────────────────────────────
+  const kWpSistema = cantidadNum * potenciaNum / 1000;
+  const generacionMensualKwh = kWpSistema * 132; // 132 kWh/kWp/mes (HSP 5.5, eff 0.8)
+  const costoCFEporKwh = reciboCFE && reciboCFE.consumoKwh > 0
+    ? reciboCFE.totalFacturado / reciboCFE.consumoKwh
+    : 0;
+  const ahorroMensualMXN = generacionMensualKwh * costoCFEporKwh;
+  const ahorroAnualMXN = ahorroMensualMXN * 12;
+  const roiMeses = ahorroMensualMXN > 0 ? clienteTotalMXN / ahorroMensualMXN : 0;
+  const roiAnios = roiMeses / 12;
+
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/tipo-cambio")
@@ -585,12 +600,66 @@ export default function Home() {
 
   useEffect(() => {
     setCotizacionesGuardadas(listarCotizaciones());
-    setCatalogoPaneles(listarCatalogoPaneles());
-    const micros = listarCatalogoMicros();
-    setCatalogoMicros(micros);
+
+    // Merge legacy catalog + v2 products+offers into a unified list
+    const legacyPaneles = listarCatalogoPaneles();
+    const v2Paneles = listarProductosPaneles();
+    const allOfertas = listarOfertas();
+    const v2AsCatalogo: CatalogoPanel[] = v2Paneles
+      .map((p) => {
+        const best = mejorOferta(p.id, allOfertas);
+        if (!best) return null;
+        return {
+          id: `v2_${p.id}`,
+          marca: p.marca,
+          modelo: p.modelo,
+          potencia: p.potencia,
+          precioPorWatt: best.precio,
+          notas: best.notas || "",
+          fechaActualizacion: best.fecha,
+        } as CatalogoPanel;
+      })
+      .filter((x): x is CatalogoPanel => x !== null);
+    // Deduplicate: if a v2 product matches a legacy one (same marca+modelo), prefer v2 (fresher prices)
+    const legacyIds = new Set(
+      v2AsCatalogo.map((v) => `${v.marca.toLowerCase()}:${v.modelo.toLowerCase()}`)
+    );
+    const filteredLegacy = legacyPaneles.filter(
+      (p) => !legacyIds.has(`${p.marca.toLowerCase()}:${p.modelo.toLowerCase()}`)
+    );
+    setCatalogoPaneles([...v2AsCatalogo, ...filteredLegacy]);
+
+    // Same for micros
+    const legacyMicros = listarCatalogoMicros();
+    const v2Micros = listarProductosMicros();
+    const v2MicrosAsCatalogo: CatalogoMicro[] = v2Micros
+      .map((m) => {
+        const best = mejorOferta(m.id, allOfertas);
+        if (!best) return null;
+        return {
+          id: `v2_${m.id}`,
+          marca: m.marca,
+          modelo: m.modelo,
+          precio: best.precio,
+          precioCable: best.precioCable || 0,
+          panelesPorUnidad: m.panelesPorUnidad,
+          notas: best.notas || "",
+          fechaActualizacion: best.fecha,
+        } as CatalogoMicro;
+      })
+      .filter((x): x is CatalogoMicro => x !== null);
+    const legacyMicroIds = new Set(
+      v2MicrosAsCatalogo.map((v) => `${v.marca.toLowerCase()}:${v.modelo.toLowerCase()}`)
+    );
+    const filteredLegacyMicros = legacyMicros.filter(
+      (m) => !legacyMicroIds.has(`${m.marca.toLowerCase()}:${m.modelo.toLowerCase()}`)
+    );
+    const allMicros = [...v2MicrosAsCatalogo, ...filteredLegacyMicros];
+    setCatalogoMicros(allMicros);
+
     // Auto-select DS3D if available and no micro selected yet
     if (!precioMicroinversor) {
-      const ds3d = micros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
+      const ds3d = allMicros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
       if (ds3d) {
         setPrecioMicroinversor(String(ds3d.precio));
         setPrecioCable(String(ds3d.precioCable));
@@ -950,7 +1019,7 @@ export default function Home() {
             <input
               ref={reciboInputRef}
               type="file"
-              accept=".pdf"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
               className="hidden"
               onChange={handleReciboCFE}
             />
@@ -1126,20 +1195,20 @@ export default function Home() {
                             onClick={() => setReciboUltimoAnio(true)}
                             className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
                           >
-                            Último año ({Math.min(6, reciboCFE.historico.length)} bim)
+                            Último año ({Math.min(6, reciboCFE.historico.length) + 1} bim)
                           </button>
                           <button
                             onClick={() => setReciboUltimoAnio(false)}
                             className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${!reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
                           >
-                            Todo el historial ({reciboCFE.historico.length} bim)
+                            Todo el historial ({reciboCFE.historico.length + 1} bim)
                           </button>
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-600 mb-3">
                         {reciboUltimoAnio
-                          ? `Usando los últimos ${Math.min(6, reciboCFE.historico.length)} bimestres + período actual para calcular promedio, P75 y máximo.`
-                          : `Usando todo el historial (${reciboCFE.historico.length} bimestres) + período actual.`
+                          ? `Usando los últimos ${Math.min(6, reciboCFE.historico.length) + 1} bimestres (${Math.min(6, reciboCFE.historico.length)} del historial + período actual).`
+                          : `Usando todo el historial (${reciboCFE.historico.length + 1} bimestres incluyendo período actual).`
                         }
                       </p>
                       {(() => {
@@ -1403,7 +1472,7 @@ export default function Home() {
                   <div>
                     <p className="text-sm font-medium text-zinc-300">Cargar recibo CFE</p>
                     <p className="text-xs text-zinc-600 mt-0.5">
-                      Extrae consumo, tarifa e historial automáticamente del PDF
+                      Sube el PDF o una foto del recibo — la IA extrae consumo, tarifa e historial
                     </p>
                   </div>
                 </div>
@@ -1429,7 +1498,7 @@ export default function Home() {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
-                        Subir PDF
+                        Subir recibo
                       </>
                     )}
                   </button>
@@ -2533,9 +2602,9 @@ export default function Home() {
                     <button key={p.id} onClick={() => seleccionarPanel(p)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div>
                         <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · ${fmtUSD(p.precioPorWatt)}/W</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD(p.precioPorWatt)}/W</p>
                       </div>
-                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">${fmtUSD(p.potencia * p.precioPorWatt)}/panel</span>
+                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">{fmtUSD(p.potencia * p.precioPorWatt)}/panel</span>
                     </button>
                   ))}
                 </div>
@@ -2570,10 +2639,10 @@ export default function Home() {
                         <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
                           {m.panelesPorUnidad ?? 4} panel{(m.panelesPorUnidad ?? 4) !== 1 ? "es" : ""}/micro
-                          {m.precioCable > 0 && ` · cable $${fmtUSD(m.precioCable)}`}
+                          {m.precioCable > 0 && ` · cable ${fmtUSD(m.precioCable)}`}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">${fmtUSD(m.precio)} USD</span>
+                      <span className="text-sm font-semibold text-amber-400 font-mono shrink-0 ml-3">{fmtUSD(m.precio)} USD</span>
                     </button>
                   ))}
                 </div>

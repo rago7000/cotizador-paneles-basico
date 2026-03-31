@@ -130,6 +130,20 @@ export interface Oferta {
   precioCable?: number;    // solo micros
   fecha: string;           // ISO date
   notas: string;
+  archivoOrigenId?: string; // ID del ArchivoProveedor de donde se importó
+}
+
+// ── Archivos de proveedores (PDFs importados) ──────────────────────────────
+
+export interface ArchivoProveedor {
+  id: string;
+  nombre: string;           // filename
+  proveedorId: string;
+  fechaImportacion: string; // ISO date — cuándo se subió
+  fechaDocumento: string;   // fecha extraída del PDF (ej: "2026-02-01")
+  condiciones: string;      // texto completo de condiciones/notas del proveedor
+  resumenCondiciones: string; // resumen IA de lo más importante
+  base64: string;           // PDF completo en base64
 }
 
 // ── Utilidad / Precio al cliente ─────────────────────────────────────────────

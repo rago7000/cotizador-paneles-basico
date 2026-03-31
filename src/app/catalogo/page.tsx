@@ -20,6 +20,9 @@ import {
   tendenciaOferta,
   historialPrecios,
   migrarCatalogoLegacy,
+  guardarArchivoProveedor,
+  listarArchivosProveedor,
+  obtenerArchivoProveedor,
 } from "../lib/storage";
 import type {
   Proveedor,
@@ -27,6 +30,7 @@ import type {
   ProductoMicro,
   Oferta,
   PrecioTier,
+  ArchivoProveedor,
 } from "../lib/types";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -693,6 +697,10 @@ function OfertaForm({
 // IMPORTADOR PDF — extrae precios de PDFs de proveedores con AI
 // ══════════════════════════════════════════════════════════════════════════════
 
+/** Normaliza nombre para comparaciones: minúsculas, sin espacios extra, sin acentos */
+const normalizeName = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").trim();
+
 interface ImportTier {
   etiqueta: string;
   precio: number;
@@ -717,12 +725,14 @@ function ImportadorPDF({
   proveedores,
   paneles,
   micros,
+  ofertas,
   onDone,
   onCancel,
 }: {
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
+  ofertas: Oferta[];
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -730,15 +740,28 @@ function ImportadorPDF({
   const [items, setItems] = useState<ImportItem[]>([]);
   const [proveedorId, setProveedorId] = useState("");
   const [nuevoProvNombre, setNuevoProvNombre] = useState("");
+  const [fechaDocumento, setFechaDocumento] = useState("");
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [savedCount, setSavedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [condiciones, setCondiciones] = useState("");
+  const [resumenCondiciones, setResumenCondiciones] = useState("");
+  const [pdfBase64, setPdfBase64] = useState("");
+  const [showCondiciones, setShowCondiciones] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
     setStep("loading");
     setError("");
+
+    // Read PDF as base64 for storage
+    const arrayBuf = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuf);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    setPdfBase64(btoa(binary));
 
     const formData = new FormData();
     formData.append("pdf", file);
@@ -771,9 +794,14 @@ function ImportadorPDF({
       if (extracted.length === 0) { setError("No se encontraron productos en el PDF"); setStep("upload"); return; }
 
       setItems(extracted);
-      // Auto-set proveedor if detected
+      // Capture metadata from PDF
+      if (data.fechaDocumento) setFechaDocumento(data.fechaDocumento);
+      if (data.condiciones) setCondiciones(data.condiciones);
+      if (data.resumenCondiciones) setResumenCondiciones(data.resumenCondiciones);
+      // Auto-set proveedor with fuzzy matching (normalized)
       if (data.proveedor) {
-        const match = proveedores.find((p) => p.nombre.toLowerCase().includes(data.proveedor.toLowerCase()));
+        const norm = normalizeName(data.proveedor);
+        const match = proveedores.find((p) => normalizeName(p.nombre) === norm);
         if (match) setProveedorId(match.id);
         else setNuevoProvNombre(data.proveedor);
       }
@@ -789,26 +817,51 @@ function ImportadorPDF({
   };
 
   const handleSave = () => {
-    // Resolve proveedor
+    // Resolve proveedor — fuzzy match existing by normalized name
     let provId = proveedorId;
     if (!provId && nuevoProvNombre.trim()) {
-      const newProv: Proveedor = { id: uid(), nombre: nuevoProvNombre.trim(), contacto: "", telefono: "", notas: `Importado de ${fileName}` };
-      guardarProveedor(newProv);
-      provId = newProv.id;
+      const norm = normalizeName(nuevoProvNombre);
+      const existingProv = proveedores.find((p) => normalizeName(p.nombre) === norm);
+      if (existingProv) {
+        provId = existingProv.id;
+      } else {
+        const newProv: Proveedor = { id: uid(), nombre: nuevoProvNombre.trim(), contacto: "", telefono: "", notas: `Importado de ${fileName}` };
+        guardarProveedor(newProv);
+        provId = newProv.id;
+      }
     }
     if (!provId) return;
 
+    // Use document date from PDF if available, else current date
+    const fechaOferta = fechaDocumento
+      ? new Date(fechaDocumento + "T00:00:00").toISOString()
+      : new Date().toISOString();
+
+    // Save PDF archive
+    const archivoId = uid();
+    guardarArchivoProveedor({
+      id: archivoId,
+      nombre: fileName,
+      proveedorId: provId,
+      fechaImportacion: new Date().toISOString(),
+      fechaDocumento: fechaDocumento || "",
+      condiciones,
+      resumenCondiciones,
+      base64: pdfBase64,
+    });
+
     let count = 0;
+    let skipped = 0;
     const selected = items.filter((it) => it.selected && it.precio > 0);
 
     for (const it of selected) {
       if (it.tipo === "panel" || it.tipo === "micro") {
-        // Try to match existing product
+        // Match existing product by normalized marca+modelo
         let prodId = "";
         if (it.tipo === "panel") {
           const match = paneles.find((p) =>
-            p.marca.toLowerCase() === it.marca.toLowerCase() &&
-            p.modelo.toLowerCase() === it.modelo.toLowerCase()
+            normalizeName(p.marca) === normalizeName(it.marca) &&
+            normalizeName(p.modelo) === normalizeName(it.modelo)
           );
           if (match) {
             prodId = match.id;
@@ -819,8 +872,8 @@ function ImportadorPDF({
           }
         } else {
           const match = micros.find((p) =>
-            p.marca.toLowerCase() === it.marca.toLowerCase() &&
-            p.modelo.toLowerCase() === it.modelo.toLowerCase()
+            normalizeName(p.marca) === normalizeName(it.marca) &&
+            normalizeName(p.modelo) === normalizeName(it.modelo)
           );
           if (match) {
             prodId = match.id;
@@ -831,6 +884,17 @@ function ImportadorPDF({
           }
         }
 
+        // Dedup: check if an offer already exists with same proveedor + producto + precio
+        const existingOffer = ofertas.find((o) =>
+          o.proveedorId === provId &&
+          o.productoId === prodId &&
+          Math.abs(o.precio - it.precio) < 0.001
+        );
+        if (existingOffer) {
+          skipped++;
+          continue;
+        }
+
         const oferta: Oferta = {
           id: uid(),
           proveedorId: provId,
@@ -839,17 +903,17 @@ function ImportadorPDF({
           precio: it.precio,
           precioTiers: it.precioTiers.length > 0 ? it.precioTiers : undefined,
           precioCable: it.tipo === "micro" ? 0 : undefined,
-          fecha: new Date().toISOString(),
+          fecha: fechaOferta,
           notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
+          archivoOrigenId: archivoId,
         };
         guardarOferta(oferta);
         count++;
       }
-      // Items tipo cable/ecu/estructura/etc → guardar como oferta genérica de micro con nota descriptiva
-      // Por ahora solo paneles y micros crean ofertas formales
     }
 
     setSavedCount(count);
+    setSkippedCount(skipped);
     setStep("done");
   };
 
@@ -860,14 +924,14 @@ function ImportadorPDF({
   if (step === "upload") {
     return (
       <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-emerald-400">Importar precios desde PDF</h3>
-        <p className="text-xs text-zinc-500">Sube un PDF de lista de precios de proveedor. La AI extraerá los productos y precios automáticamente.</p>
+        <h3 className="text-sm font-semibold text-emerald-400">Importar precios desde archivo</h3>
+        <p className="text-xs text-zinc-500">Sube un PDF o imagen (JPG, PNG) de lista de precios de proveedor. La AI extraerá los productos y precios automáticamente.</p>
         {error && <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
-        <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
         <div className="flex gap-2">
           <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-            Seleccionar PDF
+            Seleccionar archivo
           </button>
           <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
         </div>
@@ -891,7 +955,11 @@ function ImportadorPDF({
     return (
       <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-emerald-400">Importación completa</h3>
-        <p className="text-xs text-zinc-400">Se guardaron <span className="text-emerald-400 font-bold">{savedCount}</span> ofertas desde <span className="text-zinc-200">{fileName}</span></p>
+        <p className="text-xs text-zinc-400">
+          Se guardaron <span className="text-emerald-400 font-bold">{savedCount}</span> ofertas desde <span className="text-zinc-200">{fileName}</span>
+          {skippedCount > 0 && <span className="text-amber-400 ml-1">({skippedCount} duplicadas omitidas)</span>}
+        </p>
+        {fechaDocumento && <p className="text-[10px] text-zinc-600">Fecha del documento: {fechaDocumento}</p>}
         <button onClick={onDone} className={btnPrimary}>Cerrar</button>
       </div>
     );
@@ -907,7 +975,7 @@ function ImportadorPDF({
         </div>
       </div>
 
-      {/* Proveedor selector */}
+      {/* Proveedor + fecha selector */}
       <div className="px-5 py-3 border-b border-zinc-800 flex flex-wrap items-center gap-3">
         <label className="text-xs text-zinc-400 font-medium">Proveedor:</label>
         <select
@@ -926,7 +994,40 @@ function ImportadorPDF({
             placeholder="Nombre del nuevo proveedor"
           />
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-xs text-zinc-400 font-medium">Fecha precios:</label>
+          <input
+            type="date"
+            className={`${inputCls} w-auto`}
+            value={fechaDocumento}
+            onChange={(e) => setFechaDocumento(e.target.value)}
+          />
+          {fechaDocumento && <span className="text-[10px] text-emerald-400/70">extraída del PDF</span>}
+        </div>
       </div>
+
+      {/* Condiciones del proveedor */}
+      {resumenCondiciones && (
+        <div className="px-5 py-3 border-b border-zinc-800">
+          <button
+            onClick={() => setShowCondiciones(!showCondiciones)}
+            className="flex items-center gap-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            <svg className={`w-3 h-3 transition-transform ${showCondiciones ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+            Condiciones del proveedor
+          </button>
+          <div className="mt-2 text-xs text-zinc-400 whitespace-pre-line leading-relaxed">
+            {resumenCondiciones}
+          </div>
+          {showCondiciones && condiciones && (
+            <div className="mt-3 p-3 rounded-lg bg-zinc-800/50 text-[11px] text-zinc-500 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
+              {condiciones}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Items table */}
       <div className="overflow-x-auto">
@@ -1103,6 +1204,14 @@ function TabOfertas({
     return m;
   }, [paneles, micros]);
 
+  const archivosMap = useMemo(() => {
+    const m = new Map<string, ArchivoProveedor>();
+    listarArchivosProveedor().forEach((a) => m.set(a.id, a));
+    return m;
+  }, [ofertas]); // re-compute when offers change (new import)
+
+  const [viewingArchivo, setViewingArchivo] = useState<ArchivoProveedor | null>(null);
+
   const filtered = useMemo(() => {
     let list = [...ofertas];
     if (filterProv) list = list.filter((o) => o.proveedorId === filterProv);
@@ -1147,7 +1256,7 @@ function TabOfertas({
         )}
       </div>
 
-      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
+      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} ofertas={ofertas} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
       {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setAdding(false)} />}
       {editing && <OfertaForm initial={editing} proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setEditing(null)} />}
 
@@ -1178,9 +1287,20 @@ function TabOfertas({
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-100 truncate">{prodMap.get(o.productoId) || "?"}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${o.tipo === "panel" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
-                      {o.tipo === "panel" ? "Panel" : "Micro"}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${o.tipo === "panel" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
+                        {o.tipo === "panel" ? "Panel" : "Micro"}
+                      </span>
+                      {o.archivoOrigenId && archivosMap.has(o.archivoOrigenId) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewingArchivo(archivosMap.get(o.archivoOrigenId!)!); }}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/70 hover:text-emerald-400 transition-colors truncate max-w-[150px]"
+                          title={archivosMap.get(o.archivoOrigenId)?.nombre}
+                        >
+                          PDF: {archivosMap.get(o.archivoOrigenId)?.nombre}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="hidden sm:block text-sm text-zinc-400 truncate">{provMap.get(o.proveedorId) || "?"}</p>
                   <div className="hidden sm:block text-right">
@@ -1226,6 +1346,51 @@ function TabOfertas({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal: ver archivo PDF de origen */}
+      {viewingArchivo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setViewingArchivo(null)}>
+          <div className="bg-zinc-900 rounded-2xl border border-zinc-700 w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">{viewingArchivo.nombre}</h3>
+                <p className="text-[10px] text-zinc-500">
+                  Importado {fmtDateTime(viewingArchivo.fechaImportacion)}
+                  {viewingArchivo.fechaDocumento && <> · Precios de <span className="text-emerald-400">{viewingArchivo.fechaDocumento}</span></>}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {viewingArchivo.base64 && (
+                  <a
+                    href={`data:application/pdf;base64,${viewingArchivo.base64}`}
+                    download={viewingArchivo.nombre}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  >
+                    Descargar PDF
+                  </a>
+                )}
+                <button onClick={() => setViewingArchivo(null)} className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none px-2">&times;</button>
+              </div>
+            </div>
+
+            {/* Resumen de condiciones */}
+            {viewingArchivo.resumenCondiciones && (
+              <div className="px-5 py-4 border-b border-zinc-800">
+                <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-2">Puntos clave para la compra</h4>
+                <div className="text-xs text-zinc-300 whitespace-pre-line leading-relaxed">{viewingArchivo.resumenCondiciones}</div>
+              </div>
+            )}
+
+            {/* Condiciones completas */}
+            {viewingArchivo.condiciones && (
+              <div className="px-5 py-4">
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Condiciones completas del proveedor</h4>
+                <div className="text-[11px] text-zinc-500 whitespace-pre-line leading-relaxed max-h-60 overflow-y-auto p-3 rounded-lg bg-zinc-800/50">{viewingArchivo.condiciones}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

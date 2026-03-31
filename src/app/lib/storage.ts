@@ -9,6 +9,7 @@ import {
   ProductoMicro,
   Oferta,
   CotizacionCliente,
+  ArchivoProveedor,
 } from "./types";
 
 // ── Cotizaciones ──────────────────────────────────────────────────────────────
@@ -252,6 +253,30 @@ export function historialPrecios(productoId: string, proveedorId: string, oferta
   return ofertas
     .filter((o) => o.productoId === productoId && o.proveedorId === proveedorId)
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+// ── Archivos de proveedores (PDFs importados) ──────────────────────────────
+
+const ARCHIVOS_PROV_KEY = "archivos_proveedor";
+
+export function listarArchivosProveedor(): ArchivoProveedor[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(ARCHIVOS_PROV_KEY) || "[]"); } catch { return []; }
+}
+
+export function guardarArchivoProveedor(a: ArchivoProveedor): void {
+  const lista = listarArchivosProveedor();
+  const idx = lista.findIndex((x) => x.id === a.id);
+  if (idx >= 0) lista[idx] = a; else lista.push(a);
+  localStorage.setItem(ARCHIVOS_PROV_KEY, JSON.stringify(lista));
+}
+
+export function obtenerArchivoProveedor(id: string): ArchivoProveedor | null {
+  return listarArchivosProveedor().find((x) => x.id === id) ?? null;
+}
+
+export function eliminarArchivoProveedor(id: string): void {
+  localStorage.setItem(ARCHIVOS_PROV_KEY, JSON.stringify(listarArchivosProveedor().filter((x) => x.id !== id)));
 }
 
 // ── Cotizaciones Cliente ────────────────────────────────────────────────────

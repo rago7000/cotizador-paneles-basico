@@ -6,7 +6,10 @@ const PROMPT = `Eres un extractor de datos de listas de precios de proveedores d
 Analiza este documento (PDF de un proveedor) y devuelve ÚNICAMENTE un objeto JSON válido (sin markdown, sin texto adicional) con esta estructura:
 
 {
-  "proveedor": "nombre del proveedor si aparece en el documento, o vacío",
+  "proveedor": "nombre del proveedor tal como aparece (sin abreviar, con espacios y mayúsculas originales), o vacío",
+  "fechaDocumento": "fecha de la lista de precios en formato YYYY-MM-DD (busca en el documento: mes/año de vigencia, fecha de emisión, periodo de validez, etc). Si no la encuentras, usa vacío",
+  "condiciones": "texto completo de las condiciones, notas importantes, términos legales, etc. tal como aparecen en el documento. Incluye TODO: condiciones de pago, disponibilidad, tipo de cambio, garantías, entregas, etc. Si no hay, usa vacío",
+  "resumenCondiciones": "resumen en 3-5 bullets de los puntos MÁS IMPORTANTES para alguien que va a COMPRAR: condiciones de pago, tipo de cambio, disponibilidad, tiempos de entrega, garantías, restricciones. Sé conciso y directo. Si no hay condiciones, usa vacío",
   "items": [
     {
       "tipo": "panel" | "micro" | "cable" | "ecu" | "herramienta" | "estructura" | "tornilleria" | "otro",
@@ -47,6 +50,7 @@ REGLAS:
 - Todos los valores numéricos deben ser números, no strings.
 - Si un campo no está disponible, usa "" para strings o 0 para números.
 - Extrae TODOS los productos y precios que encuentres en el documento.
+- "fechaDocumento": busca en el documento cualquier indicación de fecha: "precios de febrero 2026", "vigencia: enero-marzo 2026", "actualizado al 15/02/2026", etc. Extrae la fecha más relevante en formato YYYY-MM-DD. Si solo dice mes y año, usa el día 1. Si no encuentras ninguna fecha, deja "".
 - Responde SOLO con el JSON, absolutamente nada más.`;
 
 export async function POST(req: NextRequest) {
@@ -69,24 +73,40 @@ export async function POST(req: NextRequest) {
   const buffer = await file.arrayBuffer();
   const base64 = Buffer.from(buffer).toString("base64");
 
+  // Detect file type for Claude API
+  const mime = file.type || "application/pdf";
+  const isImage = mime.startsWith("image/");
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
+    // Build content block: document for PDFs, image for images
+    const fileBlock = isImage
+      ? {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mime as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: base64,
+          },
+        }
+      : {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: base64,
+          },
+        };
+
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         {
           role: "user",
           content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64,
-              },
-            },
+            fileBlock,
             {
               type: "text",
               text: PROMPT,
