@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import AppNav from "../components/AppNav";
 import {
   listarProveedores,
@@ -647,6 +647,351 @@ function OfertaForm({
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// IMPORTADOR PDF — extrae precios de PDFs de proveedores con AI
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ImportItem {
+  selected: boolean;
+  tipo: string;
+  marca: string;
+  modelo: string;
+  descripcion: string;
+  potencia: number;
+  panelesPorUnidad: number;
+  precio: number;
+  moneda: string;
+  unidad: string;
+  notas: string;
+}
+
+function ImportadorPDF({
+  proveedores,
+  paneles,
+  micros,
+  onDone,
+  onCancel,
+}: {
+  proveedores: Proveedor[];
+  paneles: ProductoPanel[];
+  micros: ProductoMicro[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [step, setStep] = useState<"upload" | "loading" | "review" | "done">("upload");
+  const [items, setItems] = useState<ImportItem[]>([]);
+  const [proveedorId, setProveedorId] = useState("");
+  const [nuevoProvNombre, setNuevoProvNombre] = useState("");
+  const [error, setError] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [savedCount, setSavedCount] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    setFileName(file.name);
+    setStep("loading");
+    setError("");
+
+    const formData = new FormData();
+    formData.append("pdf", file);
+
+    try {
+      const res = await fetch("/api/leer-catalogo", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.error) { setError(data.error); setStep("upload"); return; }
+
+      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => ({
+        selected: true,
+        tipo: String(it.tipo || "otro"),
+        marca: String(it.marca || ""),
+        modelo: String(it.modelo || ""),
+        descripcion: String(it.descripcion || ""),
+        potencia: Number(it.potencia) || 0,
+        panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
+        precio: Number(it.precio) || 0,
+        moneda: String(it.moneda || "USD"),
+        unidad: String(it.unidad || "por_unidad"),
+        notas: String(it.notas || ""),
+      }));
+
+      if (extracted.length === 0) { setError("No se encontraron productos en el PDF"); setStep("upload"); return; }
+
+      setItems(extracted);
+      // Auto-set proveedor if detected
+      if (data.proveedor) {
+        const match = proveedores.find((p) => p.nombre.toLowerCase().includes(data.proveedor.toLowerCase()));
+        if (match) setProveedorId(match.id);
+        else setNuevoProvNombre(data.proveedor);
+      }
+      setStep("review");
+    } catch {
+      setError("Error al procesar el PDF");
+      setStep("upload");
+    }
+  };
+
+  const updateItem = (i: number, field: keyof ImportItem, value: unknown) => {
+    setItems((prev) => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it));
+  };
+
+  const handleSave = () => {
+    // Resolve proveedor
+    let provId = proveedorId;
+    if (!provId && nuevoProvNombre.trim()) {
+      const newProv: Proveedor = { id: uid(), nombre: nuevoProvNombre.trim(), contacto: "", telefono: "", notas: `Importado de ${fileName}` };
+      guardarProveedor(newProv);
+      provId = newProv.id;
+    }
+    if (!provId) return;
+
+    let count = 0;
+    const selected = items.filter((it) => it.selected && it.precio > 0);
+
+    for (const it of selected) {
+      if (it.tipo === "panel" || it.tipo === "micro") {
+        // Try to match existing product
+        let prodId = "";
+        if (it.tipo === "panel") {
+          const match = paneles.find((p) =>
+            p.marca.toLowerCase() === it.marca.toLowerCase() &&
+            p.modelo.toLowerCase() === it.modelo.toLowerCase()
+          );
+          if (match) {
+            prodId = match.id;
+          } else {
+            const newProd: ProductoPanel = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), potencia: it.potencia };
+            guardarProductoPanel(newProd);
+            prodId = newProd.id;
+          }
+        } else {
+          const match = micros.find((p) =>
+            p.marca.toLowerCase() === it.marca.toLowerCase() &&
+            p.modelo.toLowerCase() === it.modelo.toLowerCase()
+          );
+          if (match) {
+            prodId = match.id;
+          } else {
+            const newProd: ProductoMicro = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), panelesPorUnidad: it.panelesPorUnidad || 4 };
+            guardarProductoMicro(newProd);
+            prodId = newProd.id;
+          }
+        }
+
+        const oferta: Oferta = {
+          id: uid(),
+          proveedorId: provId,
+          productoId: prodId,
+          tipo: it.tipo as "panel" | "micro",
+          precio: it.precio,
+          precioCable: it.tipo === "micro" ? 0 : undefined,
+          fecha: new Date().toISOString(),
+          notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
+        };
+        guardarOferta(oferta);
+        count++;
+      }
+      // Items tipo cable/ecu/estructura/etc → guardar como oferta genérica de micro con nota descriptiva
+      // Por ahora solo paneles y micros crean ofertas formales
+    }
+
+    setSavedCount(count);
+    setStep("done");
+  };
+
+  const selectedCount = items.filter((it) => it.selected && it.precio > 0).length;
+  const canSave = selectedCount > 0 && (proveedorId || nuevoProvNombre.trim());
+
+  // ── Upload step ──
+  if (step === "upload") {
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-emerald-400">Importar precios desde PDF</h3>
+        <p className="text-xs text-zinc-500">Sube un PDF de lista de precios de proveedor. La AI extraerá los productos y precios automáticamente.</p>
+        {error && <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
+        <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+        <div className="flex gap-2">
+          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+            Seleccionar PDF
+          </button>
+          <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Loading step ──
+  if (step === "loading") {
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-8 flex flex-col items-center gap-3">
+        <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-zinc-400">Analizando <span className="text-zinc-200 font-medium">{fileName}</span>…</p>
+        <p className="text-[10px] text-zinc-600">Esto puede tomar unos segundos</p>
+      </div>
+    );
+  }
+
+  // ── Done step ──
+  if (step === "done") {
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-5 space-y-3">
+        <h3 className="text-sm font-semibold text-emerald-400">Importación completa</h3>
+        <p className="text-xs text-zinc-400">Se guardaron <span className="text-emerald-400 font-bold">{savedCount}</span> ofertas desde <span className="text-zinc-200">{fileName}</span></p>
+        <button onClick={onDone} className={btnPrimary}>Cerrar</button>
+      </div>
+    );
+  }
+
+  // ── Review step ──
+  return (
+    <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 overflow-hidden">
+      <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-emerald-400">Revisar items extraídos</h3>
+          <p className="text-[10px] text-zinc-600">{fileName} — {items.length} items encontrados</p>
+        </div>
+      </div>
+
+      {/* Proveedor selector */}
+      <div className="px-5 py-3 border-b border-zinc-800 flex flex-wrap items-center gap-3">
+        <label className="text-xs text-zinc-400 font-medium">Proveedor:</label>
+        <select
+          className={`${inputCls} w-auto min-w-[180px]`}
+          value={proveedorId}
+          onChange={(e) => { setProveedorId(e.target.value); if (e.target.value) setNuevoProvNombre(""); }}
+        >
+          <option value="">— Crear nuevo —</option>
+          {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+        {!proveedorId && (
+          <input
+            className={`${inputCls} w-auto min-w-[200px]`}
+            value={nuevoProvNombre}
+            onChange={(e) => setNuevoProvNombre(e.target.value)}
+            placeholder="Nombre del nuevo proveedor"
+          />
+        )}
+      </div>
+
+      {/* Items table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-zinc-800/60 text-zinc-500 uppercase tracking-wide">
+              <th className="px-3 py-2 text-left w-8">
+                <input
+                  type="checkbox"
+                  checked={items.every((it) => it.selected)}
+                  onChange={(e) => setItems((prev) => prev.map((it) => ({ ...it, selected: e.target.checked })))}
+                  className="accent-emerald-400"
+                />
+              </th>
+              <th className="px-3 py-2 text-left">Tipo</th>
+              <th className="px-3 py-2 text-left">Marca</th>
+              <th className="px-3 py-2 text-left">Modelo / Descripción</th>
+              <th className="px-3 py-2 text-right">Precio</th>
+              <th className="px-3 py-2 text-center">Moneda</th>
+              <th className="px-3 py-2 text-center">Unidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={i} className={`border-t border-zinc-800/50 ${it.selected ? "" : "opacity-40"}`}>
+                <td className="px-3 py-2">
+                  <input type="checkbox" checked={it.selected} onChange={(e) => updateItem(i, "selected", e.target.checked)} className="accent-emerald-400" />
+                </td>
+                <td className="px-3 py-2">
+                  <select
+                    className="bg-transparent border-none text-xs text-zinc-300 outline-none"
+                    value={it.tipo}
+                    onChange={(e) => updateItem(i, "tipo", e.target.value)}
+                  >
+                    <option value="panel">Panel</option>
+                    <option value="micro">Micro</option>
+                    <option value="cable">Cable</option>
+                    <option value="ecu">ECU</option>
+                    <option value="herramienta">Herramienta</option>
+                    <option value="estructura">Estructura</option>
+                    <option value="tornilleria">Tornillería</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    className="bg-transparent border-none text-xs text-zinc-300 outline-none w-20"
+                    value={it.marca}
+                    onChange={(e) => updateItem(i, "marca", e.target.value)}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    className="bg-transparent border-none text-xs text-zinc-300 outline-none w-full"
+                    value={it.modelo || it.descripcion}
+                    onChange={(e) => updateItem(i, "modelo", e.target.value)}
+                  />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="bg-transparent border-none text-xs text-zinc-100 font-mono outline-none w-20 text-right"
+                    value={it.precio}
+                    onChange={(e) => updateItem(i, "precio", Number(e.target.value) || 0)}
+                  />
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <select
+                    className="bg-transparent border-none text-xs text-zinc-400 outline-none"
+                    value={it.moneda}
+                    onChange={(e) => updateItem(i, "moneda", e.target.value)}
+                  >
+                    <option value="USD">USD</option>
+                    <option value="MXN">MXN</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <select
+                    className="bg-transparent border-none text-xs text-zinc-400 outline-none"
+                    value={it.unidad}
+                    onChange={(e) => updateItem(i, "unidad", e.target.value)}
+                  >
+                    <option value="por_watt">/W</option>
+                    <option value="por_unidad">/pza</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Actions */}
+      <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between">
+        <p className="text-xs text-zinc-500">
+          {selectedCount} de {items.length} seleccionados
+          {selectedCount > 0 && items.filter((it) => it.selected && (it.tipo !== "panel" && it.tipo !== "micro")).length > 0 && (
+            <span className="text-amber-400 ml-2">· Solo paneles y micros crean ofertas</span>
+          )}
+        </p>
+        <div className="flex gap-2">
+          <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave}
+            className={`flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors ${btnDisabled}`}
+          >
+            Guardar {selectedCount} ofertas
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 3 — OFERTAS
+// ══════════════════════════════════════════════════════════════════════════════
+
 function TabOfertas({
   proveedores,
   paneles,
@@ -662,6 +1007,7 @@ function TabOfertas({
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Oferta | null>(null);
+  const [importing, setImporting] = useState(false);
   const [filterProv, setFilterProv] = useState("");
   const [filterTipo, setFilterTipo] = useState<"" | "panel" | "micro">("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -712,11 +1058,18 @@ function TabOfertas({
           <option value="micro">Microinversores</option>
         </select>
         <div className="flex-1" />
-        {!adding && !editing && (
-          <button onClick={() => setAdding(true)} className={btnPrimary}><IconPlus /> Nueva oferta</button>
+        {!adding && !editing && !importing && (
+          <>
+            <button onClick={() => setImporting(true)} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              Importar PDF
+            </button>
+            <button onClick={() => setAdding(true)} className={btnPrimary}><IconPlus /> Nueva oferta</button>
+          </>
         )}
       </div>
 
+      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
       {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setAdding(false)} />}
       {editing && <OfertaForm initial={editing} proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setEditing(null)} />}
 
