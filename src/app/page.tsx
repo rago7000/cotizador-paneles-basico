@@ -2,26 +2,14 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import AppNav from "./components/AppNav";
 import {
-  guardarCotizacion,
-  cargarCotizacion,
-  listarCotizaciones,
-  eliminarCotizacion,
-  listarCatalogoPaneles,
-  guardarCatalogoPanel,
-  listarCatalogoMicros,
-  guardarCatalogoMicro,
-  guardarSeguimiento,
-  cargarSeguimiento,
-  listarCotizacionesCliente,
-  guardarCotizacionCliente,
-  eliminarCotizacionCliente,
-  listarProductosPaneles,
-  listarProductosMicros,
-  listarOfertas,
-  mejorOferta,
-} from "./lib/storage";
+  useConvexCotizaciones,
+  useConvexCatalogo,
+  mejorOferta as mejorOfertaHelper,
+} from "./lib/useConvexCatalogo";
 import type {
   CotizacionData,
   CotizacionGuardada,
@@ -426,6 +414,26 @@ interface ReciboCFEData {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Home() {
+  // ── Convex hooks ──────────────────────────────────────────────────────────
+  const {
+    cotizaciones: convexCotizaciones,
+    guardarCotizacion: convexGuardarCotizacion,
+    cargarCotizacion: convexCargarCotizacion,
+    eliminarCotizacion: convexEliminarCotizacion,
+    guardarSeguimiento: convexGuardarSeguimiento,
+    guardarCotizacionCliente: convexGuardarCotizacionCliente,
+    eliminarCotizacionCliente: convexEliminarCotizacionCliente,
+  } = useConvexCotizaciones();
+
+  const {
+    paneles: convexPaneles,
+    micros: convexMicros,
+    ofertas: convexOfertas,
+    isLoading: catalogoLoading,
+    guardarProductoPanel: convexGuardarProductoPanel,
+    guardarProductoMicro: convexGuardarProductoMicro,
+  } = useConvexCatalogo();
+
   const [cantidad, setCantidad] = useState("");
   const [potencia, setPotencia] = useState("");
   const [precioPorWatt, setPrecioPorWatt] = useState("");
@@ -446,7 +454,16 @@ export default function Home() {
   const [tcError, setTcError] = useState("");
 
   const [nombreCotizacion, setNombreCotizacion] = useState("");
-  const [cotizacionesGuardadas, setCotizacionesGuardadas] = useState<CotizacionGuardada[]>([]);
+  // cotizacionesGuardadas is now reactive from Convex
+  const cotizacionesGuardadas = useMemo<CotizacionGuardada[]>(() => {
+    return convexCotizaciones.map((c: { nombre: string; fecha?: string; data: string }) => {
+      try {
+        return { nombre: c.nombre, fecha: c.fecha ?? "", data: JSON.parse(c.data) };
+      } catch {
+        return { nombre: c.nombre, fecha: c.fecha ?? "", data: {} as CotizacionData };
+      }
+    });
+  }, [convexCotizaciones]);
   const [mostrarGuardadas, setMostrarGuardadas] = useState(false);
   const [mostrarPDF, setMostrarPDF] = useState(false);
   const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
@@ -461,9 +478,47 @@ export default function Home() {
   const [tcCustomPaneles, setTcCustomPaneles] = useState("");
   const [tcCustomMicros, setTcCustomMicros] = useState("");
 
-  // Catálogo
-  const [catalogoPaneles, setCatalogoPaneles] = useState<CatalogoPanel[]>([]);
-  const [catalogoMicros, setCatalogoMicros] = useState<CatalogoMicro[]>([]);
+  // Catálogo — derived from Convex reactive data (v2 bridge: products + best offers)
+  const catalogoPaneles = useMemo<CatalogoPanel[]>(() => {
+    return convexPaneles
+      .map((p) => {
+        const best = mejorOfertaHelper(p.id, convexOfertas);
+        if (!best) return null;
+        const ofertasProducto = convexOfertas.filter((o) => o.productoId === p.id);
+        return {
+          id: `v2_${p.id}`,
+          marca: p.marca,
+          modelo: p.modelo,
+          potencia: p.potencia,
+          precioPorWatt: best.precio,
+          notas: best.notas || "",
+          fechaActualizacion: best.fecha,
+          totalOfertas: ofertasProducto.length,
+        } as CatalogoPanel;
+      })
+      .filter((x): x is CatalogoPanel => x !== null);
+  }, [convexPaneles, convexOfertas]);
+
+  const catalogoMicros = useMemo<CatalogoMicro[]>(() => {
+    return convexMicros
+      .map((m) => {
+        const best = mejorOfertaHelper(m.id, convexOfertas);
+        if (!best) return null;
+        const ofertasProducto = convexOfertas.filter((o) => o.productoId === m.id);
+        return {
+          id: `v2_${m.id}`,
+          marca: m.marca,
+          modelo: m.modelo,
+          precio: best.precio,
+          precioCable: best.precioCable || 0,
+          panelesPorUnidad: m.panelesPorUnidad,
+          notas: best.notas || "",
+          fechaActualizacion: best.fecha,
+          totalOfertas: ofertasProducto.length,
+        } as CatalogoMicro;
+      })
+      .filter((x): x is CatalogoMicro => x !== null);
+  }, [convexMicros, convexOfertas]);
   const [pickerPanel, setPickerPanel] = useState(false);
   const [pickerMicro, setPickerMicro] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
@@ -497,7 +552,22 @@ export default function Home() {
   const utilidadDefault: UtilidadConfig = { tipo: "global", globalPct: 25, panelesPct: 25, inversoresPct: 25, estructuraPct: 25, tornilleriaPct: 25, generalesPct: 25, montoFijo: 0 };
   const [mostrarPrecioCliente, setMostrarPrecioCliente] = useState(false);
   const [utilidad, setUtilidad] = useState<UtilidadConfig>(utilidadDefault);
-  const [variantes, setVariantes] = useState<CotizacionCliente[]>([]);
+  // variantes is reactive from Convex — filtered by current cotización name
+  const rawVariantes = useQuery(
+    api.cotizaciones.listCliente,
+    nombreCotizacion.trim() ? { cotizacionBase: nombreCotizacion.trim() } : "skip"
+  );
+  const variantes = useMemo<CotizacionCliente[]>(() => {
+    if (!rawVariantes) return [];
+    return rawVariantes.map((v) => {
+      try {
+        const parsed = JSON.parse(v.data);
+        return { ...parsed, id: v._id as string } as CotizacionCliente;
+      } catch {
+        return null;
+      }
+    }).filter((x): x is CotizacionCliente => x !== null);
+  }, [rawVariantes]);
   const [nombreVariante, setNombreVariante] = useState("");
   const [mostrarVariantes, setMostrarVariantes] = useState(false);
   const [mostrarPDFCliente, setMostrarPDFCliente] = useState(false);
@@ -632,79 +702,18 @@ export default function Home() {
       .catch(() => setTcError("No se pudo obtener el tipo de cambio"));
   }, []);
 
+  // Auto-select DS3D micro if available and no micro selected yet
+  const autoSelectedMicro = useRef(false);
   useEffect(() => {
-    setCotizacionesGuardadas(listarCotizaciones());
-
-    // Merge legacy catalog + v2 products+offers into a unified list
-    const legacyPaneles = listarCatalogoPaneles();
-    const v2Paneles = listarProductosPaneles();
-    const allOfertas = listarOfertas();
-    const v2AsCatalogo: CatalogoPanel[] = v2Paneles
-      .map((p) => {
-        const best = mejorOferta(p.id, allOfertas);
-        if (!best) return null;
-        const ofertasProducto = allOfertas.filter((o) => o.productoId === p.id);
-        return {
-          id: `v2_${p.id}`,
-          marca: p.marca,
-          modelo: p.modelo,
-          potencia: p.potencia,
-          precioPorWatt: best.precio,
-          notas: best.notas || "",
-          fechaActualizacion: best.fecha,
-          totalOfertas: ofertasProducto.length,
-        } as CatalogoPanel;
-      })
-      .filter((x): x is CatalogoPanel => x !== null);
-    // Deduplicate: if a v2 product matches a legacy one (same marca+modelo), prefer v2 (fresher prices)
-    const legacyIds = new Set(
-      v2AsCatalogo.map((v) => `${v.marca.toLowerCase()}:${v.modelo.toLowerCase()}`)
-    );
-    const filteredLegacy = legacyPaneles.filter(
-      (p) => !legacyIds.has(`${p.marca.toLowerCase()}:${p.modelo.toLowerCase()}`)
-    );
-    setCatalogoPaneles([...v2AsCatalogo, ...filteredLegacy]);
-
-    // Same for micros
-    const legacyMicros = listarCatalogoMicros();
-    const v2Micros = listarProductosMicros();
-    const v2MicrosAsCatalogo: CatalogoMicro[] = v2Micros
-      .map((m) => {
-        const best = mejorOferta(m.id, allOfertas);
-        if (!best) return null;
-        const ofertasProducto = allOfertas.filter((o) => o.productoId === m.id);
-        return {
-          id: `v2_${m.id}`,
-          marca: m.marca,
-          modelo: m.modelo,
-          precio: best.precio,
-          precioCable: best.precioCable || 0,
-          panelesPorUnidad: m.panelesPorUnidad,
-          notas: best.notas || "",
-          fechaActualizacion: best.fecha,
-          totalOfertas: ofertasProducto.length,
-        } as CatalogoMicro;
-      })
-      .filter((x): x is CatalogoMicro => x !== null);
-    const legacyMicroIds = new Set(
-      v2MicrosAsCatalogo.map((v) => `${v.marca.toLowerCase()}:${v.modelo.toLowerCase()}`)
-    );
-    const filteredLegacyMicros = legacyMicros.filter(
-      (m) => !legacyMicroIds.has(`${m.marca.toLowerCase()}:${m.modelo.toLowerCase()}`)
-    );
-    const allMicros = [...v2MicrosAsCatalogo, ...filteredLegacyMicros];
-    setCatalogoMicros(allMicros);
-
-    // Auto-select DS3D if available and no micro selected yet
-    if (!precioMicroinversor) {
-      const ds3d = allMicros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
-      if (ds3d) {
-        setPrecioMicroinversor(String(ds3d.precio));
-        setPrecioCable(String(ds3d.precioCable));
-        setMicroSeleccionado(ds3d);
-      }
+    if (autoSelectedMicro.current || catalogoMicros.length === 0 || precioMicroinversor) return;
+    const ds3d = catalogoMicros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
+    if (ds3d) {
+      setPrecioMicroinversor(String(ds3d.precio));
+      setPrecioCable(String(ds3d.precioCable));
+      setMicroSeleccionado(ds3d);
+      autoSelectedMicro.current = true;
     }
-  }, []);
+  }, [catalogoMicros, precioMicroinversor]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getFormData = (): CotizacionData => ({
@@ -724,17 +733,16 @@ export default function Home() {
     utilidad: mostrarPrecioCliente ? utilidad : undefined,
   });
 
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     if (!nombreCotizacion.trim()) { setMsgGuardado("err"); setTimeout(() => setMsgGuardado(""), 2500); return; }
-    guardarCotizacion(getFormData());
-    setCotizacionesGuardadas(listarCotizaciones());
-    setVariantes(listarCotizacionesCliente(nombreCotizacion.trim()));
+    await convexGuardarCotizacion(nombreCotizacion.trim(), getFormData());
+    // No need to reload lists — Convex is reactive
     setMsgGuardado("ok");
     setTimeout(() => setMsgGuardado(""), 2500);
   };
 
   const handleCargar = (nombre: string) => {
-    const data = cargarCotizacion(nombre);
+    const data = convexCargarCotizacion(nombre);
     if (!data) return;
     setNombreCotizacion(data.nombre);
     setTcCustomPaneles(data.tcCustomPaneles ?? "");
@@ -767,12 +775,12 @@ export default function Home() {
     } else {
       setMostrarPrecioCliente(false);
     }
-    setVariantes(listarCotizacionesCliente(data.nombre));
+    // variantes are now reactive via Convex query (keyed on nombreCotizacion)
     setReciboDetalle(false);
     setMostrarGuardadas(false);
   };
 
-  const handleGuardarVariante = () => {
+  const handleGuardarVariante = async () => {
     if (!nombreCotizacion.trim() || !nombreVariante.trim() || subtotalMXN <= 0) return;
     const c: CotizacionCliente = {
       id: uid(),
@@ -810,15 +818,20 @@ export default function Home() {
       notas: "",
       vigenciaDias: 15,
     };
-    guardarCotizacionCliente(c);
-    setVariantes(listarCotizacionesCliente(nombreCotizacion));
+    await convexGuardarCotizacionCliente({
+      cotizacionBase: c.cotizacionBase,
+      nombre: c.nombre,
+      fecha: c.fecha,
+      data: c,
+    });
+    // variantes update reactively via Convex
     setNombreVariante("");
     setMostrarVariantes(true);
   };
 
-  const handleEliminarVariante = (id: string) => {
-    eliminarCotizacionCliente(id);
-    setVariantes(listarCotizacionesCliente(nombreCotizacion));
+  const handleEliminarVariante = async (id: string) => {
+    await convexEliminarCotizacionCliente(id);
+    // variantes update reactively via Convex
   };
 
   const handleCargarVariante = (v: CotizacionCliente) => {
@@ -826,9 +839,9 @@ export default function Home() {
     setMostrarPrecioCliente(true);
   };
 
-  const handleEliminar = (nombre: string) => {
-    eliminarCotizacion(nombre);
-    setCotizacionesGuardadas(listarCotizaciones());
+  const handleEliminar = async (nombre: string) => {
+    await convexEliminarCotizacion(nombre);
+    // cotizacionesGuardadas updates reactively via Convex
   };
 
   const updateAluminio = (i: number, f: keyof AluminioItem, v: string) =>
@@ -854,32 +867,15 @@ export default function Home() {
     setSugerirGuardarMicro(false);
   };
 
-  // Catálogo — guardar desde cotizador
-  const guardarPanelEnCatalogo = (marca: string, modelo: string) => {
-    const p: CatalogoPanel = {
-      id: uid(),
-      marca, modelo,
-      potencia: potenciaNum,
-      precioPorWatt: precioNum,
-      notas: "",
-      fechaActualizacion: new Date().toLocaleString("es-MX"),
-    };
-    guardarCatalogoPanel(p);
-    setCatalogoPaneles(listarCatalogoPaneles());
+  // Catálogo — guardar desde cotizador (saves product to Convex; offer requires a provider so is skipped here)
+  const guardarPanelEnCatalogo = async (marca: string, modelo: string) => {
+    await convexGuardarProductoPanel({ marca, modelo, potencia: potenciaNum });
+    // catalogoPaneles updates reactively via Convex (offer can be added later on catalog page)
     setSugerirGuardarPanel(false);
   };
-  const guardarMicroEnCatalogo = (marca: string, modelo: string) => {
-    const m: CatalogoMicro = {
-      id: uid(),
-      marca, modelo,
-      precio: precioMicroNum,
-      precioCable: precioCableNum,
-      panelesPorUnidad: 4,
-      notas: "",
-      fechaActualizacion: new Date().toLocaleString("es-MX"),
-    };
-    guardarCatalogoMicro(m);
-    setCatalogoMicros(listarCatalogoMicros());
+  const guardarMicroEnCatalogo = async (marca: string, modelo: string) => {
+    await convexGuardarProductoMicro({ marca, modelo, panelesPorUnidad: 4 });
+    // catalogoMicros updates reactively via Convex (offer can be added later on catalog page)
     setSugerirGuardarMicro(false);
   };
 
@@ -978,6 +974,14 @@ export default function Home() {
   const panelesSugeridosCFE = panelesPromedio;
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (catalogoLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <p className="text-zinc-500 text-sm animate-pulse">Cargando datos del catálogo...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
 

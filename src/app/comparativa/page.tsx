@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import AppNav from "../components/AppNav";
-import { listarCotizaciones, guardarSeguimiento, cargarSeguimiento } from "../lib/storage";
+import { useConvexCotizaciones } from "../lib/useConvexCatalogo";
 import type {
   CotizacionData,
   CotizacionGuardada,
@@ -204,7 +206,23 @@ const selectCls =
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ComparativaPage() {
-  const [cotizaciones, setCotizaciones] = useState<CotizacionGuardada[]>([]);
+  // ── Convex hooks ──────────────────────────────────────────────────────────
+  const {
+    cotizaciones: convexCotizaciones,
+    guardarSeguimiento: convexGuardarSeguimiento,
+  } = useConvexCotizaciones();
+
+  // Derive cotizaciones list from Convex (reactive)
+  const cotizaciones = useMemo<CotizacionGuardada[]>(() => {
+    return convexCotizaciones.map((c: { nombre: string; fecha?: string; data: string }) => {
+      try {
+        return { nombre: c.nombre, fecha: c.fecha ?? "", data: JSON.parse(c.data) };
+      } catch {
+        return { nombre: c.nombre, fecha: c.fecha ?? "", data: {} as CotizacionData };
+      }
+    });
+  }, [convexCotizaciones]);
+
   const [selectedNombre, setSelectedNombre] = useState<string>("");
   const [selectedData, setSelectedData] = useState<CotizacionData | null>(null);
   const [liveTc, setLiveTc] = useState<number>(0);
@@ -212,11 +230,11 @@ export default function ComparativaPage() {
   const [items, setItems] = useState<SeguimientoItem[]>([]);
   const [msgGuardado, setMsgGuardado] = useState(false);
 
-  // Load cotizaciones on mount
-  useEffect(() => {
-    const lista = listarCotizaciones();
-    setCotizaciones(lista);
-  }, []);
+  // Load seguimiento from Convex (reactive query)
+  const rawSeguimiento = useQuery(
+    api.cotizaciones.getSeguimiento,
+    selectedNombre ? { cotizacionNombre: selectedNombre } : "skip"
+  );
 
   // When selection changes, load data + seguimiento
   useEffect(() => {
@@ -229,10 +247,21 @@ export default function ComparativaPage() {
     const found = cotizaciones.find((c) => c.nombre === selectedNombre);
     if (!found) return;
     setSelectedData(found.data);
-    // Load existing seguimiento
-    const seg = cargarSeguimiento(selectedNombre);
-    setItems(seg?.items ?? []);
   }, [selectedNombre, cotizaciones]);
+
+  // Sync seguimiento items when Convex query resolves
+  useEffect(() => {
+    if (rawSeguimiento) {
+      try {
+        const parsed = JSON.parse(rawSeguimiento.items);
+        setItems(parsed ?? []);
+      } catch {
+        setItems([]);
+      }
+    } else if (rawSeguimiento === null) {
+      setItems([]);
+    }
+  }, [rawSeguimiento]);
 
   // Fetch live DOF when cotización is not frozen
   useEffect(() => {
@@ -319,14 +348,10 @@ export default function ComparativaPage() {
     return item.realMXN !== "" && Number(item.realMXN) > 0;
   }).length;
 
-  function handleGuardar() {
+  async function handleGuardar() {
     if (!selectedNombre) return;
-    const seg: SeguimientoData = {
-      cotizacionNombre: selectedNombre,
-      items: items.filter((i) => i.realMXN !== "" || i.proveedor !== "" || i.notas !== ""),
-      fechaActualizacion: new Date().toLocaleString("es-MX"),
-    };
-    guardarSeguimiento(seg);
+    const filteredItems = items.filter((i) => i.realMXN !== "" || i.proveedor !== "" || i.notas !== "");
+    await convexGuardarSeguimiento(selectedNombre, filteredItems);
     setMsgGuardado(true);
     setTimeout(() => setMsgGuardado(false), 2500);
   }

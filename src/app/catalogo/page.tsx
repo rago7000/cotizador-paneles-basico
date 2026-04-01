@@ -1,47 +1,31 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import AppNav from "../components/AppNav";
 import {
-  listarProveedores,
-  guardarProveedor,
-  eliminarProveedor,
-  listarProductosPaneles,
-  guardarProductoPanel,
-  eliminarProductoPanel,
-  listarProductosMicros,
-  guardarProductoMicro,
-  eliminarProductoMicro,
-  listarOfertas,
-  guardarOferta,
-  eliminarOferta,
+  TIPO_LABELS,
+} from "../lib/storage";
+import type {
+  PrecioTier,
+  TipoOferta,
+} from "../lib/types";
+import {
+  useConvexCatalogo,
   ofertasPorProducto,
   mejorOferta,
   tendenciaOferta,
   historialPrecios,
-  migrarCatalogoLegacy,
-  consolidarProveedores,
-  consolidarProductos,
-  reconstruirAliases,
-  listarProductosGenerales,
-  guardarProductoGeneral,
-  eliminarProductoGeneral,
-  TIPO_LABELS,
-  TIPOS_GENERALES,
-  guardarArchivoProveedor,
-  listarArchivosProveedor,
-  obtenerArchivoProveedor,
-} from "../lib/storage";
-import type {
-  Proveedor,
-  ProductoPanel,
-  ProductoMicro,
-  ProductoGeneral,
-  Oferta,
-  PrecioTier,
-  ArchivoProveedor,
-  TipoOferta,
-} from "../lib/types";
+  type Proveedor,
+  type ProductoPanel,
+  type ProductoMicro,
+  type ProductoGeneral,
+  type Oferta,
+  type ArchivoProveedor,
+} from "../lib/useConvexCatalogo";
+
+// ── Convex context type ─────────────────────────────────────────────────────
+
+type CatalogoCtx = ReturnType<typeof useConvexCatalogo>;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,7 +130,7 @@ function ProveedorForm({
   onCancel,
 }: {
   initial?: Proveedor;
-  onSave: (p: Proveedor) => void;
+  onSave: (p: { id?: string; nombre: string; contacto: string; telefono: string; notas: string }) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
@@ -223,24 +207,24 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
 function TabProveedores({
   proveedores,
   reload,
+  ctx,
 }: {
   proveedores: Proveedor[];
   reload: () => void;
+  ctx: CatalogoCtx;
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Proveedor | null>(null);
   const [busqueda, setBusqueda] = useState("");
 
-  const handleSave = (p: Proveedor) => {
-    guardarProveedor(p);
-    reload();
+  const handleSave = async (p: { id?: string; nombre: string; contacto: string; telefono: string; notas: string }) => {
+    await ctx.guardarProveedor(p);
     setAdding(false);
     setEditing(null);
   };
 
-  const handleDelete = (id: string) => {
-    eliminarProveedor(id);
-    reload();
+  const handleDelete = async (id: string) => {
+    await ctx.eliminarProveedor(id);
   };
 
   const q = busqueda.toLowerCase().trim();
@@ -326,7 +310,7 @@ function ProductoPanelForm({
   onCancel,
 }: {
   initial?: ProductoPanel;
-  onSave: (p: ProductoPanel) => void;
+  onSave: (p: { id?: string; marca: string; modelo: string; potencia: number }) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
@@ -377,7 +361,7 @@ function ProductoMicroForm({
   onCancel,
 }: {
   initial?: ProductoMicro;
-  onSave: (m: ProductoMicro) => void;
+  onSave: (m: { id?: string; marca: string; modelo: string; panelesPorUnidad: number }) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
@@ -429,12 +413,14 @@ function TabProductos({
   generales,
   ofertas,
   reload,
+  ctx,
 }: {
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
   generales: ProductoGeneral[];
   ofertas: Oferta[];
   reload: () => void;
+  ctx: CatalogoCtx;
 }) {
   const [subTab, setSubTab] = useState<"paneles" | "micros" | "otros">("paneles");
   const [addingPanel, setAddingPanel] = useState(false);
@@ -478,10 +464,10 @@ function TabProductos({
     return list.sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
   }, [micros, q, filtroMarca]);
 
-  const handleSavePanel = (p: ProductoPanel) => { guardarProductoPanel(p); reload(); setAddingPanel(false); setEditingPanel(null); };
-  const handleDeletePanel = (id: string) => { eliminarProductoPanel(id); reload(); };
-  const handleSaveMicro = (m: ProductoMicro) => { guardarProductoMicro(m); reload(); setAddingMicro(false); setEditingMicro(null); };
-  const handleDeleteMicro = (id: string) => { eliminarProductoMicro(id); reload(); };
+  const handleSavePanel = async (p: { id?: string; marca: string; modelo: string; potencia: number; aliases?: string[] }) => { await ctx.guardarProductoPanel(p); setAddingPanel(false); setEditingPanel(null); };
+  const handleDeletePanel = async (id: string) => { await ctx.eliminarProductoPanel(id); };
+  const handleSaveMicro = async (m: { id?: string; marca: string; modelo: string; panelesPorUnidad: number; aliases?: string[] }) => { await ctx.guardarProductoMicro(m); setAddingMicro(false); setEditingMicro(null); };
+  const handleDeleteMicro = async (id: string) => { await ctx.eliminarProductoMicro(id); };
 
   const clearForms = () => { setAddingPanel(false); setEditingPanel(null); setAddingMicro(false); setEditingMicro(null); setBusqueda(""); setFiltroMarca(""); };
 
@@ -731,7 +717,7 @@ function TabProductos({
                         g.categoria === "tornilleria" ? "bg-yellow-500/15 text-yellow-400" :
                         "bg-zinc-500/15 text-zinc-400"
                       }`}>
-                        {TIPO_LABELS[g.categoria] || g.categoria}
+                        {TIPO_LABELS[g.categoria as TipoOferta] || g.categoria}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-zinc-100 truncate">{g.marca} — {g.modelo}</p>
@@ -750,7 +736,7 @@ function TabProductos({
                         )}
                       </div>
                       <div className="flex gap-1 shrink-0 sm:justify-end">
-                        <button onClick={() => { eliminarProductoGeneral(g.id); reload(); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar"><IconTrash /></button>
+                        <button onClick={() => { ctx.eliminarProductoGeneral(g.id); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar"><IconTrash /></button>
                       </div>
                     </div>
                   );
@@ -782,7 +768,7 @@ function OfertaForm({
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
   generales: ProductoGeneral[];
-  onSave: (o: Oferta) => void;
+  onSave: (o: { id?: string; proveedorId: string; productoId: string; productoTabla?: string; tipo: TipoOferta; precio: number; precioTiers?: PrecioTier[]; precioCable?: number; fecha: string; notas: string; archivoOrigenId?: string }) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
@@ -970,6 +956,7 @@ function ImportadorPDF({
   ofertas,
   onDone,
   onCancel,
+  ctx,
 }: {
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
@@ -978,6 +965,7 @@ function ImportadorPDF({
   ofertas: Oferta[];
   onDone: () => void;
   onCancel: () => void;
+  ctx: CatalogoCtx;
 }) {
   const [step, setStep] = useState<"upload" | "loading" | "review" | "done">("upload");
   const [items, setItems] = useState<ImportItem[]>([]);
@@ -1059,7 +1047,7 @@ function ImportadorPDF({
     setItems((prev) => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Resolve proveedor — fuzzy match existing by normalized name
     let provId = proveedorId;
     if (!provId && nuevoProvNombre.trim()) {
@@ -1068,9 +1056,7 @@ function ImportadorPDF({
       if (existingProv) {
         provId = existingProv.id;
       } else {
-        const newProv: Proveedor = { id: uid(), nombre: nuevoProvNombre.trim(), contacto: "", telefono: "", notas: `Importado de ${fileName}` };
-        guardarProveedor(newProv);
-        provId = newProv.id;
+        provId = await ctx.guardarProveedor({ nombre: nuevoProvNombre.trim(), contacto: "", telefono: "", notas: `Importado de ${fileName}` });
       }
     }
     if (!provId) return;
@@ -1081,16 +1067,13 @@ function ImportadorPDF({
       : new Date().toISOString();
 
     // Save PDF archive
-    const archivoId = uid();
-    guardarArchivoProveedor({
-      id: archivoId,
+    const archivoId = await ctx.guardarArchivoProveedor({
       nombre: fileName,
       proveedorId: provId,
       fechaImportacion: new Date().toISOString(),
       fechaDocumento: fechaDocumento || "",
       condiciones,
       resumenCondiciones,
-      base64: pdfBase64,
     });
 
     let count = 0;
@@ -1111,9 +1094,7 @@ function ImportadorPDF({
         if (match) {
           prodId = match.id;
         } else {
-          const newProd: ProductoPanel = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), potencia: it.potencia };
-          guardarProductoPanel(newProd);
-          prodId = newProd.id;
+          prodId = await ctx.guardarProductoPanel({ marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), potencia: it.potencia });
         }
       } else if (tipo === "micro") {
         const match = micros.find((p) =>
@@ -1123,9 +1104,7 @@ function ImportadorPDF({
         if (match) {
           prodId = match.id;
         } else {
-          const newProd: ProductoMicro = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), panelesPorUnidad: it.panelesPorUnidad || 4 };
-          guardarProductoMicro(newProd);
-          prodId = newProd.id;
+          prodId = await ctx.guardarProductoMicro({ marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), panelesPorUnidad: it.panelesPorUnidad || 4 });
         }
       } else {
         // General product: monitoreo, cable, herramienta, estructura, tornilleria, otro
@@ -1137,15 +1116,12 @@ function ImportadorPDF({
         if (match) {
           prodId = match.id;
         } else {
-          const newProd: ProductoGeneral = {
-            id: uid(),
+          prodId = await ctx.guardarProductoGeneral({
             categoria: tipo,
             marca: it.marca || "Sin marca",
             modelo: it.modelo || it.descripcion.slice(0, 40),
             descripcion: it.descripcion,
-          };
-          guardarProductoGeneral(newProd);
-          prodId = newProd.id;
+          });
         }
       }
 
@@ -1160,8 +1136,7 @@ function ImportadorPDF({
         continue;
       }
 
-      const oferta: Oferta = {
-        id: uid(),
+      await ctx.guardarOferta({
         proveedorId: provId,
         productoId: prodId,
         tipo,
@@ -1171,8 +1146,7 @@ function ImportadorPDF({
         fecha: fechaOferta,
         notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
         archivoOrigenId: archivoId,
-      };
-      guardarOferta(oferta);
+      });
       count++;
     }
 
@@ -1436,10 +1410,12 @@ function ArchivoViewerModal({ archivo, onClose }: { archivo: ArchivoProveedor; o
   const [tab, setTab] = useState<"preview" | "condiciones">("preview");
 
   const isPdf = archivo.nombre.toLowerCase().endsWith(".pdf");
-  const dataUrl = archivo.base64
+  // base64 may be present on legacy records but is not part of the Convex type
+  const b64 = (archivo as ArchivoProveedor & { base64?: string }).base64;
+  const dataUrl = b64
     ? isPdf
-      ? `data:application/pdf;base64,${archivo.base64}`
-      : `data:image/${archivo.nombre.toLowerCase().endsWith(".png") ? "png" : "jpeg"};base64,${archivo.base64}`
+      ? `data:application/pdf;base64,${b64}`
+      : `data:image/${archivo.nombre.toLowerCase().endsWith(".png") ? "png" : "jpeg"};base64,${b64}`
     : null;
 
   return (
@@ -1535,6 +1511,7 @@ function TabOfertas({
   generales,
   ofertas,
   reload,
+  ctx,
 }: {
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
@@ -1542,6 +1519,7 @@ function TabOfertas({
   generales: ProductoGeneral[];
   ofertas: Oferta[];
   reload: () => void;
+  ctx: CatalogoCtx;
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Oferta | null>(null);
@@ -1567,9 +1545,9 @@ function TabOfertas({
 
   const archivosMap = useMemo(() => {
     const m = new Map<string, ArchivoProveedor>();
-    listarArchivosProveedor().forEach((a) => m.set(a.id, a));
+    ctx.archivos.forEach((a) => m.set(a.id, a));
     return m;
-  }, [ofertas]); // re-compute when offers change (new import)
+  }, [ctx.archivos]);
 
   const [viewingArchivo, setViewingArchivo] = useState<ArchivoProveedor | null>(null);
 
@@ -1586,16 +1564,14 @@ function TabOfertas({
     return list.sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [ofertas, filterProv, filterTipo, bq, prodMap, provMap]);
 
-  const handleSave = (o: Oferta) => {
-    guardarOferta(o);
-    reload();
+  const handleSave = async (o: { id?: string; proveedorId: string; productoId: string; productoTabla?: string; tipo: string; precio: number; precioTiers?: { etiqueta: string; precio: number }[]; precioCable?: number; fecha: string; notas: string; archivoOrigenId?: string }) => {
+    await ctx.guardarOferta(o);
     setAdding(false);
     setEditing(null);
   };
 
-  const handleDelete = (id: string) => {
-    eliminarOferta(id);
-    reload();
+  const handleDelete = async (id: string) => {
+    await ctx.eliminarOferta(id);
   };
 
   return (
@@ -1625,7 +1601,7 @@ function TabOfertas({
         )}
       </div>
 
-      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
+      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} onDone={() => { setImporting(false); }} onCancel={() => setImporting(false)} ctx={ctx} />}
       {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} onSave={handleSave} onCancel={() => setAdding(false)} />}
       {editing && <OfertaForm initial={editing} proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} onSave={handleSave} onCancel={() => setEditing(null)} />}
 
@@ -1741,28 +1717,19 @@ type Tab = "proveedores" | "productos" | "ofertas";
 
 export default function CatalogoPage() {
   const [tab, setTab] = useState<Tab>("ofertas");
+  const ctx = useConvexCatalogo();
+  const { proveedores, paneles, micros, generales, ofertas, isLoading } = ctx;
 
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [paneles, setPaneles] = useState<ProductoPanel[]>([]);
-  const [micros, setMicros] = useState<ProductoMicro[]>([]);
-  const [generales, setGenerales] = useState<ProductoGeneral[]>([]);
-  const [ofertas, setOfertas] = useState<Oferta[]>([]);
+  // No reload needed — Convex is reactive
+  const reload = () => {};
 
-  const reload = () => {
-    setProveedores(listarProveedores());
-    setPaneles(listarProductosPaneles());
-    setMicros(listarProductosMicros());
-    setGenerales(listarProductosGenerales());
-    setOfertas(listarOfertas());
-  };
-
-  useEffect(() => {
-    migrarCatalogoLegacy();
-    consolidarProveedores();
-    consolidarProductos();
-    reconstruirAliases();
-    reload();
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+        <p className="text-zinc-500">Cargando catalogo...</p>
+      </div>
+    );
+  }
 
   const tabDef: { key: Tab; label: string; count: number }[] = [
     { key: "proveedores", label: "Proveedores", count: proveedores.length },
@@ -1813,9 +1780,9 @@ export default function CatalogoPage() {
           ))}
         </div>
 
-        {tab === "proveedores" && <TabProveedores proveedores={proveedores} reload={reload} />}
-        {tab === "productos" && <TabProductos paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} />}
-        {tab === "ofertas" && <TabOfertas proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} />}
+        {tab === "proveedores" && <TabProveedores proveedores={proveedores} reload={reload} ctx={ctx} />}
+        {tab === "productos" && <TabProductos paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} ctx={ctx} />}
+        {tab === "ofertas" && <TabOfertas proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} ctx={ctx} />}
       </main>
     </div>
   );
