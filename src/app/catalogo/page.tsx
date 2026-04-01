@@ -23,6 +23,11 @@ import {
   consolidarProveedores,
   consolidarProductos,
   reconstruirAliases,
+  listarProductosGenerales,
+  guardarProductoGeneral,
+  eliminarProductoGeneral,
+  TIPO_LABELS,
+  TIPOS_GENERALES,
   guardarArchivoProveedor,
   listarArchivosProveedor,
   obtenerArchivoProveedor,
@@ -31,9 +36,11 @@ import type {
   Proveedor,
   ProductoPanel,
   ProductoMicro,
+  ProductoGeneral,
   Oferta,
   PrecioTier,
   ArchivoProveedor,
+  TipoOferta,
 } from "../lib/types";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -419,15 +426,17 @@ function ProductoMicroForm({
 function TabProductos({
   paneles,
   micros,
+  generales,
   ofertas,
   reload,
 }: {
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
+  generales: ProductoGeneral[];
   ofertas: Oferta[];
   reload: () => void;
 }) {
-  const [subTab, setSubTab] = useState<"paneles" | "micros">("paneles");
+  const [subTab, setSubTab] = useState<"paneles" | "micros" | "otros">("paneles");
   const [addingPanel, setAddingPanel] = useState(false);
   const [editingPanel, setEditingPanel] = useState<ProductoPanel | null>(null);
   const [addingMicro, setAddingMicro] = useState(false);
@@ -440,6 +449,7 @@ function TabProductos({
 
   const marcasPaneles = useMemo(() => [...new Set(paneles.map((p) => p.marca))].sort(), [paneles]);
   const marcasMicros = useMemo(() => [...new Set(micros.map((m) => m.marca))].sort(), [micros]);
+  const marcasGenerales = useMemo(() => [...new Set(generales.map((g) => g.marca))].sort(), [generales]);
 
   const q = busqueda.toLowerCase().trim();
 
@@ -477,9 +487,9 @@ function TabProductos({
 
   return (
     <div className="space-y-4">
-      {/* Sub-tabs for panel / micro */}
+      {/* Sub-tabs for panel / micro / otros */}
       <div className="flex gap-1 border-b border-zinc-800">
-        {(["paneles", "micros"] as const).map((t) => (
+        {(["paneles", "micros", "otros"] as const).map((t) => (
           <button
             key={t}
             onClick={() => { setSubTab(t); clearForms(); setFiltroMarca(""); }}
@@ -487,16 +497,16 @@ function TabProductos({
               subTab === t ? "border-amber-400 text-amber-400" : "border-transparent text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            {t === "paneles" ? "Paneles" : "Microinversores"}
+            {t === "paneles" ? "Paneles" : t === "micros" ? "Microinversores" : "Otros"}
             <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${subTab === t ? "bg-amber-400/15 text-amber-400" : "bg-zinc-800 text-zinc-500"}`}>
-              {t === "paneles" ? paneles.length : micros.length}
+              {t === "paneles" ? paneles.length : t === "micros" ? micros.length : generales.length}
             </span>
           </button>
         ))}
       </div>
 
       {/* ── Search & Filters ── */}
-      {!addingPanel && !editingPanel && !addingMicro && !editingMicro && (paneles.length > 0 || micros.length > 0) && (
+      {!addingPanel && !editingPanel && !addingMicro && !editingMicro && (paneles.length > 0 || micros.length > 0 || generales.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar marca o modelo..." />
           <select
@@ -505,7 +515,7 @@ function TabProductos({
             className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400"
           >
             <option value="">Todas las marcas</option>
-            {(subTab === "paneles" ? marcasPaneles : marcasMicros).map((m) => (
+            {(subTab === "paneles" ? marcasPaneles : subTab === "micros" ? marcasMicros : marcasGenerales).map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
@@ -679,6 +689,77 @@ function TabProductos({
           )}
         </div>
       )}
+
+      {/* ── Otros (Generales) ── */}
+      {subTab === "otros" && (
+        <div className="space-y-3">
+          {generales.length === 0 && (
+            <EmptyState label="No hay productos generales registrados" onAdd={() => {}} />
+          )}
+
+          {generales.length > 0 && (() => {
+            const generalesFiltrados = generales.filter((g) => {
+              if (q && !`${g.marca} ${g.modelo} ${g.descripcion} ${(g.aliases || []).join(" ")}`.toLowerCase().includes(q)) return false;
+              if (filtroMarca && g.marca !== filtroMarca) return false;
+              return true;
+            }).sort((a, b) => `${a.categoria} ${a.marca} ${a.modelo}`.localeCompare(`${b.categoria} ${b.marca} ${b.modelo}`));
+
+            if (generalesFiltrados.length === 0) {
+              return <p className="text-center text-sm text-zinc-600 py-8">Sin resultados para &ldquo;{busqueda || filtroMarca}&rdquo;</p>;
+            }
+
+            return (
+              <div className="rounded-2xl border border-zinc-800 overflow-hidden">
+                <div className="hidden sm:grid grid-cols-[100px_1fr_120px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                  <span>Tipo</span>
+                  <span>Producto</span>
+                  <span className="text-right">Mejor precio</span>
+                  <span />
+                </div>
+                {generalesFiltrados.map((g, i) => {
+                  const best = mejorOferta(g.id, ofertas);
+                  return (
+                    <div
+                      key={g.id}
+                      className={`flex sm:grid sm:grid-cols-[100px_1fr_120px_36px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""}`}
+                    >
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full self-start ${
+                        g.categoria === "monitoreo" ? "bg-cyan-500/15 text-cyan-400" :
+                        g.categoria === "cable" ? "bg-orange-500/15 text-orange-400" :
+                        g.categoria === "herramienta" ? "bg-pink-500/15 text-pink-400" :
+                        g.categoria === "estructura" ? "bg-emerald-500/15 text-emerald-400" :
+                        g.categoria === "tornilleria" ? "bg-yellow-500/15 text-yellow-400" :
+                        "bg-zinc-500/15 text-zinc-400"
+                      }`}>
+                        {TIPO_LABELS[g.categoria] || g.categoria}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-100 truncate">{g.marca} — {g.modelo}</p>
+                        {g.descripcion && g.descripcion !== g.modelo && (
+                          <p className="text-[10px] text-zinc-600 truncate">{g.descripcion}</p>
+                        )}
+                        <span className="text-xs text-zinc-500">
+                          {ofertasPorProducto(g.id, ofertas).length} oferta{ofertasPorProducto(g.id, ofertas).length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <div className="hidden sm:block text-right">
+                        {best ? (
+                          <p className="text-sm font-semibold text-amber-400 font-mono">${fmt2(best.precio)} USD</p>
+                        ) : (
+                          <p className="text-sm text-zinc-600">Sin ofertas</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0 sm:justify-end">
+                        <button onClick={() => { eliminarProductoGeneral(g.id); reload(); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar"><IconTrash /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
@@ -692,6 +773,7 @@ function OfertaForm({
   proveedores,
   paneles,
   micros,
+  generales,
   onSave,
   onCancel,
 }: {
@@ -699,12 +781,13 @@ function OfertaForm({
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
+  generales: ProductoGeneral[];
   onSave: (o: Oferta) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
     proveedorId: initial?.proveedorId ?? "",
-    tipo: initial?.tipo ?? ("panel" as "panel" | "micro"),
+    tipo: initial?.tipo ?? ("panel" as TipoOferta),
     productoId: initial?.productoId ?? "",
     precio: initial ? String(initial.precio) : "",
     precioCable: initial?.precioCable != null ? String(initial.precioCable) : "",
@@ -716,7 +799,9 @@ function OfertaForm({
 
   const productos = form.tipo === "panel"
     ? paneles.map((p) => ({ id: p.id, label: `${p.marca} ${p.modelo} (${p.potencia}W)` }))
-    : micros.map((m) => ({ id: m.id, label: `${m.marca} ${m.modelo} (${m.panelesPorUnidad} pan/u)` }));
+    : form.tipo === "micro"
+    ? micros.map((m) => ({ id: m.id, label: `${m.marca} ${m.modelo} (${m.panelesPorUnidad} pan/u)` }))
+    : generales.filter((g) => g.categoria === form.tipo).map((g) => ({ id: g.id, label: `${g.marca} ${g.modelo}` }));
 
   const valid = form.proveedorId && form.productoId && Number(form.precio) > 0;
 
@@ -742,8 +827,9 @@ function OfertaForm({
             onChange={(e) => { set("tipo", e.target.value); set("productoId", ""); }}
             disabled={!!initial}
           >
-            <option value="panel">Panel</option>
-            <option value="micro">Microinversor</option>
+            {Object.entries(TIPO_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -754,7 +840,7 @@ function OfertaForm({
           </select>
         </div>
         <div>
-          <label className={labelCls}>{form.tipo === "panel" ? "Precio / watt (USD sin IVA) *" : "Precio por unidad (USD sin IVA) *"}</label>
+          <label className={labelCls}>{form.tipo === "panel" ? "Precio / watt (USD sin IVA) *" : "Precio / unidad (USD sin IVA) *"}</label>
           <input className={inputCls} type="number" min={0} step={form.tipo === "panel" ? 0.001 : 0.01} value={form.precio} onChange={(e) => set("precio", e.target.value)} placeholder={form.tipo === "panel" ? "0.185" : "180.00"} />
         </div>
         {form.tipo === "micro" && (
@@ -829,7 +915,7 @@ function OfertaForm({
               id: initial?.id || uid(),
               proveedorId: form.proveedorId,
               productoId: form.productoId,
-              tipo: form.tipo,
+              tipo: form.tipo as TipoOferta,
               precio: Number(form.precio),
               precioTiers: validTiers.length > 0 ? validTiers : undefined,
               precioCable: form.tipo === "micro" && form.precioCable ? Number(form.precioCable) : undefined,
@@ -880,6 +966,7 @@ function ImportadorPDF({
   proveedores,
   paneles,
   micros,
+  generales,
   ofertas,
   onDone,
   onCancel,
@@ -887,6 +974,7 @@ function ImportadorPDF({
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
+  generales: ProductoGeneral[];
   ofertas: Oferta[];
   onDone: () => void;
   onCancel: () => void;
@@ -1010,61 +1098,82 @@ function ImportadorPDF({
     const selected = items.filter((it) => it.selected && it.precio > 0);
 
     for (const it of selected) {
-      if (it.tipo === "panel" || it.tipo === "micro") {
-        // Match existing product by normalized marca+modelo
-        let prodId = "";
-        if (it.tipo === "panel") {
-          const match = paneles.find((p) =>
-            normalizeName(p.marca) === normalizeName(it.marca) &&
-            normalizeName(p.modelo) === normalizeName(it.modelo)
-          );
-          if (match) {
-            prodId = match.id;
-          } else {
-            const newProd: ProductoPanel = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), potencia: it.potencia };
-            guardarProductoPanel(newProd);
-            prodId = newProd.id;
-          }
-        } else {
-          const match = micros.find((p) =>
-            normalizeName(p.marca) === normalizeName(it.marca) &&
-            normalizeName(p.modelo) === normalizeName(it.modelo)
-          );
-          if (match) {
-            prodId = match.id;
-          } else {
-            const newProd: ProductoMicro = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), panelesPorUnidad: it.panelesPorUnidad || 4 };
-            guardarProductoMicro(newProd);
-            prodId = newProd.id;
-          }
-        }
+      // Map legacy "ecu" type to "monitoreo"
+      const tipo = (it.tipo === "ecu" ? "monitoreo" : it.tipo) as TipoOferta;
 
-        // Dedup: check if an offer already exists with same proveedor + producto + precio
-        const existingOffer = ofertas.find((o) =>
-          o.proveedorId === provId &&
-          o.productoId === prodId &&
-          Math.abs(o.precio - it.precio) < 0.001
+      // Match or create product
+      let prodId = "";
+      if (tipo === "panel") {
+        const match = paneles.find((p) =>
+          normalizeName(p.marca) === normalizeName(it.marca) &&
+          normalizeName(p.modelo) === normalizeName(it.modelo)
         );
-        if (existingOffer) {
-          skipped++;
-          continue;
+        if (match) {
+          prodId = match.id;
+        } else {
+          const newProd: ProductoPanel = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), potencia: it.potencia };
+          guardarProductoPanel(newProd);
+          prodId = newProd.id;
         }
-
-        const oferta: Oferta = {
-          id: uid(),
-          proveedorId: provId,
-          productoId: prodId,
-          tipo: it.tipo as "panel" | "micro",
-          precio: it.precio,
-          precioTiers: it.precioTiers.length > 0 ? it.precioTiers : undefined,
-          precioCable: it.tipo === "micro" ? 0 : undefined,
-          fecha: fechaOferta,
-          notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
-          archivoOrigenId: archivoId,
-        };
-        guardarOferta(oferta);
-        count++;
+      } else if (tipo === "micro") {
+        const match = micros.find((p) =>
+          normalizeName(p.marca) === normalizeName(it.marca) &&
+          normalizeName(p.modelo) === normalizeName(it.modelo)
+        );
+        if (match) {
+          prodId = match.id;
+        } else {
+          const newProd: ProductoMicro = { id: uid(), marca: it.marca || "Sin marca", modelo: it.modelo || it.descripcion.slice(0, 40), panelesPorUnidad: it.panelesPorUnidad || 4 };
+          guardarProductoMicro(newProd);
+          prodId = newProd.id;
+        }
+      } else {
+        // General product: monitoreo, cable, herramienta, estructura, tornilleria, otro
+        const match = generales.find((p) =>
+          p.categoria === tipo &&
+          normalizeName(p.marca) === normalizeName(it.marca) &&
+          normalizeName(p.modelo) === normalizeName(it.modelo)
+        );
+        if (match) {
+          prodId = match.id;
+        } else {
+          const newProd: ProductoGeneral = {
+            id: uid(),
+            categoria: tipo,
+            marca: it.marca || "Sin marca",
+            modelo: it.modelo || it.descripcion.slice(0, 40),
+            descripcion: it.descripcion,
+          };
+          guardarProductoGeneral(newProd);
+          prodId = newProd.id;
+        }
       }
+
+      // Dedup: check if an offer already exists with same proveedor + producto + precio
+      const existingOffer = ofertas.find((o) =>
+        o.proveedorId === provId &&
+        o.productoId === prodId &&
+        Math.abs(o.precio - it.precio) < 0.001
+      );
+      if (existingOffer) {
+        skipped++;
+        continue;
+      }
+
+      const oferta: Oferta = {
+        id: uid(),
+        proveedorId: provId,
+        productoId: prodId,
+        tipo,
+        precio: it.precio,
+        precioTiers: it.precioTiers.length > 0 ? it.precioTiers : undefined,
+        precioCable: tipo === "micro" ? 0 : undefined,
+        fecha: fechaOferta,
+        notas: [it.descripcion, it.notas, `${it.moneda} ${it.unidad}`, `Importado de ${fileName}`].filter(Boolean).join(" · "),
+        archivoOrigenId: archivoId,
+      };
+      guardarOferta(oferta);
+      count++;
     }
 
     setSavedCount(count);
@@ -1219,8 +1328,8 @@ function ImportadorPDF({
                   >
                     <option value="panel">Panel</option>
                     <option value="micro">Micro</option>
-                    <option value="cable">Cable</option>
-                    <option value="ecu">ECU</option>
+                    <option value="monitoreo">Monitoreo/ECU</option>
+                    <option value="cable">Cable/Protección</option>
                     <option value="herramienta">Herramienta</option>
                     <option value="estructura">Estructura</option>
                     <option value="tornilleria">Tornillería</option>
@@ -1303,9 +1412,6 @@ function ImportadorPDF({
       <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between">
         <p className="text-xs text-zinc-500">
           {selectedCount} de {items.length} seleccionados
-          {selectedCount > 0 && items.filter((it) => it.selected && (it.tipo !== "panel" && it.tipo !== "micro")).length > 0 && (
-            <span className="text-amber-400 ml-2">· Solo paneles y micros crean ofertas</span>
-          )}
         </p>
         <div className="flex gap-2">
           <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
@@ -1426,12 +1532,14 @@ function TabOfertas({
   proveedores,
   paneles,
   micros,
+  generales,
   ofertas,
   reload,
 }: {
   proveedores: Proveedor[];
   paneles: ProductoPanel[];
   micros: ProductoMicro[];
+  generales: ProductoGeneral[];
   ofertas: Oferta[];
   reload: () => void;
 }) {
@@ -1440,7 +1548,7 @@ function TabOfertas({
   const [importing, setImporting] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filterProv, setFilterProv] = useState("");
-  const [filterTipo, setFilterTipo] = useState<"" | "panel" | "micro">("");
+  const [filterTipo, setFilterTipo] = useState<"" | TipoOferta>("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   const provMap = useMemo(() => {
@@ -1453,8 +1561,9 @@ function TabOfertas({
     const m = new Map<string, string>();
     paneles.forEach((p) => m.set(p.id, `${p.marca} ${p.modelo} (${p.potencia}W)`));
     micros.forEach((p) => m.set(p.id, `${p.marca} ${p.modelo} (${p.panelesPorUnidad} pan/u)`));
+    generales.forEach((p) => m.set(p.id, `${p.marca} ${p.modelo}`));
     return m;
-  }, [paneles, micros]);
+  }, [paneles, micros, generales]);
 
   const archivosMap = useMemo(() => {
     const m = new Map<string, ArchivoProveedor>();
@@ -1498,10 +1607,11 @@ function TabOfertas({
           <option value="">Todos los proveedores</option>
           {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
-        <select className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400" value={filterTipo} onChange={(e) => setFilterTipo(e.target.value as "" | "panel" | "micro")}>
+        <select className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-300 outline-none focus:border-amber-400" value={filterTipo} onChange={(e) => setFilterTipo(e.target.value as "" | TipoOferta)}>
           <option value="">Todo tipo</option>
-          <option value="panel">Paneles</option>
-          <option value="micro">Microinversores</option>
+          {Object.entries(TIPO_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
         </select>
         <div className="flex-1" />
         {!adding && !editing && !importing && (
@@ -1515,9 +1625,9 @@ function TabOfertas({
         )}
       </div>
 
-      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} ofertas={ofertas} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
-      {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setAdding(false)} />}
-      {editing && <OfertaForm initial={editing} proveedores={proveedores} paneles={paneles} micros={micros} onSave={handleSave} onCancel={() => setEditing(null)} />}
+      {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} onDone={() => { setImporting(false); reload(); }} onCancel={() => setImporting(false)} />}
+      {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} onSave={handleSave} onCancel={() => setAdding(false)} />}
+      {editing && <OfertaForm initial={editing} proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} onSave={handleSave} onCancel={() => setEditing(null)} />}
 
       {!adding && !editing && filtered.length === 0 && (
         <EmptyState label="No hay ofertas registradas" onAdd={() => setAdding(true)} />
@@ -1547,8 +1657,15 @@ function TabOfertas({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-100 truncate">{prodMap.get(o.productoId) || "?"}</p>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${o.tipo === "panel" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
-                        {o.tipo === "panel" ? "Panel" : "Micro"}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        o.tipo === "panel" ? "bg-blue-500/15 text-blue-400" :
+                        o.tipo === "micro" ? "bg-purple-500/15 text-purple-400" :
+                        o.tipo === "monitoreo" ? "bg-cyan-500/15 text-cyan-400" :
+                        o.tipo === "cable" ? "bg-orange-500/15 text-orange-400" :
+                        o.tipo === "herramienta" ? "bg-pink-500/15 text-pink-400" :
+                        "bg-zinc-500/15 text-zinc-400"
+                      }`}>
+                        {TIPO_LABELS[o.tipo] || o.tipo}
                       </span>
                       {o.archivoOrigenId && archivosMap.has(o.archivoOrigenId) && (
                         <button
@@ -1628,12 +1745,14 @@ export default function CatalogoPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [paneles, setPaneles] = useState<ProductoPanel[]>([]);
   const [micros, setMicros] = useState<ProductoMicro[]>([]);
+  const [generales, setGenerales] = useState<ProductoGeneral[]>([]);
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
 
   const reload = () => {
     setProveedores(listarProveedores());
     setPaneles(listarProductosPaneles());
     setMicros(listarProductosMicros());
+    setGenerales(listarProductosGenerales());
     setOfertas(listarOfertas());
   };
 
@@ -1647,7 +1766,7 @@ export default function CatalogoPage() {
 
   const tabDef: { key: Tab; label: string; count: number }[] = [
     { key: "proveedores", label: "Proveedores", count: proveedores.length },
-    { key: "productos", label: "Productos", count: paneles.length + micros.length },
+    { key: "productos", label: "Productos", count: paneles.length + micros.length + generales.length },
     { key: "ofertas", label: "Ofertas", count: ofertas.length },
   ];
 
@@ -1695,8 +1814,8 @@ export default function CatalogoPage() {
         </div>
 
         {tab === "proveedores" && <TabProveedores proveedores={proveedores} reload={reload} />}
-        {tab === "productos" && <TabProductos paneles={paneles} micros={micros} ofertas={ofertas} reload={reload} />}
-        {tab === "ofertas" && <TabOfertas proveedores={proveedores} paneles={paneles} micros={micros} ofertas={ofertas} reload={reload} />}
+        {tab === "productos" && <TabProductos paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} />}
+        {tab === "ofertas" && <TabOfertas proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} />}
       </main>
     </div>
   );

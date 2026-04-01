@@ -7,10 +7,27 @@ import {
   Proveedor,
   ProductoPanel,
   ProductoMicro,
+  ProductoGeneral,
   Oferta,
   CotizacionCliente,
   ArchivoProveedor,
+  TipoOferta,
 } from "./types";
+
+// ── Constantes de tipos ──────────────────────────────────────────────────────
+
+export const TIPO_LABELS: Record<TipoOferta, string> = {
+  panel: "Panel",
+  micro: "Microinversor",
+  monitoreo: "Monitoreo/ECU",
+  herramienta: "Herramienta",
+  cable: "Cable/Protección",
+  estructura: "Estructura",
+  tornilleria: "Tornillería",
+  otro: "Otro",
+};
+
+export const TIPOS_GENERALES: TipoOferta[] = ["monitoreo", "herramienta", "cable", "estructura", "tornilleria", "otro"];
 
 // ── Cotizaciones ──────────────────────────────────────────────────────────────
 
@@ -198,6 +215,27 @@ export function guardarProductoMicro(p: ProductoMicro): void {
 
 export function eliminarProductoMicro(id: string): void {
   localStorage.setItem(PROD_MICROS_KEY, JSON.stringify(listarProductosMicros().filter((x) => x.id !== id)));
+  localStorage.setItem(OFERTAS_KEY, JSON.stringify(listarOfertas().filter((o) => o.productoId !== id)));
+}
+
+// ── Productos — Generales (monitoreo, cable, herramienta, etc.) ─────────────
+
+const PROD_GENERALES_KEY = "productos_general";
+
+export function listarProductosGenerales(): ProductoGeneral[] {
+  if (typeof window === "undefined") return [];
+  return JSON.parse(localStorage.getItem(PROD_GENERALES_KEY) || "[]");
+}
+
+export function guardarProductoGeneral(p: ProductoGeneral): void {
+  const all = listarProductosGenerales();
+  const idx = all.findIndex((x) => x.id === p.id);
+  if (idx >= 0) all[idx] = p; else all.push(p);
+  localStorage.setItem(PROD_GENERALES_KEY, JSON.stringify(all));
+}
+
+export function eliminarProductoGeneral(id: string): void {
+  localStorage.setItem(PROD_GENERALES_KEY, JSON.stringify(listarProductosGenerales().filter((x) => x.id !== id)));
   localStorage.setItem(OFERTAS_KEY, JSON.stringify(listarOfertas().filter((o) => o.productoId !== id)));
 }
 

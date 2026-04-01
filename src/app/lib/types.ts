@@ -124,6 +124,19 @@ export interface ProductoMicro {
   aliases?: string[]; // nombres alternativos fusionados
 }
 
+// ── Tipos de oferta expandidos ──────────────────────────────────────────────
+
+export type TipoOferta = "panel" | "micro" | "monitoreo" | "herramienta" | "cable" | "estructura" | "tornilleria" | "otro";
+
+export interface ProductoGeneral {
+  id: string;
+  categoria: TipoOferta;
+  marca: string;
+  modelo: string;
+  descripcion: string;
+  aliases?: string[];
+}
+
 export interface PrecioTier {
   etiqueta: string;   // ej: "1 panel", "1 pallet (36 pzas)", "+5 pallets"
   precio: number;
@@ -133,7 +146,7 @@ export interface Oferta {
   id: string;
   proveedorId: string;
   productoId: string;
-  tipo: "panel" | "micro";
+  tipo: TipoOferta;
   precio: number;          // panel: USD/W sin IVA · micro: USD/unidad sin IVA — precio en uso
   precioTiers?: PrecioTier[];  // tiers de volumen (1 panel, 1 pallet, etc.)
   precioCable?: number;    // solo micros

@@ -12,7 +12,7 @@ Analiza este documento (PDF de un proveedor) y devuelve ÚNICAMENTE un objeto JS
   "resumenCondiciones": "resumen en 3-5 bullets de los puntos MÁS IMPORTANTES para alguien que va a COMPRAR: condiciones de pago, tipo de cambio, disponibilidad, tiempos de entrega, garantías, restricciones. Sé conciso y directo. Si no hay condiciones, usa vacío",
   "items": [
     {
-      "tipo": "panel" | "micro" | "cable" | "ecu" | "herramienta" | "estructura" | "tornilleria" | "otro",
+      "tipo": "panel" | "micro" | "monitoreo" | "cable" | "herramienta" | "estructura" | "tornilleria" | "otro",
       "marca": "marca del producto",
       "modelo": "modelo exacto",
       "descripcion": "descripción completa tal como aparece",
@@ -35,9 +35,9 @@ REGLAS:
 - Clasifica cada producto según su tipo:
   - "panel": paneles solares / módulos fotovoltaicos
   - "micro": microinversores
-  - "cable": cables troncales, conectores
-  - "ecu": ECU, sistema de monitoreo
-  - "herramienta": herramientas de instalación (desconectora APS, etc)
+  - "cable": cables troncales, conectores, cable fotovoltaico, protecciones
+  - "monitoreo": ECU, sistemas de monitoreo, comunicación WiFi/4G, dongles
+  - "herramienta": herramientas de instalación (desconectora APS, etc), conectores
   - "estructura": perfiles de aluminio, rieles, clamps
   - "tornilleria": tornillos, tuercas, anclas
   - "otro": fletes, garantías, servicios, cualquier otra cosa
