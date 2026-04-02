@@ -456,6 +456,17 @@ export default function Home() {
     setMany(updates as Partial<typeof s>);
   };
 
+  // ── Auto-apply proposal when recibo CFE is uploaded ────────────────────────
+  const lastReciboRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reciboCFE || panelesEquilibrado <= 0) return;
+    // Only trigger once per unique recibo (by noServicio+periodo)
+    const reciboKey = `${reciboCFE.noServicio}_${reciboCFE.periodoInicio}`;
+    if (lastReciboRef.current === reciboKey) return;
+    lastReciboRef.current = reciboKey;
+    handleApplyProposal(panelesEquilibrado);
+  }, [reciboCFE, panelesEquilibrado]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleGuardar = async () => {
