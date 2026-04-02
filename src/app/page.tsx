@@ -25,8 +25,8 @@ import { calculateStructure } from "./lib/structure";
 import type { StructureRowInput } from "./lib/structure";
 import { calculateElectrical, listProfiles } from "./lib/electrical";
 import type { EquipmentProfile } from "./lib/electrical";
-
-const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+import { useCotizacion } from "./lib/useCotizacion";
+import { uid, UTILIDAD_DEFAULT, type ReciboCFEData, type Minisplit } from "./lib/cotizacion-state";
 
 const PDFViewerWrapper = dynamic(
   () => import("./components/PDFViewerWrapper"),
@@ -54,30 +54,6 @@ const PDFViewerClienteWrapper = dynamic(
 
 type AluminioItem = LineItem;
 type GeneralItem = LineItem;
-
-const aluminioDefault: AluminioItem[] = [
-  { id: uid(), nombre: "Angulo - 1 1/2 X 1 1/2 X 0.1875\" (3/16)", cantidad: "3", precioUnitario: "700.94", unidad: "Pza" },
-  { id: uid(), nombre: "Unicanal - PARA PANEL SOLAR GRANDE", cantidad: "3", precioUnitario: "839.34", unidad: "Pza" },
-  { id: uid(), nombre: "Clip - PARA PANEL SOLAR", cantidad: "27", precioUnitario: "41.58", unidad: "Pza" },
-];
-
-const tornilleriaDefault: LineItem[] = [
-  { id: uid(), nombre: "Tornillo acero inox (largo: ..)", cantidad: "40", precioUnitario: "3.00", unidad: "Pza" },
-  { id: uid(), nombre: "Tuerca de presion - Acero inox.", cantidad: "40", precioUnitario: "2.00", unidad: "Pza" },
-  { id: uid(), nombre: "Guasa de presion - Acero inox.", cantidad: "40", precioUnitario: "1.00", unidad: "Pza" },
-  { id: uid(), nombre: "Guasa grande (microinversores)", cantidad: "1", precioUnitario: "80.95", unidad: "Lote" },
-  { id: uid(), nombre: "Pijas con taquete", cantidad: "1", precioUnitario: "61.64", unidad: "Lote" },
-];
-
-const generalesDefault: GeneralItem[] = [
-  { id: uid(), nombre: "Centro de carga (p/1 pastilla doble)", cantidad: "1", precioUnitario: "229.00", unidad: "Pza" },
-  { id: uid(), nombre: "Pastilla 2 polos (15 amp)", cantidad: "1", precioUnitario: "589.00", unidad: "Pza" },
-  { id: uid(), nombre: "Cemento plastico", cantidad: "1", precioUnitario: "79.80", unidad: "Lote" },
-  { id: uid(), nombre: "Cable de uso rudo", cantidad: "20", precioUnitario: "37.97", unidad: "mL" },
-  { id: uid(), nombre: "Instalacion - Precio base", cantidad: "1", precioUnitario: "3000.00", unidad: "Lote" },
-  { id: uid(), nombre: "Instalacion - Paneles adicionales", cantidad: "0", precioUnitario: "150.00", unidad: "Pza" },
-  { id: uid(), nombre: "Instalacion - Vueltas gasolina", cantidad: "1", precioUnitario: "2500.00", unidad: "Pza" },
-];
 
 const fmt = (n: number) =>
   n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -407,22 +383,6 @@ function SaveToCatalogBanner({
   );
 }
 
-// ─── CFE Recibo type ──────────────────────────────────────────────────────────
-
-interface ReciboCFEData {
-  nombre: string;
-  direccion: string;
-  noServicio: string;
-  tarifa: string;
-  periodoInicio: string;
-  periodoFin: string;
-  diasPeriodo: number;
-  consumoKwh: number;
-  consumoMensualPromedio: number;
-  totalFacturado: number;
-  historico: { periodo: string; kwh: number; importe: number }[];
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -446,30 +406,39 @@ export default function Home() {
     guardarProductoMicro: convexGuardarProductoMicro,
   } = useConvexCatalogo();
 
-  const [cantidad, setCantidad] = useState("");
-  const [potencia, setPotencia] = useState("");
-  const [precioPorWatt, setPrecioPorWatt] = useState("");
-  const [fletePaneles, setFletePaneles] = useState("100");
-  const [garantiaPaneles, setGarantiaPaneles] = useState("20");
-  const [precioMicroinversor, setPrecioMicroinversor] = useState("");
-  const [precioCable, setPrecioCable] = useState("");
-  const [precioECU, setPrecioECU] = useState("145");
-  const [incluyeECU, setIncluyeECU] = useState(true);
-  const [precioHerramienta, setPrecioHerramienta] = useState("");
-  const [incluyeHerramienta, setIncluyeHerramienta] = useState(false);
-  const [fleteMicros, setFleteMicros] = useState("35");
-  const [aluminio, setAluminio] = useState<AluminioItem[]>(aluminioDefault);
-  const [fleteAluminio, setFleteAluminio] = useState("500");
-  const [structureRows, setStructureRows] = useState<StructureRowInput[]>([]);
-  const [showStructure, setShowStructure] = useState(false);
-  const [electricalProfileId, setElectricalProfileId] = useState("apsystems-ds3d");
-  const [showElectrical, setShowElectrical] = useState(false);
-  const [tornilleria, setTornilleria] = useState<LineItem[]>(tornilleriaDefault);
-  const [generales, setGenerales] = useState<GeneralItem[]>(generalesDefault);
-  const [tc, setTc] = useState<TipoCambioData | null>(null);
-  const [tcError, setTcError] = useState("");
+  // ── Cotización state (single reducer replaces 42 individual useState) ──────
+  const {
+    state: s,
+    set,
+    setMany,
+    loadCotizacion,
+    updateLineItem,
+    addMinisplit,
+    removeMinisplit,
+    updateMinisplit,
+    getFormData,
+  } = useCotizacion();
 
-  const [nombreCotizacion, setNombreCotizacion] = useState("");
+  // Destructure for convenience in JSX (avoids s.xxx everywhere)
+  const {
+    cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
+    precioMicroinversor, precioCable, precioECU, incluyeECU,
+    precioHerramienta, incluyeHerramienta, fleteMicros,
+    aluminio, fleteAluminio, structureRows, showStructure,
+    electricalProfileId, showElectrical,
+    tornilleria, generales,
+    tc, tcError, tcFrozen, tcManual, tcSnapshotLocal, tcUsarManana,
+    tcCustomPaneles, tcCustomMicros,
+    nombreCotizacion, mostrarGuardadas, mostrarPDF, msgGuardado,
+    pickerPanel, pickerMicro, pickerSearch, pickerMarca, pickerOrden,
+    sugerirGuardarPanel, sugerirGuardarMicro,
+    panelSeleccionado, microSeleccionado,
+    reciboCFE, loadingRecibo, errorRecibo, reciboDetalle,
+    reciboPDFBase64, reciboUltimoAnio,
+    minisplits, minisplitTemporada,
+    mostrarPrecioCliente, utilidad,
+    nombreVariante, mostrarVariantes, mostrarPDFCliente, mostrarComparador,
+  } = s;
   // cotizacionesGuardadas is now reactive from Convex
   const cotizacionesGuardadas = useMemo<CotizacionGuardada[]>(() => {
     return convexCotizaciones.map((c: { nombre: string; fecha?: string; data: string }) => {
@@ -480,19 +449,6 @@ export default function Home() {
       }
     });
   }, [convexCotizaciones]);
-  const [mostrarGuardadas, setMostrarGuardadas] = useState(false);
-  const [mostrarPDF, setMostrarPDF] = useState(false);
-  const [msgGuardado, setMsgGuardado] = useState<"ok" | "err" | "">("");
-
-  // TC congelado / manual
-  const [tcFrozen, setTcFrozen] = useState(false);     // congelado (no editable)
-  const [tcManual, setTcManual] = useState(false);      // modo manual (editable)
-  const [tcSnapshotLocal, setTcSnapshotLocal] = useState(""); // valor guardado
-  const [tcUsarManana, setTcUsarManana] = useState(false); // toggle hoy/mañana
-
-  // Tipos de cambio personalizados por sección
-  const [tcCustomPaneles, setTcCustomPaneles] = useState("");
-  const [tcCustomMicros, setTcCustomMicros] = useState("");
 
   // Catálogo — derived from Convex reactive data (v2 bridge: products + best offers)
   const catalogoPaneles = useMemo<CatalogoPanel[]>(() => {
@@ -535,39 +491,8 @@ export default function Home() {
       })
       .filter((x): x is CatalogoMicro => x !== null);
   }, [convexMicros, convexOfertas]);
-  const [pickerPanel, setPickerPanel] = useState(false);
-  const [pickerMicro, setPickerMicro] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState("");
-  const [pickerMarca, setPickerMarca] = useState("");
-  const [pickerOrden, setPickerOrden] = useState<"nombre" | "potencia" | "precio">("nombre");
-  // "¿Guardar en catálogo?" tras llenar campos manualmente
-  const [sugerirGuardarPanel, setSugerirGuardarPanel] = useState(false);
-  const [sugerirGuardarMicro, setSugerirGuardarMicro] = useState(false);
-  const [panelSeleccionado, setPanelSeleccionado] = useState<CatalogoPanel | null>(null);
-  const [microSeleccionado, setMicroSeleccionado] = useState<CatalogoMicro | null>(null);
-
-  // Recibo CFE
-  const [reciboCFE, setReciboCFE] = useState<ReciboCFEData | null>(null);
-  const [loadingRecibo, setLoadingRecibo] = useState(false);
-  const [errorRecibo, setErrorRecibo] = useState("");
-  const [reciboDetalle, setReciboDetalle] = useState(false);
-  const [reciboPDFBase64, setReciboPDFBase64] = useState<string | null>(null);
-  const [reciboUltimoAnio, setReciboUltimoAnio] = useState(true); // true = último año (6 bim), false = todo
   const reciboInputRef = useRef<HTMLInputElement>(null);
 
-  // Minisplits — incremento de consumo
-  interface Minisplit { id: string; cantidad: number; toneladas: string; horasDia: number; tipo: "inverter" | "convencional" }
-  const [minisplits, setMinisplits] = useState<Minisplit[]>([]);
-  const [minisplitTemporada, setMinisplitTemporada] = useState<"anual" | "temporada">("temporada"); // temporada = 6 meses
-  const addMinisplit = () => setMinisplits((prev) => [...prev, { id: uid(), cantidad: 1, toneladas: "1", horasDia: 8, tipo: "inverter" }]);
-  const removeMinisplit = (id: string) => setMinisplits((prev) => prev.filter((m) => m.id !== id));
-  const updateMinisplit = (id: string, field: keyof Minisplit, value: string | number) =>
-    setMinisplits((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
-
-  // Utilidad / Precio al cliente
-  const utilidadDefault: UtilidadConfig = { tipo: "global", globalPct: 25, panelesPct: 25, inversoresPct: 25, estructuraPct: 25, tornilleriaPct: 25, generalesPct: 25, montoFijo: 0 };
-  const [mostrarPrecioCliente, setMostrarPrecioCliente] = useState(false);
-  const [utilidad, setUtilidad] = useState<UtilidadConfig>(utilidadDefault);
   // variantes is reactive from Convex — filtered by current cotización name
   const rawVariantes = useQuery(
     api.cotizaciones.listCliente,
@@ -584,10 +509,6 @@ export default function Home() {
       }
     }).filter((x): x is CotizacionCliente => x !== null);
   }, [rawVariantes]);
-  const [nombreVariante, setNombreVariante] = useState("");
-  const [mostrarVariantes, setMostrarVariantes] = useState(false);
-  const [mostrarPDFCliente, setMostrarPDFCliente] = useState(false);
-  const [mostrarComparador, setMostrarComparador] = useState(false);
 
   // ── Picker: filtered/sorted lists ─────────────────────────────────────────
   const pq = pickerSearch.toLowerCase().trim();
@@ -726,8 +647,8 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/tipo-cambio")
       .then((r) => r.json())
-      .then((d) => (d.error ? setTcError(d.error) : setTc(d)))
-      .catch(() => setTcError("No se pudo obtener el tipo de cambio"));
+      .then((d) => (d.error ? set("tcError", d.error) : set("tc", d)))
+      .catch(() => set("tcError", "No se pudo obtener el tipo de cambio"));
   }, []);
 
   // Auto-select DS3D micro if available and no micro selected yet
@@ -736,77 +657,28 @@ export default function Home() {
     if (autoSelectedMicro.current || catalogoMicros.length === 0 || precioMicroinversor) return;
     const ds3d = catalogoMicros.find((m) => /ds3d|ds3-d/i.test(m.modelo));
     if (ds3d) {
-      setPrecioMicroinversor(String(ds3d.precio));
-      setPrecioCable(String(ds3d.precioCable));
-      setMicroSeleccionado(ds3d);
+      set("precioMicroinversor", String(ds3d.precio));
+      set("precioCable", String(ds3d.precioCable));
+      set("microSeleccionado", ds3d);
       autoSelectedMicro.current = true;
     }
   }, [catalogoMicros, precioMicroinversor]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const getFormData = (): CotizacionData => ({
-    nombre: nombreCotizacion,
-    fecha: new Date().toISOString(),
-    tcCustomPaneles, tcCustomMicros,
-    tcSnapshot: (tcFrozen || tcManual) ? tcSnapshotLocal : String(tcLive),
-    tcFrozen: tcFrozen || tcManual,
-    cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
-    precioMicroinversor, precioCable, precioECU, incluyeECU,
-    precioHerramienta, incluyeHerramienta, fleteMicros,
-    aluminio, fleteAluminio, tornilleria, generales,
-    panelCatalogoId: panelSeleccionado?.id,
-    microCatalogoId: microSeleccionado?.id,
-    reciboCFE,
-    reciboPDFBase64,
-    minisplits: minisplits.length > 0 ? minisplits : undefined,
-    minisplitTemporada: minisplits.length > 0 ? minisplitTemporada : undefined,
-    utilidad: mostrarPrecioCliente ? utilidad : undefined,
-  });
 
   const handleGuardar = async () => {
-    if (!nombreCotizacion.trim()) { setMsgGuardado("err"); setTimeout(() => setMsgGuardado(""), 2500); return; }
+    if (!nombreCotizacion.trim()) { set("msgGuardado", "err"); setTimeout(() => set("msgGuardado", ""), 2500); return; }
     await convexGuardarCotizacion(nombreCotizacion.trim(), getFormData());
-    // No need to reload lists — Convex is reactive
-    setMsgGuardado("ok");
-    setTimeout(() => setMsgGuardado(""), 2500);
+    set("msgGuardado", "ok");
+    setTimeout(() => set("msgGuardado", ""), 2500);
   };
 
   const handleCargar = (nombre: string) => {
     const data = convexCargarCotizacion(nombre);
     if (!data) return;
-    setNombreCotizacion(data.nombre);
-    setTcCustomPaneles(data.tcCustomPaneles ?? "");
-    setTcCustomMicros(data.tcCustomMicros ?? "");
-    setTcFrozen(data.tcFrozen ?? false);
-    setTcSnapshotLocal(data.tcSnapshot ?? "");
-    setCantidad(data.cantidad);
-    setPotencia(data.potencia);
-    setPrecioPorWatt(data.precioPorWatt);
-    setFletePaneles(data.fletePaneles);
-    setGarantiaPaneles(data.garantiaPaneles);
-    setPrecioMicroinversor(data.precioMicroinversor);
-    setPrecioCable(data.precioCable);
-    setPrecioECU(data.precioECU);
-    setIncluyeECU(data.incluyeECU);
-    setPrecioHerramienta(data.precioHerramienta);
-    setIncluyeHerramienta(data.incluyeHerramienta);
-    setFleteMicros(data.fleteMicros);
-    const ensureIds = (items: LineItem[]) => items.map((it) => it.id ? it : { ...it, id: uid() });
-    setAluminio(ensureIds(data.aluminio));
-    setFleteAluminio(data.fleteAluminio);
-    setTornilleria(ensureIds(data.tornilleria));
-    setGenerales(ensureIds(data.generales));
-    setReciboCFE(data.reciboCFE ?? null);
-    setReciboPDFBase64(data.reciboPDFBase64 ?? null);
-    setMinisplits(data.minisplits ?? []);
-    setMinisplitTemporada(data.minisplitTemporada ?? "temporada");
-    if (data.utilidad) {
-      setUtilidad(data.utilidad);
-      setMostrarPrecioCliente(true);
-    } else {
-      setMostrarPrecioCliente(false);
-    }
-    // Try to re-match catalog panel — by saved ID first, then by potencia+precio fallback
+    // Load all fields into reducer in one dispatch
+    loadCotizacion(data);
+    // Re-match catalog panel — by saved ID first, then by potencia+precio fallback
     const savedPanelId = data.panelCatalogoId;
     const savedPotencia = Number(data.potencia) || 0;
     const savedPrecioW = Number(data.precioPorWatt) || 0;
@@ -814,17 +686,17 @@ export default function Home() {
       ? catalogoPaneles.find((p) => p.id === savedPanelId)
       : null;
     if (matchPanel) {
-      setPanelSeleccionado(matchPanel);
+      set("panelSeleccionado", matchPanel);
     } else if (savedPotencia > 0 && savedPrecioW > 0) {
-      setPanelSeleccionado(
+      set("panelSeleccionado",
         catalogoPaneles.find((p) =>
           p.potencia === savedPotencia && Math.abs(p.precioPorWatt - savedPrecioW) < 0.001
         ) ?? null,
       );
     } else {
-      setPanelSeleccionado(null);
+      set("panelSeleccionado", null);
     }
-    // Try to re-match catalog micro — by saved ID first, then by precio fallback
+    // Re-match catalog micro
     const savedMicroId = data.microCatalogoId;
     const savedPrecioMicro = Number(data.precioMicroinversor) || 0;
     const savedPrecioCable = Number(data.precioCable) || 0;
@@ -832,19 +704,16 @@ export default function Home() {
       ? catalogoMicros.find((m) => m.id === savedMicroId)
       : null;
     if (matchMicro) {
-      setMicroSeleccionado(matchMicro);
+      set("microSeleccionado", matchMicro);
     } else if (savedPrecioMicro > 0) {
-      setMicroSeleccionado(
+      set("microSeleccionado",
         catalogoMicros.find((m) =>
           Math.abs(m.precio - savedPrecioMicro) < 0.01 && Math.abs(m.precioCable - savedPrecioCable) < 0.01
         ) ?? null,
       );
     } else {
-      setMicroSeleccionado(null);
+      set("microSeleccionado", null);
     }
-    // variantes are now reactive via Convex query (keyed on nombreCotizacion)
-    setReciboDetalle(false);
-    setMostrarGuardadas(false);
   };
 
   const handleGuardarVariante = async () => {
@@ -892,89 +761,73 @@ export default function Home() {
       data: c,
     });
     // variantes update reactively via Convex
-    setNombreVariante("");
-    setMostrarVariantes(true);
+    set("nombreVariante", "");
+    set("mostrarVariantes", true);
   };
 
   const handleEliminarVariante = async (id: string) => {
     await convexEliminarCotizacionCliente(id);
-    // variantes update reactively via Convex
   };
 
   const handleCargarVariante = (v: CotizacionCliente) => {
-    setUtilidad(v.utilidad);
-    setMostrarPrecioCliente(true);
+    setMany({ utilidad: v.utilidad, mostrarPrecioCliente: true });
   };
 
   const handleEliminar = async (nombre: string) => {
     await convexEliminarCotizacion(nombre);
-    // cotizacionesGuardadas updates reactively via Convex
   };
 
   const updateAluminio = (i: number, f: keyof AluminioItem, v: string) =>
-    setAluminio((prev) => prev.map((it, idx) => (idx === i ? { ...it, [f]: v } : it)));
+    updateLineItem("aluminio", i, f, v);
   const updateTornilleria = (i: number, f: keyof LineItem, v: string) =>
-    setTornilleria((prev) => prev.map((it, idx) => (idx === i ? { ...it, [f]: v } : it)));
+    updateLineItem("tornilleria", i, f, v);
   const updateGeneral = (i: number, f: keyof GeneralItem, v: string) =>
-    setGenerales((prev) => prev.map((it, idx) => (idx === i ? { ...it, [f]: v } : it)));
+    updateLineItem("generales", i, f, v);
 
   // Catálogo — seleccionar
   const seleccionarPanel = (p: CatalogoPanel) => {
-    setPotencia(String(p.potencia));
-    setPrecioPorWatt(String(p.precioPorWatt));
-    setPanelSeleccionado(p);
-    setPickerPanel(false);
-    setSugerirGuardarPanel(false);
+    setMany({ potencia: String(p.potencia), precioPorWatt: String(p.precioPorWatt), panelSeleccionado: p, pickerPanel: false, sugerirGuardarPanel: false });
   };
   const seleccionarMicro = (m: CatalogoMicro) => {
-    setPrecioMicroinversor(String(m.precio));
-    setPrecioCable(String(m.precioCable));
-    setMicroSeleccionado(m);
-    setPickerMicro(false);
-    setSugerirGuardarMicro(false);
+    setMany({ precioMicroinversor: String(m.precio), precioCable: String(m.precioCable), microSeleccionado: m, pickerMicro: false, sugerirGuardarMicro: false });
   };
 
-  // Catálogo — guardar desde cotizador (saves product to Convex; offer requires a provider so is skipped here)
+  // Catálogo — guardar desde cotizador
   const guardarPanelEnCatalogo = async (marca: string, modelo: string) => {
     await convexGuardarProductoPanel({ marca, modelo, potencia: potenciaNum });
-    // catalogoPaneles updates reactively via Convex (offer can be added later on catalog page)
-    setSugerirGuardarPanel(false);
+    set("sugerirGuardarPanel", false);
   };
   const guardarMicroEnCatalogo = async (marca: string, modelo: string) => {
     await convexGuardarProductoMicro({ marca, modelo, panelesPorUnidad: 4 });
-    // catalogoMicros updates reactively via Convex (offer can be added later on catalog page)
-    setSugerirGuardarMicro(false);
+    set("sugerirGuardarMicro", false);
   };
 
   // ── CFE handler ───────────────────────────────────────────────────────────
   const handleReciboCFE = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setLoadingRecibo(true);
-    setErrorRecibo("");
+    set("loadingRecibo", true);
+    set("errorRecibo", "");
     try {
       const fd = new FormData();
       fd.append("pdf", file);
       const res = await fetch("/api/leer-recibo", { method: "POST", body: fd });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setReciboCFE(data);
-      // Save PDF as base64 for later viewing
+      set("reciboCFE", data);
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Strip "data:application/pdf;base64," prefix
-        setReciboPDFBase64(result);
+        set("reciboPDFBase64", result);
       };
       reader.readAsDataURL(file);
-      // Auto-fill quote name if empty
       if (data.nombre && !nombreCotizacion.trim()) {
-        setNombreCotizacion(data.nombre);
+        set("nombreCotizacion", data.nombre);
       }
     } catch (err: unknown) {
-      setErrorRecibo(err instanceof Error ? err.message : "Error al procesar el recibo");
+      set("errorRecibo", err instanceof Error ? err.message : "Error al procesar el recibo");
     } finally {
-      setLoadingRecibo(false);
+      set("loadingRecibo", false);
       if (reciboInputRef.current) reciboInputRef.current.value = "";
     }
   };
@@ -1071,7 +924,7 @@ export default function Home() {
           <input
             type="text"
             value={nombreCotizacion}
-            onChange={(e) => setNombreCotizacion(e.target.value)}
+            onChange={(e) => set("nombreCotizacion",e.target.value)}
             placeholder="Nombre de la cotización…"
             className="flex-1 min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10"
           />
@@ -1101,7 +954,7 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => setMostrarGuardadas(true)}
+            onClick={() => set("mostrarGuardadas",true)}
             className="shrink-0 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1138,7 +991,7 @@ export default function Home() {
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
                 {/* Header — clickable to toggle detail */}
                 <button
-                  onClick={() => setReciboDetalle(!reciboDetalle)}
+                  onClick={() => set("reciboDetalle",!reciboDetalle)}
                   className="w-full flex items-center justify-between px-5 py-3 border-b border-emerald-500/10 hover:bg-emerald-500/5 transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
@@ -1158,7 +1011,7 @@ export default function Home() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setReciboCFE(null); setReciboDetalle(false); }}
+                      onClick={(e) => { e.stopPropagation(); set("reciboCFE",null); set("reciboDetalle",false); }}
                       className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs px-1 ml-1"
                       title="Cerrar"
                     >
@@ -1301,13 +1154,13 @@ export default function Home() {
                         </h4>
                         <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5 shrink-0">
                           <button
-                            onClick={() => setReciboUltimoAnio(true)}
+                            onClick={() => set("reciboUltimoAnio",true)}
                             className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
                           >
                             Último año ({Math.min(6, reciboCFE.historico.length) + 1} bim)
                           </button>
                           <button
-                            onClick={() => setReciboUltimoAnio(false)}
+                            onClick={() => set("reciboUltimoAnio",false)}
                             className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${!reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
                           >
                             Todo el historial ({reciboCFE.historico.length + 1} bim)
@@ -1355,7 +1208,7 @@ export default function Home() {
                           </div>
                           <p className="text-[10px] text-zinc-600 leading-tight">Cubre el promedio de todos los períodos. Meses altos generan un poco de deuda con CFE, meses bajos acumulan excedente.</p>
                           <button
-                            onClick={() => setCantidad(String(panelesPromedio))}
+                            onClick={() => set("cantidad",String(panelesPromedio))}
                             className="w-full text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                           >
                             Aplicar {panelesPromedio} paneles
@@ -1387,7 +1240,7 @@ export default function Home() {
                           </div>
                           <p className="text-[10px] text-zinc-600 leading-tight">Cubre el 75% de los períodos sin depender del acumulado. Reduce al mínimo la deuda con CFE en meses de alto consumo.</p>
                           <button
-                            onClick={() => setCantidad(String(panelesEquilibrado))}
+                            onClick={() => set("cantidad",String(panelesEquilibrado))}
                             className="w-full text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                           >
                             Aplicar {panelesEquilibrado} paneles
@@ -1419,7 +1272,7 @@ export default function Home() {
                           </div>
                           <p className="text-[10px] text-zinc-600 leading-tight">Cubriría hasta el bimestre de mayor consumo. Puede resultar sobredimensionado — solo como referencia.</p>
                           <button
-                            onClick={() => setCantidad(String(panelesMax))}
+                            onClick={() => set("cantidad",String(panelesMax))}
                             className="w-full text-xs text-zinc-400 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-600 rounded-lg px-3 py-1.5 transition-colors mt-1"
                           >
                             Aplicar {panelesMax} paneles
@@ -1440,13 +1293,13 @@ export default function Home() {
                                   <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wide">Incremento por minisplits</span>
                                   <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-0.5">
                                     <button
-                                      onClick={() => setMinisplitTemporada("temporada")}
+                                      onClick={() => set("minisplitTemporada","temporada")}
                                       className={`text-[11px] px-2.5 py-0.5 rounded-md transition-colors font-medium ${minisplitTemporada === "temporada" ? "bg-cyan-400/15 text-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}
                                     >
                                       Temporada
                                     </button>
                                     <button
-                                      onClick={() => setMinisplitTemporada("anual")}
+                                      onClick={() => set("minisplitTemporada","anual")}
                                       className={`text-[11px] px-2.5 py-0.5 rounded-md transition-colors font-medium ${minisplitTemporada === "anual" ? "bg-cyan-400/15 text-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}
                                     >
                                       Todo el año
@@ -1506,7 +1359,7 @@ export default function Home() {
                                 <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpConIncremento.toFixed(2)} kWp</span></div>
                               </div>
                               <button
-                                onClick={() => setCantidad(String(panelesConIncremento))}
+                                onClick={() => set("cantidad",String(panelesConIncremento))}
                                 className="w-full text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-400/25 hover:border-cyan-400/50 rounded-lg px-3 py-1.5 transition-colors"
                               >
                                 Aplicar {panelesConIncremento} paneles
@@ -1540,13 +1393,13 @@ export default function Home() {
                 {/* Action row */}
                 <div className="px-5 pb-4 flex flex-wrap items-center gap-2 border-t border-emerald-500/10 pt-3">
                   <button
-                    onClick={() => setNombreCotizacion(reciboCFE.nombre)}
+                    onClick={() => set("nombreCotizacion",reciboCFE.nombre)}
                     className="text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors"
                   >
                     Usar nombre del cliente
                   </button>
                   <button
-                    onClick={() => setReciboDetalle(!reciboDetalle)}
+                    onClick={() => set("reciboDetalle",!reciboDetalle)}
                     className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors"
                   >
                     {reciboDetalle ? "Ocultar desglose" : "Ver desglose"}
@@ -1623,7 +1476,7 @@ export default function Home() {
                   {catalogoPaneles.length > 0 ? `${catalogoPaneles.length} panel${catalogoPaneles.length !== 1 ? "es" : ""} en catálogo` : "Catálogo vacío"}
                 </span>
                 <button
-                  onClick={() => setPickerPanel(true)}
+                  onClick={() => set("pickerPanel",true)}
                   className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors font-medium"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1645,7 +1498,7 @@ export default function Home() {
                   <span className="text-xs text-zinc-500 font-mono">
                     {panelSeleccionado.potencia}W · {fmtUSD3(panelSeleccionado.precioPorWatt)}/W
                   </span>
-                  <button onClick={() => setPanelSeleccionado(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
+                  <button onClick={() => set("panelSeleccionado",null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -1653,13 +1506,13 @@ export default function Home() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Cantidad">
-                  <NumInput value={cantidad} onChange={setCantidad} placeholder="Ej: 12" />
+                  <NumInput value={cantidad} onChange={(v) => set("cantidad", v)} placeholder="Ej: 12" />
                 </Field>
                 <Field label="Potencia por panel (W)">
-                  <NumInput value={potencia} onChange={(v) => { setPotencia(v); if (v) { setSugerirGuardarPanel(true); setPanelSeleccionado(null); } }} placeholder="Ej: 550" />
+                  <NumInput value={potencia} onChange={(v) => { set("potencia",v); if (v) { set("sugerirGuardarPanel",true); set("panelSeleccionado",null); } }} placeholder="Ej: 550" />
                 </Field>
                 <Field label="Precio / watt (USD)">
-                  <NumInput value={precioPorWatt} onChange={(v) => { setPrecioPorWatt(v); if (v) { setSugerirGuardarPanel(true); setPanelSeleccionado(null); } }} placeholder="Ej: 0.18" step={0.001} />
+                  <NumInput value={precioPorWatt} onChange={(v) => { set("precioPorWatt",v); if (v) { set("sugerirGuardarPanel",true); set("panelSeleccionado",null); } }} placeholder="Ej: 0.18" step={0.001} />
                 </Field>
               </div>
 
@@ -1668,7 +1521,7 @@ export default function Home() {
                 <SaveToCatalogBanner
                   label="¿Guardar este panel en el catálogo?"
                   onSave={guardarPanelEnCatalogo}
-                  onDismiss={() => setSugerirGuardarPanel(false)}
+                  onDismiss={() => set("sugerirGuardarPanel",false)}
                 />
               )}
 
@@ -1699,7 +1552,7 @@ export default function Home() {
                     <input
                       type="number" min={0} step={0.01}
                       value={fletePaneles}
-                      onChange={(e) => setFletePaneles(e.target.value)}
+                      onChange={(e) => set("fletePaneles",e.target.value)}
                       className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
                     />
                     <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fletePanelesNum)}</span>
@@ -1712,7 +1565,7 @@ export default function Home() {
                     <input
                       type="number" min={0} step={0.01}
                       value={garantiaPaneles}
-                      onChange={(e) => setGarantiaPaneles(e.target.value)}
+                      onChange={(e) => set("garantiaPaneles",e.target.value)}
                       className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
                     />
                     <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(garantiaPanelesNum)}</span>
@@ -1732,7 +1585,7 @@ export default function Home() {
                   <TcCustomRow
                     tcGlobal={tcVal}
                     value={tcCustomPaneles}
-                    onChange={setTcCustomPaneles}
+                    onChange={(v) => set("tcCustomPaneles", v)}
                   />
 
                   {/* Total MXN */}
@@ -1771,7 +1624,7 @@ export default function Home() {
                   {catalogoMicros.length > 0 ? `${catalogoMicros.length} modelo${catalogoMicros.length !== 1 ? "s" : ""} en catálogo` : "Catálogo vacío"}
                 </span>
                 <button
-                  onClick={() => setPickerMicro(true)}
+                  onClick={() => set("pickerMicro",true)}
                   className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors font-medium"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1794,7 +1647,7 @@ export default function Home() {
                     ${fmtUSD(microSeleccionado.precio)} USD
                     {microSeleccionado.precioCable > 0 && ` · cable $${fmtUSD(microSeleccionado.precioCable)}`}
                   </span>
-                  <button onClick={() => setMicroSeleccionado(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
+                  <button onClick={() => set("microSeleccionado",null)} className="text-zinc-600 hover:text-zinc-400 transition-colors ml-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -1802,10 +1655,10 @@ export default function Home() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Precio por microinversor (USD)" hint={microSeleccionado ? `1 micro por cada ${panelesPorMicro} paneles (${microSeleccionado.modelo})` : `1 micro por cada ${panelesPorMicro} paneles (default DS3D)`}>
-                  <NumInput value={precioMicroinversor} onChange={(v) => { setPrecioMicroinversor(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 180.00" step={0.01} />
+                  <NumInput value={precioMicroinversor} onChange={(v) => { set("precioMicroinversor",v); if (v) { set("sugerirGuardarMicro",true); set("microSeleccionado",null); } }} placeholder="Ej: 180.00" step={0.01} />
                 </Field>
                 <Field label="Cable troncal APS por unidad (USD)" hint="1 cable por microinversor">
-                  <NumInput value={precioCable} onChange={(v) => { setPrecioCable(v); if (v) { setSugerirGuardarMicro(true); setMicroSeleccionado(null); } }} placeholder="Ej: 25.00" step={0.01} />
+                  <NumInput value={precioCable} onChange={(v) => { set("precioCable",v); if (v) { set("sugerirGuardarMicro",true); set("microSeleccionado",null); } }} placeholder="Ej: 25.00" step={0.01} />
                 </Field>
               </div>
 
@@ -1865,7 +1718,7 @@ export default function Home() {
                     <input
                       type="number" min={0} step={0.01}
                       value={fleteMicros}
-                      onChange={(e) => setFleteMicros(e.target.value)}
+                      onChange={(e) => set("fleteMicros",e.target.value)}
                       className="w-full rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-xs text-right text-zinc-100 outline-none focus:border-amber-400 font-mono"
                     />
                     <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(fleteMicrosNum)}</span>
@@ -1885,7 +1738,7 @@ export default function Home() {
                   <TcCustomRow
                     tcGlobal={tcVal}
                     value={tcCustomMicros}
-                    onChange={setTcCustomMicros}
+                    onChange={(v) => set("tcCustomMicros", v)}
                   />
 
                   {/* Total MXN */}
@@ -1916,34 +1769,34 @@ export default function Home() {
                 <SaveToCatalogBanner
                   label="¿Guardar este microinversor en el catálogo?"
                   onSave={guardarMicroEnCatalogo}
-                  onDismiss={() => setSugerirGuardarMicro(false)}
+                  onDismiss={() => set("sugerirGuardarMicro",false)}
                 />
               )}
 
               <div className="space-y-3 border-t border-zinc-800 pt-4">
                 <Toggle
                   checked={incluyeECU}
-                  onChange={setIncluyeECU}
+                  onChange={(v) => set("incluyeECU", v)}
                   label="ECU-R — Sistema de monitoreo"
                 />
                 {incluyeECU && (
                   <div className="pl-12">
                     <Field label="Precio ECU-R (USD)">
-                      <NumInput value={precioECU} onChange={setPrecioECU} placeholder="Ej: 145.00" step={0.01} />
+                      <NumInput value={precioECU} onChange={(v) => set("precioECU", v)} placeholder="Ej: 145.00" step={0.01} />
                     </Field>
                   </div>
                 )}
 
                 <Toggle
                   checked={incluyeHerramienta}
-                  onChange={setIncluyeHerramienta}
+                  onChange={(v) => set("incluyeHerramienta", v)}
                   label="Herramienta desconectora APS"
                   hint="Opcional — no se requiere en cada instalación"
                 />
                 {incluyeHerramienta && (
                   <div className="pl-12">
                     <Field label="Precio herramienta (USD)">
-                      <NumInput value={precioHerramienta} onChange={setPrecioHerramienta} placeholder="Ej: 35.00" step={0.01} />
+                      <NumInput value={precioHerramienta} onChange={(v) => set("precioHerramienta", v)} placeholder="Ej: 35.00" step={0.01} />
                     </Field>
                   </div>
                 )}
@@ -1952,7 +1805,7 @@ export default function Home() {
               {/* ── Calculadora eléctrica ── */}
               <div className="mt-4 border-t border-zinc-800 pt-4">
                 <button
-                  onClick={() => setShowElectrical(!showElectrical)}
+                  onClick={() => set("showElectrical",!showElectrical)}
                   className="flex items-center gap-2 text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
                 >
                   <svg className={`w-3 h-3 transition-transform ${showElectrical ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1966,7 +1819,7 @@ export default function Home() {
                       <label className="text-[11px] text-zinc-500">Perfil equipo:</label>
                       <select
                         value={electricalProfileId}
-                        onChange={(e) => setElectricalProfileId(e.target.value)}
+                        onChange={(e) => set("electricalProfileId",e.target.value)}
                         className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400"
                       >
                         {listProfiles().map((p) => (
@@ -2047,7 +1900,7 @@ export default function Home() {
               {/* ── Calculadora estructural ── */}
               <div className="mb-4">
                 <button
-                  onClick={() => setShowStructure(!showStructure)}
+                  onClick={() => set("showStructure",!showStructure)}
                   className="flex items-center gap-2 text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
                 >
                   <svg className={`w-3 h-3 transition-transform ${showStructure ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -2069,7 +1922,7 @@ export default function Home() {
                           value={row.horizontal}
                           onChange={(e) => {
                             const v = Number(e.target.value) || 0;
-                            setStructureRows((prev) => prev.map((r, idx) => idx === i ? { ...r, horizontal: v } : r));
+                            set("structureRows", structureRows.map((r, idx) => idx === i ? { ...r, horizontal: v } : r));
                           }}
                           className="w-16 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 text-center outline-none focus:border-cyan-400"
                           placeholder="H"
@@ -2082,14 +1935,14 @@ export default function Home() {
                           value={row.vertical}
                           onChange={(e) => {
                             const v = Number(e.target.value) || 0;
-                            setStructureRows((prev) => prev.map((r, idx) => idx === i ? { ...r, vertical: v } : r));
+                            set("structureRows", structureRows.map((r, idx) => idx === i ? { ...r, vertical: v } : r));
                           }}
                           className="w-16 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 text-center outline-none focus:border-cyan-400"
                           placeholder="V"
                         />
                         <span className="text-[10px] text-zinc-500">= {row.horizontal * row.vertical} paneles</span>
                         <button
-                          onClick={() => setStructureRows((prev) => prev.filter((_, idx) => idx !== i))}
+                          onClick={() => set("structureRows", structureRows.filter((_, idx) => idx !== i))}
                           className="text-zinc-600 hover:text-red-400 transition-colors ml-auto"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2098,7 +1951,7 @@ export default function Home() {
                     ))}
 
                     <button
-                      onClick={() => setStructureRows((prev) => [...prev, { horizontal: 4, vertical: 1 }])}
+                      onClick={() => set("structureRows", [...structureRows, { horizontal: 4, vertical: 1 }])}
                       className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -2136,7 +1989,7 @@ export default function Home() {
                 currency="MXN"
               />
               <Field label="Flete" hint="MXN con IVA incluido — se descuenta el IVA para no cobrar doble">
-                <NumInput value={fleteAluminio} onChange={setFleteAluminio} step={0.01} />
+                <NumInput value={fleteAluminio} onChange={(v) => set("fleteAluminio", v)} step={0.01} />
               </Field>
               {partidaEstructuraMXN > 0 && (
                 <div className="rounded-xl border border-zinc-800 overflow-hidden mt-3">
@@ -2231,7 +2084,7 @@ export default function Home() {
                   {!tcFrozen && !tcManual && tc?.tipoCambioAlt && (
                     <div className="flex rounded-lg border border-zinc-700 overflow-hidden mb-2">
                       <button
-                        onClick={() => setTcUsarManana(false)}
+                        onClick={() => set("tcUsarManana",false)}
                         className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
                           !tcUsarManana
                             ? "bg-zinc-700 text-zinc-100"
@@ -2241,7 +2094,7 @@ export default function Home() {
                         Hoy <span className="font-mono text-[10px] ml-1">${tc.tipoCambio.toFixed(4)}</span>
                       </button>
                       <button
-                        onClick={() => setTcUsarManana(true)}
+                        onClick={() => set("tcUsarManana",true)}
                         className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors border-l border-zinc-700 ${
                           tcUsarManana
                             ? "bg-zinc-700 text-zinc-100"
@@ -2263,7 +2116,7 @@ export default function Home() {
                             min={0}
                             step={0.0001}
                             value={tcSnapshotLocal}
-                            onChange={(e) => setTcSnapshotLocal(e.target.value)}
+                            onChange={(e) => set("tcSnapshotLocal",e.target.value)}
                             className="w-32 text-2xl font-bold text-amber-300 font-mono bg-transparent border-b border-amber-400/40 outline-none focus:border-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
@@ -2282,12 +2135,12 @@ export default function Home() {
                     <button
                       onClick={() => {
                         if (tcFrozen) {
-                          setTcFrozen(false);
-                          setTcSnapshotLocal("");
+                          set("tcFrozen",false);
+                          set("tcSnapshotLocal","");
                         } else {
-                          setTcManual(false);
-                          setTcSnapshotLocal(String(tcLive || tcVal));
-                          setTcFrozen(true);
+                          set("tcManual",false);
+                          set("tcSnapshotLocal",String(tcLive || tcVal));
+                          set("tcFrozen",true);
                         }
                       }}
                       disabled={!tcLive && !tcFrozen && !tcManual}
@@ -2320,12 +2173,12 @@ export default function Home() {
                     <button
                       onClick={() => {
                         if (tcManual) {
-                          setTcManual(false);
-                          setTcSnapshotLocal("");
+                          set("tcManual",false);
+                          set("tcSnapshotLocal","");
                         } else {
-                          setTcFrozen(false);
-                          setTcSnapshotLocal(String(tcLive || tcVal));
-                          setTcManual(true);
+                          set("tcFrozen",false);
+                          set("tcSnapshotLocal",String(tcLive || tcVal));
+                          set("tcManual",true);
                         }
                       }}
                       disabled={!tcLive && !tcFrozen && !tcManual}
@@ -2439,7 +2292,7 @@ export default function Home() {
             {subtotalMXN > 0 && (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
                 <button
-                  onClick={() => setMostrarPrecioCliente((v) => !v)}
+                  onClick={() => set("mostrarPrecioCliente", !mostrarPrecioCliente)}
                   className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors"
                 >
                   <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Precio al Cliente</h3>
@@ -2452,13 +2305,13 @@ export default function Home() {
                     <div className="px-4 py-3 border-b border-zinc-800 space-y-3">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setUtilidad((u) => ({ ...u, tipo: "global" }))}
+                          onClick={() => set("utilidad", { ...utilidad, tipo: "global" })}
                           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${utilidad.tipo === "global" ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-600"}`}
                         >
                           % Global
                         </button>
                         <button
-                          onClick={() => setUtilidad((u) => ({ ...u, tipo: "por_partida" }))}
+                          onClick={() => set("utilidad", { ...utilidad, tipo: "por_partida" })}
                           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${utilidad.tipo === "por_partida" ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-600"}`}
                         >
                           % Por partida
@@ -2471,7 +2324,7 @@ export default function Home() {
                           <input
                             type="number"
                             value={utilidad.globalPct}
-                            onChange={(e) => setUtilidad((u) => ({ ...u, globalPct: Number(e.target.value) || 0 }))}
+                            onChange={(e) => set("utilidad", { ...utilidad, globalPct: Number(e.target.value) || 0 })}
                             className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
                           />
                           <span className="text-xs text-zinc-500">%</span>
@@ -2491,7 +2344,7 @@ export default function Home() {
                                 <input
                                   type="number"
                                   value={utilidad[key]}
-                                  onChange={(e) => setUtilidad((u) => ({ ...u, [key]: Number(e.target.value) || 0 }))}
+                                  onChange={(e) => set("utilidad", { ...utilidad, [key]: Number(e.target.value) || 0 })}
                                   className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
                                 />
                                 <span className="text-xs text-zinc-500">%</span>
@@ -2507,7 +2360,7 @@ export default function Home() {
                         <input
                           type="number"
                           value={utilidad.montoFijo || ""}
-                          onChange={(e) => setUtilidad((u) => ({ ...u, montoFijo: Number(e.target.value) || 0 }))}
+                          onChange={(e) => set("utilidad", { ...utilidad, montoFijo: Number(e.target.value) || 0 })}
                           placeholder="0"
                           className="w-24 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400 placeholder-zinc-700"
                         />
@@ -2615,7 +2468,7 @@ export default function Home() {
                         <div className="flex gap-2">
                           <input
                             value={nombreVariante}
-                            onChange={(e) => setNombreVariante(e.target.value)}
+                            onChange={(e) => set("nombreVariante",e.target.value)}
                             placeholder="Nombre de variante (ej: Opción A)"
                             className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-emerald-400"
                           />
@@ -2637,7 +2490,7 @@ export default function Home() {
                     {variantes.length > 0 && (
                       <div className="border-t border-zinc-800">
                         <button
-                          onClick={() => setMostrarVariantes((v) => !v)}
+                          onClick={() => set("mostrarVariantes", !mostrarVariantes)}
                           className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-zinc-800/50 transition-colors"
                         >
                           <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">
@@ -2711,7 +2564,7 @@ export default function Home() {
                                   );
                                 })()}
                                 <button
-                                  onClick={() => setMostrarComparador((v) => !v)}
+                                  onClick={() => set("mostrarComparador", !mostrarComparador)}
                                   className="w-full text-xs text-center py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors mt-1"
                                 >
                                   {mostrarComparador ? "Cerrar comparador" : "Ver comparador completo"}
@@ -2730,7 +2583,7 @@ export default function Home() {
             {/* PDF Buttons */}
             <div className="space-y-2">
               <button
-                onClick={() => setMostrarPDF((v) => !v)}
+                onClick={() => set("mostrarPDF", !mostrarPDF)}
                 disabled={!tc}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
@@ -2742,7 +2595,7 @@ export default function Home() {
 
               {mostrarPrecioCliente && clienteTotalMXN > 0 && (
                 <button
-                  onClick={() => setMostrarPDFCliente((v) => !v)}
+                  onClick={() => set("mostrarPDFCliente", !mostrarPDFCliente)}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-400/5 px-4 py-3 text-sm font-medium text-emerald-400 hover:bg-emerald-400/10 hover:border-emerald-400/50 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2761,7 +2614,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
               <span className="text-sm font-medium text-zinc-300">Vista previa del PDF</span>
               <button
-                onClick={() => setMostrarPDF(false)}
+                onClick={() => set("mostrarPDF",false)}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2798,7 +2651,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
               <span className="text-sm font-medium text-emerald-400">PDF Cotizacion al Cliente</span>
               <button
-                onClick={() => setMostrarPDFCliente(false)}
+                onClick={() => set("mostrarPDFCliente",false)}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2837,7 +2690,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
               <span className="text-sm font-medium text-zinc-300">Comparador de variantes</span>
               <button
-                onClick={() => setMostrarComparador(false)}
+                onClick={() => set("mostrarComparador",false)}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2960,12 +2813,12 @@ export default function Home() {
 
       {/* ── Modal: Picker paneles ────────────────────────────────────────── */}
       {pickerPanel && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { setPickerPanel(false); setPickerSearch(""); setPickerMarca(""); }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { set("pickerPanel",false); set("pickerSearch",""); set("pickerMarca",""); }}>
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
           <div className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-100">Seleccionar panel del catálogo</h2>
-              <button onClick={() => { setPickerPanel(false); setPickerSearch(""); setPickerMarca(""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={() => { set("pickerPanel",false); set("pickerSearch",""); set("pickerMarca",""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -2979,23 +2832,23 @@ export default function Home() {
                   <input
                     type="text"
                     value={pickerSearch}
-                    onChange={(e) => setPickerSearch(e.target.value)}
+                    onChange={(e) => set("pickerSearch",e.target.value)}
                     placeholder="Buscar marca o modelo..."
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-8 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
                     autoFocus
                   />
                   {pickerSearch && (
-                    <button onClick={() => setPickerSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                    <button onClick={() => set("pickerSearch","")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <select value={pickerMarca} onChange={(e) => setPickerMarca(e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                  <select value={pickerMarca} onChange={(e) => set("pickerMarca",e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
                     <option value="">Todas las marcas</option>
                     {pickerMarcasPaneles.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
-                  <select value={pickerOrden} onChange={(e) => setPickerOrden(e.target.value as "nombre" | "potencia" | "precio")} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                  <select value={pickerOrden} onChange={(e) => set("pickerOrden",e.target.value as "nombre" | "potencia" | "precio")} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
                     <option value="nombre">Nombre</option>
                     <option value="potencia">Potencia</option>
                     <option value="precio">Precio</option>
@@ -3017,7 +2870,7 @@ export default function Home() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {pickerPanelesFiltrados.map((p) => (
-                    <button key={p.id} onClick={() => { seleccionarPanel(p); setPickerSearch(""); setPickerMarca(""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                    <button key={p.id} onClick={() => { seleccionarPanel(p); set("pickerSearch",""); set("pickerMarca",""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{p.marca} — {p.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">{p.potencia}W · {fmtUSD3(p.precioPorWatt)}/W</p>
@@ -3046,12 +2899,12 @@ export default function Home() {
 
       {/* ── Modal: Picker micros ──────────────────────────────────────────── */}
       {pickerMicro && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { setPickerMicro(false); setPickerSearch(""); setPickerMarca(""); }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => { set("pickerMicro",false); set("pickerSearch",""); set("pickerMarca",""); }}>
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
           <div className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-100">Seleccionar microinversor del catálogo</h2>
-              <button onClick={() => { setPickerMicro(false); setPickerSearch(""); setPickerMarca(""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={() => { set("pickerMicro",false); set("pickerSearch",""); set("pickerMarca",""); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -3065,19 +2918,19 @@ export default function Home() {
                   <input
                     type="text"
                     value={pickerSearch}
-                    onChange={(e) => setPickerSearch(e.target.value)}
+                    onChange={(e) => set("pickerSearch",e.target.value)}
                     placeholder="Buscar marca o modelo..."
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-800 pl-9 pr-8 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
                     autoFocus
                   />
                   {pickerSearch && (
-                    <button onClick={() => setPickerSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                    <button onClick={() => set("pickerSearch","")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <select value={pickerMarca} onChange={(e) => setPickerMarca(e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
+                  <select value={pickerMarca} onChange={(e) => set("pickerMarca",e.target.value)} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-amber-400">
                     <option value="">Todas las marcas</option>
                     {pickerMarcasMicros.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -3098,7 +2951,7 @@ export default function Home() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {pickerMicrosFiltrados.map((m) => (
-                    <button key={m.id} onClick={() => { seleccionarMicro(m); setPickerSearch(""); setPickerMarca(""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
+                    <button key={m.id} onClick={() => { seleccionarMicro(m); set("pickerSearch",""); set("pickerMarca",""); }} className="w-full flex items-start justify-between px-5 py-3.5 hover:bg-zinc-800/60 transition-colors text-left">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-zinc-100">{m.marca} — {m.modelo}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
@@ -3132,7 +2985,7 @@ export default function Home() {
       {mostrarGuardadas && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          onClick={() => setMostrarGuardadas(false)}
+          onClick={() => set("mostrarGuardadas",false)}
         >
           {/* Backdrop */}
           <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
@@ -3145,7 +2998,7 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-100">Mis cotizaciones</h2>
               <button
-                onClick={() => setMostrarGuardadas(false)}
+                onClick={() => set("mostrarGuardadas",false)}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
