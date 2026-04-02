@@ -968,6 +968,8 @@ function ImportadorPDF({
   ctx: CatalogoCtx;
 }) {
   const [step, setStep] = useState<"upload" | "loading" | "review" | "done">("upload");
+  const [importMode, setImportMode] = useState<"file" | "text">("file");
+  const [textoImport, setTextoImport] = useState("");
   const [items, setItems] = useState<ImportItem[]>([]);
   const [proveedorId, setProveedorId] = useState("");
   const [nuevoProvNombre, setNuevoProvNombre] = useState("");
@@ -1039,6 +1041,60 @@ function ImportadorPDF({
       setStep("review");
     } catch {
       setError("Error al procesar el PDF");
+      setStep("upload");
+    }
+  };
+
+  const handleTexto = async () => {
+    if (!textoImport.trim()) return;
+    setFileName("Texto pegado");
+    setStep("loading");
+    setError("");
+
+    try {
+      const res = await fetch("/api/leer-texto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: textoImport }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); setStep("upload"); return; }
+
+      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => {
+        const tiers: ImportTier[] = Array.isArray(it.precioTiers)
+          ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({ etiqueta: String(t.etiqueta || ""), precio: Number(t.precio) || 0 })).filter((t) => t.precio > 0)
+          : [];
+        return {
+          selected: true,
+          tipo: String(it.tipo || "otro"),
+          marca: String(it.marca || ""),
+          modelo: String(it.modelo || ""),
+          descripcion: String(it.descripcion || ""),
+          potencia: Number(it.potencia) || 0,
+          panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
+          precio: Number(it.precio) || 0,
+          precioTiers: tiers,
+          moneda: String(it.moneda || "USD"),
+          unidad: String(it.unidad || "por_unidad"),
+          notas: String(it.notas || ""),
+        };
+      });
+
+      if (extracted.length === 0) { setError("No se encontraron productos en el texto"); setStep("upload"); return; }
+
+      setItems(extracted);
+      if (data.fechaDocumento) setFechaDocumento(data.fechaDocumento);
+      if (data.condiciones) setCondiciones(data.condiciones);
+      if (data.resumenCondiciones) setResumenCondiciones(data.resumenCondiciones);
+      if (data.proveedor) {
+        const norm = normalizeName(data.proveedor);
+        const match = proveedores.find((p) => normalizeName(p.nombre) === norm);
+        if (match) setProveedorId(match.id);
+        else setNuevoProvNombre(data.proveedor);
+      }
+      setStep("review");
+    } catch {
+      setError("Error al procesar el texto");
       setStep("upload");
     }
   };
@@ -1162,17 +1218,60 @@ function ImportadorPDF({
   if (step === "upload") {
     return (
       <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-emerald-400">Importar precios desde archivo</h3>
-        <p className="text-xs text-zinc-500">Sube un PDF o imagen (JPG, PNG) de lista de precios de proveedor. La AI extraerá los productos y precios automáticamente.</p>
-        {error && <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
-        <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-        <div className="flex gap-2">
-          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-            Seleccionar archivo
+        <h3 className="text-sm font-semibold text-emerald-400">Importar precios</h3>
+
+        {/* Mode toggle */}
+        <div className="flex gap-1 p-0.5 rounded-lg bg-zinc-800 w-fit">
+          <button
+            onClick={() => setImportMode("file")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${importMode === "file" ? "bg-emerald-500 text-zinc-900" : "text-zinc-400 hover:text-zinc-200"}`}
+          >
+            PDF / Imagen
           </button>
-          <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+          <button
+            onClick={() => setImportMode("text")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${importMode === "text" ? "bg-emerald-500 text-zinc-900" : "text-zinc-400 hover:text-zinc-200"}`}
+          >
+            Pegar texto
+          </button>
         </div>
+
+        {error && <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
+
+        {importMode === "file" ? (
+          <>
+            <p className="text-xs text-zinc-500">Sube un PDF o imagen (JPG, PNG) de lista de precios de proveedor. La AI extraerá los productos y precios automáticamente.</p>
+            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <div className="flex gap-2">
+              <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                Seleccionar archivo
+              </button>
+              <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-zinc-500">Pega los datos de la lista de precios (tabla, CSV, TSV, JSON, texto libre). La AI los revisará y normalizará automáticamente.</p>
+            <textarea
+              className={`${inputCls} w-full h-48 font-mono text-[11px] leading-relaxed resize-y`}
+              placeholder={"PROVEEDOR: DM Solar\nFECHA: 2026-03-15\nCONDICIONES: Precios vigentes marzo 2026\n\ntipo\tmarca\tmodelo\tdescripcion\tpotencia\tprecio\tmoneda\tunidad\npanel\tCanadian Solar\tCS6R-425MS\tMono PERC 425W\t425\t0.22\tUSD\tpor_watt\nmicro\tHoymiles\tHMS-2000-4T\tMicro 4 paneles\t0\t185\tUSD\tpor_unidad"}
+              value={textoImport}
+              onChange={(e) => setTextoImport(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleTexto}
+                disabled={!textoImport.trim()}
+                className={`flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors ${!textoImport.trim() ? "opacity-40 cursor-not-allowed" : ""}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                Procesar texto
+              </button>
+              <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -1240,7 +1339,7 @@ function ImportadorPDF({
             value={fechaDocumento}
             onChange={(e) => setFechaDocumento(e.target.value)}
           />
-          {fechaDocumento && <span className="text-[10px] text-emerald-400/70">extraída del PDF</span>}
+          {fechaDocumento && <span className="text-[10px] text-emerald-400/70">detectada por IA</span>}
         </div>
       </div>
 
