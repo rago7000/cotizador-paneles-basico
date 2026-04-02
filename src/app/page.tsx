@@ -22,6 +22,7 @@ import type {
 import { calculateStructure } from "./lib/structure";
 import { calculateElectrical, listProfiles } from "./lib/electrical";
 import { useCotizacion } from "./lib/useCotizacion";
+import { useAutosave } from "./lib/useAutosave";
 import { uid, UTILIDAD_DEFAULT } from "./lib/cotizacion-state";
 import { fmt } from "./components/primitives";
 
@@ -101,6 +102,13 @@ export default function Home() {
     updateMinisplit,
     getFormData,
   } = useCotizacion();
+
+  // ── Autosave (2s debounce) ────────────────────────────────────────────────
+  const { autosaveStatus, resetSnapshot, markClean } = useAutosave({
+    nombre: s.nombreCotizacion,
+    getFormData,
+    save: convexGuardarCotizacion,
+  });
 
   const {
     cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
@@ -378,6 +386,7 @@ export default function Home() {
     const data = convexCargarCotizacion(nombre);
     if (!data) return;
     loadCotizacion(data);
+    markClean(data); // set baseline snapshot so autosave won't re-save unchanged data
     const savedPanelId = data.panelCatalogoId;
     const savedPotencia = Number(data.potencia) || 0;
     const savedPrecioW = Number(data.precioPorWatt) || 0;
@@ -500,6 +509,7 @@ export default function Home() {
             className="flex-1 min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10"
           />
 
+          {/* Save / autosave feedback */}
           {msgGuardado === "ok" && (
             <span className="hidden sm:flex items-center gap-1 text-xs text-emerald-400 shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
@@ -507,6 +517,21 @@ export default function Home() {
             </span>
           )}
           {msgGuardado === "err" && <span className="hidden sm:block text-xs text-red-400 shrink-0">Pon un nombre</span>}
+          {!msgGuardado && autosaveStatus === "saving" && (
+            <span className="hidden sm:flex items-center gap-1 text-xs text-zinc-500 shrink-0 animate-pulse">
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              Guardando…
+            </span>
+          )}
+          {!msgGuardado && autosaveStatus === "saved" && (
+            <span className="hidden sm:flex items-center gap-1 text-xs text-zinc-500 shrink-0">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              Auto-guardado
+            </span>
+          )}
+          {!msgGuardado && autosaveStatus === "error" && (
+            <span className="hidden sm:block text-xs text-red-400/70 shrink-0">Error al auto-guardar</span>
+          )}
 
           <button onClick={handleGuardar} className="shrink-0 flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-300 transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
