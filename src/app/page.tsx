@@ -56,27 +56,27 @@ type AluminioItem = LineItem;
 type GeneralItem = LineItem;
 
 const aluminioDefault: AluminioItem[] = [
-  { nombre: "Angulo - 1 1/2 X 1 1/2 X 0.1875\" (3/16)", cantidad: "3", precioUnitario: "700.94", unidad: "Pza" },
-  { nombre: "Unicanal - PARA PANEL SOLAR GRANDE", cantidad: "3", precioUnitario: "839.34", unidad: "Pza" },
-  { nombre: "Clip - PARA PANEL SOLAR", cantidad: "27", precioUnitario: "41.58", unidad: "Pza" },
+  { id: uid(), nombre: "Angulo - 1 1/2 X 1 1/2 X 0.1875\" (3/16)", cantidad: "3", precioUnitario: "700.94", unidad: "Pza" },
+  { id: uid(), nombre: "Unicanal - PARA PANEL SOLAR GRANDE", cantidad: "3", precioUnitario: "839.34", unidad: "Pza" },
+  { id: uid(), nombre: "Clip - PARA PANEL SOLAR", cantidad: "27", precioUnitario: "41.58", unidad: "Pza" },
 ];
 
 const tornilleriaDefault: LineItem[] = [
-  { nombre: "Tornillo acero inox (largo: ..)", cantidad: "40", precioUnitario: "3.00", unidad: "Pza" },
-  { nombre: "Tuerca de presion - Acero inox.", cantidad: "40", precioUnitario: "2.00", unidad: "Pza" },
-  { nombre: "Guasa de presion - Acero inox.", cantidad: "40", precioUnitario: "1.00", unidad: "Pza" },
-  { nombre: "Guasa grande (microinversores)", cantidad: "1", precioUnitario: "80.95", unidad: "Lote" },
-  { nombre: "Pijas con taquete", cantidad: "1", precioUnitario: "61.64", unidad: "Lote" },
+  { id: uid(), nombre: "Tornillo acero inox (largo: ..)", cantidad: "40", precioUnitario: "3.00", unidad: "Pza" },
+  { id: uid(), nombre: "Tuerca de presion - Acero inox.", cantidad: "40", precioUnitario: "2.00", unidad: "Pza" },
+  { id: uid(), nombre: "Guasa de presion - Acero inox.", cantidad: "40", precioUnitario: "1.00", unidad: "Pza" },
+  { id: uid(), nombre: "Guasa grande (microinversores)", cantidad: "1", precioUnitario: "80.95", unidad: "Lote" },
+  { id: uid(), nombre: "Pijas con taquete", cantidad: "1", precioUnitario: "61.64", unidad: "Lote" },
 ];
 
 const generalesDefault: GeneralItem[] = [
-  { nombre: "Centro de carga (p/1 pastilla doble)", cantidad: "1", precioUnitario: "229.00", unidad: "Pza" },
-  { nombre: "Pastilla 2 polos (15 amp)", cantidad: "1", precioUnitario: "589.00", unidad: "Pza" },
-  { nombre: "Cemento plastico", cantidad: "1", precioUnitario: "79.80", unidad: "Lote" },
-  { nombre: "Cable de uso rudo", cantidad: "20", precioUnitario: "37.97", unidad: "mL" },
-  { nombre: "Instalacion - Precio base", cantidad: "1", precioUnitario: "3000.00", unidad: "Lote" },
-  { nombre: "Instalacion - Paneles adicionales", cantidad: "0", precioUnitario: "150.00", unidad: "Pza" },
-  { nombre: "Instalacion - Vueltas gasolina", cantidad: "1", precioUnitario: "2500.00", unidad: "Pza" },
+  { id: uid(), nombre: "Centro de carga (p/1 pastilla doble)", cantidad: "1", precioUnitario: "229.00", unidad: "Pza" },
+  { id: uid(), nombre: "Pastilla 2 polos (15 amp)", cantidad: "1", precioUnitario: "589.00", unidad: "Pza" },
+  { id: uid(), nombre: "Cemento plastico", cantidad: "1", precioUnitario: "79.80", unidad: "Lote" },
+  { id: uid(), nombre: "Cable de uso rudo", cantidad: "20", precioUnitario: "37.97", unidad: "mL" },
+  { id: uid(), nombre: "Instalacion - Precio base", cantidad: "1", precioUnitario: "3000.00", unidad: "Lote" },
+  { id: uid(), nombre: "Instalacion - Paneles adicionales", cantidad: "0", precioUnitario: "150.00", unidad: "Pza" },
+  { id: uid(), nombre: "Instalacion - Vueltas gasolina", cantidad: "1", precioUnitario: "2500.00", unidad: "Pza" },
 ];
 
 const fmt = (n: number) =>
@@ -231,7 +231,7 @@ function LineItemTable({
         const sub = (Number(item.cantidad) || 0) * (Number(item.precioUnitario) || 0);
         return (
           <div
-            key={i}
+            key={item.id}
             className="grid grid-cols-[1fr_72px_100px_88px] gap-2 px-3 py-2.5 border-t border-zinc-800/60 items-center hover:bg-zinc-800/30 transition-colors"
           >
             <div>
@@ -754,6 +754,8 @@ export default function Home() {
     precioMicroinversor, precioCable, precioECU, incluyeECU,
     precioHerramienta, incluyeHerramienta, fleteMicros,
     aluminio, fleteAluminio, tornilleria, generales,
+    panelCatalogoId: panelSeleccionado?.id,
+    microCatalogoId: microSeleccionado?.id,
     reciboCFE,
     reciboPDFBase64,
     minisplits: minisplits.length > 0 ? minisplits : undefined,
@@ -789,10 +791,11 @@ export default function Home() {
     setPrecioHerramienta(data.precioHerramienta);
     setIncluyeHerramienta(data.incluyeHerramienta);
     setFleteMicros(data.fleteMicros);
-    setAluminio(data.aluminio);
+    const ensureIds = (items: LineItem[]) => items.map((it) => it.id ? it : { ...it, id: uid() });
+    setAluminio(ensureIds(data.aluminio));
     setFleteAluminio(data.fleteAluminio);
-    setTornilleria(data.tornilleria);
-    setGenerales(data.generales);
+    setTornilleria(ensureIds(data.tornilleria));
+    setGenerales(ensureIds(data.generales));
     setReciboCFE(data.reciboCFE ?? null);
     setReciboPDFBase64(data.reciboPDFBase64 ?? null);
     setMinisplits(data.minisplits ?? []);
@@ -803,24 +806,39 @@ export default function Home() {
     } else {
       setMostrarPrecioCliente(false);
     }
-    // Try to re-match catalog panel and micro from saved values
+    // Try to re-match catalog panel — by saved ID first, then by potencia+precio fallback
+    const savedPanelId = data.panelCatalogoId;
     const savedPotencia = Number(data.potencia) || 0;
     const savedPrecioW = Number(data.precioPorWatt) || 0;
-    if (savedPotencia > 0 && savedPrecioW > 0) {
-      const matchPanel = catalogoPaneles.find((p) =>
-        p.potencia === savedPotencia && Math.abs(p.precioPorWatt - savedPrecioW) < 0.0001
+    const matchPanel = savedPanelId
+      ? catalogoPaneles.find((p) => p.id === savedPanelId)
+      : null;
+    if (matchPanel) {
+      setPanelSeleccionado(matchPanel);
+    } else if (savedPotencia > 0 && savedPrecioW > 0) {
+      setPanelSeleccionado(
+        catalogoPaneles.find((p) =>
+          p.potencia === savedPotencia && Math.abs(p.precioPorWatt - savedPrecioW) < 0.001
+        ) ?? null,
       );
-      setPanelSeleccionado(matchPanel ?? null);
     } else {
       setPanelSeleccionado(null);
     }
+    // Try to re-match catalog micro — by saved ID first, then by precio fallback
+    const savedMicroId = data.microCatalogoId;
     const savedPrecioMicro = Number(data.precioMicroinversor) || 0;
     const savedPrecioCable = Number(data.precioCable) || 0;
-    if (savedPrecioMicro > 0) {
-      const matchMicro = catalogoMicros.find((m) =>
-        Math.abs(m.precio - savedPrecioMicro) < 0.01 && Math.abs(m.precioCable - savedPrecioCable) < 0.01
+    const matchMicro = savedMicroId
+      ? catalogoMicros.find((m) => m.id === savedMicroId)
+      : null;
+    if (matchMicro) {
+      setMicroSeleccionado(matchMicro);
+    } else if (savedPrecioMicro > 0) {
+      setMicroSeleccionado(
+        catalogoMicros.find((m) =>
+          Math.abs(m.precio - savedPrecioMicro) < 0.01 && Math.abs(m.precioCable - savedPrecioCable) < 0.01
+        ) ?? null,
       );
-      setMicroSeleccionado(matchMicro ?? null);
     } else {
       setMicroSeleccionado(null);
     }

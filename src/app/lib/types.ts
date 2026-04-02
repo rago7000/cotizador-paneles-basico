@@ -1,4 +1,5 @@
 export interface LineItem {
+  id: string;
   nombre: string;
   cantidad: string;
   precioUnitario: string;
@@ -45,6 +46,9 @@ export interface CotizacionData {
   tornilleria: LineItem[];
   // Generales
   generales: LineItem[];
+  // IDs de catálogo seleccionados (para restaurar al cargar)
+  panelCatalogoId?: string;
+  microCatalogoId?: string;
   // Recibo CFE (opcional — se guarda si el usuario subió uno)
   reciboCFE?: {
     nombre: string;
