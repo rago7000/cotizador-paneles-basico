@@ -105,6 +105,7 @@ export default function ReciboCFEBanner({
   historicoFiltrado,
 }: ReciboCFEBannerProps) {
   const [showChart, setShowChart] = useState(false);
+  const [showFormula, setShowFormula] = useState<"promedio" | "equilibrada" | "maxima" | null>(null);
   const panelW = Number(potencia) || 545;
 
   if (reciboCFE) {
@@ -361,6 +362,24 @@ export default function ReciboCFEBanner({
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubre el promedio de todos los periodos. Meses altos generan un poco de deuda con CFE, meses bajos acumulan excedente.</p>
                       <button
+                        onClick={() => setShowFormula(showFormula === "promedio" ? null : "promedio")}
+                        className="text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                      >
+                        <svg className={`w-2.5 h-2.5 transition-transform ${showFormula === "promedio" ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        ¿Cómo se calcula?
+                      </button>
+                      {showFormula === "promedio" && (
+                        <div className="rounded-lg bg-zinc-900/80 border border-zinc-800 p-2.5 space-y-1.5 text-[10px] font-mono text-zinc-500 leading-relaxed">
+                          <p className="text-zinc-400 font-sans font-medium text-[10px] mb-1">Fórmula: promedio de todos los bimestres</p>
+                          <p>bimestres = [{historicoFiltrado.map(h => h.kwh).reverse().join(", ")}, {reciboCFE.consumoKwh}]</p>
+                          <p>suma = {(() => { const all = [...historicoFiltrado.map(h => h.kwh).reverse(), reciboCFE.consumoKwh]; return all.reduce((a, b) => a + b, 0).toLocaleString(); })()}</p>
+                          <p>consumo_mensual = suma / {historicoFiltrado.length + 1} bim / 2 = <span className="text-emerald-400">{consumoMensualCalc} kWh/mes</span></p>
+                          <p className="border-t border-zinc-800 pt-1.5 mt-1.5">gen_panel_mes = {panelW}W × 5.5 HSP × 30 días × 0.80 / 1000</p>
+                          <p>gen_panel_mes = <span className="text-zinc-300">{Math.round(panelW / 1000 * 132)} kWh</span></p>
+                          <p>paneles = ⌈{consumoMensualCalc} / {Math.round(panelW / 1000 * 132)}⌉ = <span className="text-emerald-400 font-semibold">{panelesPromedio}</span></p>
+                        </div>
+                      )}
+                      <button
                         onClick={() => onApplyProposal ? onApplyProposal(panelesPromedio) : onSetCantidad(String(panelesPromedio))}
                         className="w-full text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                       >
@@ -393,6 +412,29 @@ export default function ReciboCFEBanner({
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubre el 75% de los periodos sin depender del acumulado. Reduce al minimo la deuda con CFE en meses de alto consumo.</p>
                       <button
+                        onClick={() => setShowFormula(showFormula === "equilibrada" ? null : "equilibrada")}
+                        className="text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                      >
+                        <svg className={`w-2.5 h-2.5 transition-transform ${showFormula === "equilibrada" ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        ¿Cómo se calcula?
+                      </button>
+                      {showFormula === "equilibrada" && (() => {
+                        const allKwh = [...historicoFiltrado.map(h => h.kwh), reciboCFE.consumoKwh].sort((a, b) => a - b);
+                        const p75Idx = Math.floor(allKwh.length * 0.75);
+                        const p75Bim = allKwh[p75Idx];
+                        return (
+                          <div className="rounded-lg bg-zinc-900/80 border border-zinc-800 p-2.5 space-y-1.5 text-[10px] font-mono text-zinc-500 leading-relaxed">
+                            <p className="text-zinc-400 font-sans font-medium text-[10px] mb-1">Fórmula: percentil 75 (P75) de los bimestres</p>
+                            <p>bimestres ordenados = [{allKwh.join(", ")}]</p>
+                            <p>índice P75 = ⌊{allKwh.length} × 0.75⌋ = {p75Idx}</p>
+                            <p>consumo_bim_P75 = {p75Bim} kWh → mensual = {p75Bim} / 2 = <span className="text-amber-400">{Math.round(p75Bim / 2)} kWh/mes</span></p>
+                            <p className="border-t border-zinc-800 pt-1.5 mt-1.5">gen_panel_mes = {panelW}W × 5.5 HSP × 30 × 0.80 / 1000 = <span className="text-zinc-300">{Math.round(panelW / 1000 * 132)} kWh</span></p>
+                            <p>paneles = ⌈{Math.round(p75Bim / 2)} / {Math.round(panelW / 1000 * 132)}⌉ = <span className="text-amber-400 font-semibold">{panelesEquilibrado}</span></p>
+                            <p className="text-zinc-600 font-sans italic mt-1">El P75 significa que el sistema cubre al menos {Math.round(allKwh.length * 0.75)} de {allKwh.length} bimestres sin depender de excedente acumulado.</p>
+                          </div>
+                        );
+                      })()}
+                      <button
                         onClick={() => onApplyProposal ? onApplyProposal(panelesEquilibrado) : onSetCantidad(String(panelesEquilibrado))}
                         className="w-full text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                       >
@@ -424,6 +466,23 @@ export default function ReciboCFEBanner({
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubriria hasta el bimestre de mayor consumo. Puede resultar sobredimensionado &mdash; solo como referencia.</p>
+                      <button
+                        onClick={() => setShowFormula(showFormula === "maxima" ? null : "maxima")}
+                        className="text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
+                      >
+                        <svg className={`w-2.5 h-2.5 transition-transform ${showFormula === "maxima" ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        ¿Cómo se calcula?
+                      </button>
+                      {showFormula === "maxima" && (
+                        <div className="rounded-lg bg-zinc-900/80 border border-zinc-800 p-2.5 space-y-1.5 text-[10px] font-mono text-zinc-500 leading-relaxed">
+                          <p className="text-zinc-400 font-sans font-medium text-[10px] mb-1">Fórmula: bimestre de mayor consumo</p>
+                          <p>bimestres = [{historicoFiltrado.map(h => h.kwh).reverse().join(", ")}, {reciboCFE.consumoKwh}]</p>
+                          <p>máximo = <span className="text-zinc-300">{maxHistKwh} kWh/bim</span></p>
+                          <p>consumo_mensual = {maxHistKwh} / 2 = <span className="text-zinc-300">{consumoMensualMax} kWh/mes</span></p>
+                          <p className="border-t border-zinc-800 pt-1.5 mt-1.5">gen_panel_mes = {panelW}W × 5.5 HSP × 30 × 0.80 / 1000 = <span className="text-zinc-300">{Math.round(panelW / 1000 * 132)} kWh</span></p>
+                          <p>paneles = ⌈{consumoMensualMax} / {Math.round(panelW / 1000 * 132)}⌉ = <span className="text-zinc-300 font-semibold">{panelesMax}</span></p>
+                        </div>
+                      )}
                       <button
                         onClick={() => onApplyProposal ? onApplyProposal(panelesMax) : onSetCantidad(String(panelesMax))}
                         className="w-full text-xs text-zinc-400 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-600 rounded-lg px-3 py-1.5 transition-colors mt-1"
