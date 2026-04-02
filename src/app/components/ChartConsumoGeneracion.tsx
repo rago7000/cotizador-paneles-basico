@@ -17,6 +17,8 @@ export interface ChartConsumoGeneracionProps {
   panelesConIncremento?: number;
   panelW: number;
   hasMinisplits?: boolean;
+  /** Extra kWh per bimestre from minisplits (shown as projected consumption when "Con incremento" is active) */
+  incrementoBimKwh?: number;
 }
 
 // ── Series config ──────────────────────────────────────────────────────────
@@ -50,6 +52,7 @@ export default function ChartConsumoGeneracion({
   panelesConIncremento = 0,
   panelW,
   hasMinisplits = false,
+  incrementoBimKwh = 0,
 }: ChartConsumoGeneracionProps) {
   const [active, setActive] = useState<Record<SeriesKey, boolean>>({
     promedio: true,
@@ -75,15 +78,17 @@ export default function ChartConsumoGeneracion({
   const primaryGen = primarySeries ? genValues[primarySeries] : 0;
   const primaryColor = primarySeries ? SERIES.find((s) => s.key === primarySeries)!.color : "#34d399";
 
+  const showIncremento = active.incremento && hasMinisplits && incrementoBimKwh > 0;
+
   const maxY = useMemo(() => {
     const allVals = [
-      ...bimestres.map((b) => b.consumoKwh),
+      ...bimestres.map((b) => b.consumoKwh + (showIncremento ? incrementoBimKwh : 0)),
       ...Object.entries(genValues)
         .filter(([k]) => active[k as SeriesKey])
         .map(([, v]) => v),
     ];
     return Math.ceil(Math.max(...allVals, 100) / 100) * 100;
-  }, [bimestres, genValues, active]);
+  }, [bimestres, genValues, active, showIncremento, incrementoBimKwh]);
 
   if (bimestres.length === 0) return null;
 
@@ -113,15 +118,17 @@ export default function ChartConsumoGeneracion({
   const balanceStats = useMemo(() => {
     if (!primarySeries) return null;
     const gen = genValues[primarySeries];
+    const useProjected = primarySeries === "incremento" && showIncremento;
     let excedente = 0;
     let deficit = 0;
     for (const b of bimestres) {
-      const diff = gen - b.consumoKwh;
+      const consumo = useProjected ? b.consumoKwh + incrementoBimKwh : b.consumoKwh;
+      const diff = gen - consumo;
       if (diff > 0) excedente += diff;
       else deficit += Math.abs(diff);
     }
     return { excedente, deficit, balance: excedente - deficit };
-  }, [primarySeries, genValues, bimestres]);
+  }, [primarySeries, genValues, bimestres, showIncremento, incrementoBimKwh]);
 
   return (
     <div className="space-y-3">
@@ -187,26 +194,38 @@ export default function ChartConsumoGeneracion({
             const bh = barBottom - barTop;
             const isHovered = hoveredBar === i;
 
+            // Projected consumption with minisplits
+            const projectedKwh = bim.consumoKwh + incrementoBimKwh;
+            const projTop = showIncremento ? yPos(projectedKwh) : barTop;
+            const projH = showIncremento ? barTop - projTop : 0;
+
+            // For primary series: use projected if incremento is primary, otherwise original
+            const effectiveConsumo = (primarySeries === "incremento" && showIncremento) ? projectedKwh : bim.consumoKwh;
+            const effectiveTop = (primarySeries === "incremento" && showIncremento) ? projTop : barTop;
+
             // Excedente/deficit for primary series
             const hasPrimary = primarySeries !== null;
-            const diff = hasPrimary ? primaryGen - bim.consumoKwh : 0;
+            const diff = hasPrimary ? primaryGen - effectiveConsumo : 0;
             const isExcedente = diff > 0;
             const isDeficit = diff < 0;
 
-            // Excedente zone: from top of bar up to generation line
-            const excTop = hasPrimary && isExcedente ? yPos(primaryGen) : barTop;
-            const excH = hasPrimary && isExcedente ? barTop - excTop : 0;
+            // Excedente zone: from top of effective bar up to generation line
+            const excTop = hasPrimary && isExcedente ? yPos(primaryGen) : effectiveTop;
+            const excH = hasPrimary && isExcedente ? effectiveTop - excTop : 0;
 
             // Deficit zone: from generation line down to where bar exceeds it
-            const defTop = hasPrimary && isDeficit ? barTop : 0;
+            const defTop = hasPrimary && isDeficit ? effectiveTop : 0;
             const defBottom = hasPrimary && isDeficit ? yPos(primaryGen) : 0;
             const defH = hasPrimary && isDeficit ? defBottom - defTop : 0;
 
-            const diffs = activeLines.map((s) => ({
-              ...s,
-              gen: genValues[s.key],
-              diff: genValues[s.key] - bim.consumoKwh,
-            }));
+            const diffs = activeLines.map((s) => {
+              const consumoForSeries = (s.key === "incremento" && showIncremento) ? projectedKwh : bim.consumoKwh;
+              return {
+                ...s,
+                gen: genValues[s.key],
+                diff: genValues[s.key] - consumoForSeries,
+              };
+            });
 
             return (
               <g
@@ -240,6 +259,20 @@ export default function ChartConsumoGeneracion({
                   opacity={isHovered ? 0.9 : 0.75}
                   className="transition-all duration-150"
                 />
+
+                {/* Projected increment bar (minisplits) — extends above consumo bar */}
+                {projH > 0 && (
+                  <rect
+                    x={bx} y={projTop} width={barW} height={projH}
+                    rx={3}
+                    fill="#22d3ee"
+                    opacity={isHovered ? 0.45 : 0.25}
+                    stroke="#22d3ee"
+                    strokeWidth={isHovered ? 1 : 0.5}
+                    strokeDasharray="3 2"
+                    className="transition-all duration-150"
+                  />
+                )}
 
                 {/* Deficit overlay (consumo > generation): hatched red zone on top portion of bar */}
                 {defH > 0 && (
@@ -292,34 +325,51 @@ export default function ChartConsumoGeneracion({
                   x={xPos(i) + barGroupW / 2} y={H - PAD.bottom + 26}
                   textAnchor="middle" fill="#52525b" fontSize={8} fontFamily="monospace"
                 >
-                  {fmt(bim.consumoKwh)}
+                  {fmt(bim.consumoKwh)}{showIncremento ? ` → ${fmt(projectedKwh)}` : ""}
                 </text>
 
                 {/* Hover tooltip */}
                 {isHovered && diffs.length > 0 && (
                   <g>
+                    {(() => {
+                      const tooltipRows = diffs.length + (showIncremento ? 2 : 1);
+                      const tooltipH = tooltipRows * 15 + 10;
+                      const tooltipY = Math.max(4, Math.min(barTop, projTop, excTop) - tooltipH - 4);
+                      const tooltipX = Math.min(xPos(i) + barGroupW / 2 - 76, W - PAD.right - 152);
+                      const textCX = tooltipX + 76;
+                      return (
+                        <>
                     <rect
-                      x={Math.min(xPos(i) + barGroupW / 2 - 76, W - PAD.right - 152)}
-                      y={Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10)}
+                      x={tooltipX}
+                      y={tooltipY}
                       width={152}
-                      height={18 + diffs.length * 15 + 6}
+                      height={tooltipH}
                       rx={6}
                       fill="#18181b" stroke="#3f3f46" strokeWidth={1} opacity={0.96}
                     />
                     <text
-                      x={Math.min(xPos(i) + barGroupW / 2, W - PAD.right - 76)}
-                      y={Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10) + 15}
+                      x={textCX}
+                      y={tooltipY + 15}
                       textAnchor="middle" fill="#e4e4e7" fontSize={10} fontWeight={600} fontFamily="monospace"
                     >
                       Consumo: {fmt(bim.consumoKwh)} kWh
                     </text>
+                    {showIncremento && (
+                      <text
+                        x={textCX}
+                        y={tooltipY + 30}
+                        textAnchor="middle" fill="#22d3ee" fontSize={9.5} fontFamily="monospace"
+                      >
+                        + Minisplits: {fmt(projectedKwh)} kWh
+                      </text>
+                    )}
                     {diffs.map((d, di) => {
-                      const ty = Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10) + 32 + di * 15;
+                      const baseY = tooltipY + (showIncremento ? 45 : 32);
                       return (
                         <text
                           key={d.key}
-                          x={Math.min(xPos(i) + barGroupW / 2, W - PAD.right - 76)}
-                          y={ty}
+                          x={textCX}
+                          y={baseY + di * 15}
                           textAnchor="middle"
                           fill={d.diff >= 0 ? d.color : "#f87171"}
                           fontSize={9.5}
@@ -329,6 +379,9 @@ export default function ChartConsumoGeneracion({
                         </text>
                       );
                     })}
+                        </>
+                      );
+                    })()}
                   </g>
                 )}
               </g>

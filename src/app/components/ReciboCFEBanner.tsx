@@ -291,6 +291,7 @@ export default function ReciboCFEBanner({
                     panelesEquilibrado={panelesEquilibrado}
                     panelesMax={panelesMax}
                     panelesConIncremento={panelesConIncremento}
+                    incrementoBimKwh={Math.round(minisplitKwhMesProm * 2)}
                     panelW={panelW}
                     hasMinisplits={minisplits.length > 0}
                   />
