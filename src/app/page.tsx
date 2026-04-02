@@ -95,16 +95,23 @@ function SectionCard({
   title,
   badge,
   children,
+  defaultCollapsed = false,
 }: {
   num: string;
   title: string;
   badge?: string;
   children: React.ReactNode;
+  defaultCollapsed?: boolean;
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/10 text-amber-400 text-xs font-bold">
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800 w-full text-left hover:bg-zinc-800/40 transition-colors cursor-pointer"
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/10 text-amber-400 text-xs font-bold shrink-0">
           {num}
         </span>
         <h2 className="font-semibold text-zinc-100 text-base">{title}</h2>
@@ -113,8 +120,9 @@ function SectionCard({
             {badge}
           </span>
         )}
-      </div>
-      <div className="p-6 space-y-5">{children}</div>
+        <svg className={`w-4 h-4 text-zinc-500 shrink-0 transition-transform ${collapsed ? "" : "rotate-180"} ${badge ? "" : "ml-auto"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {!collapsed && <div className="p-6 space-y-5">{children}</div>}
     </div>
   );
 }
