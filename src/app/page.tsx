@@ -456,16 +456,7 @@ export default function Home() {
     setMany(updates as Partial<typeof s>);
   };
 
-  // ── Auto-apply proposal when recibo CFE is uploaded ────────────────────────
-  const lastReciboRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!reciboCFE || panelesEquilibrado <= 0) return;
-    // Only trigger once per unique recibo (by noServicio+periodo)
-    const reciboKey = `${reciboCFE.noServicio}_${reciboCFE.periodoInicio}`;
-    if (lastReciboRef.current === reciboKey) return;
-    lastReciboRef.current = reciboKey;
-    handleApplyProposal(panelesEquilibrado);
-  }, [reciboCFE, panelesEquilibrado]);
+  // (auto-apply moved into handleReciboCFE for reliable timing)
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -565,6 +556,20 @@ export default function Home() {
       reader.onload = () => set("reciboPDFBase64", reader.result as string);
       reader.readAsDataURL(file);
       if (data.nombre && !nombreCotizacion.trim()) set("nombreCotizacion", data.nombre);
+
+      // ── Auto-apply propuesta equilibrada (P75) ──
+      // Calculate directly from recibo data + current potencia to avoid stale state
+      const pw = Number(potencia) || 545;
+      const GEN = 5.5 * 30 * 0.8; // GEN_POR_KWP
+      const hist = reciboUltimoAnio ? data.historico.slice(0, 6) : data.historico;
+      const allKwh = [data.consumoKwh, ...hist.map((h: { kwh: number }) => h.kwh)].sort((a: number, b: number) => a - b);
+      const p75Idx = Math.floor(allKwh.length * 0.75);
+      const cP75 = allKwh.length > 0 ? Math.round(allKwh[p75Idx] / 2) : 0;
+      const panelsP75 = cP75 > 0 ? Math.ceil((cP75 / GEN * 1000) / pw) : 0;
+      if (panelsP75 > 0) {
+        // Use setTimeout(0) so the state from set("reciboCFE") is committed first
+        setTimeout(() => handleApplyProposal(panelsP75), 0);
+      }
     } catch (err: unknown) {
       set("errorRecibo", err instanceof Error ? err.message : "Error al procesar el recibo");
     } finally {
