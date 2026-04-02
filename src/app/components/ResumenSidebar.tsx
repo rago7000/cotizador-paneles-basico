@@ -134,22 +134,22 @@ export default function ResumenSidebar({
       <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
         <div className="flex justify-between text-xs text-zinc-400">
           <span>Subtotal</span>
-          <span className="font-mono">${fmt(subtotalMXN)}</span>
+          <span className={`font-mono ${cantidadNum === 0 ? "text-zinc-700" : ""}`}>{cantidadNum > 0 ? `$${fmt(subtotalMXN)}` : "—"}</span>
         </div>
         <div className="flex justify-between text-xs text-zinc-400">
           <span>IVA 16%</span>
-          <span className="font-mono">${fmt(ivaMXN)}</span>
+          <span className={`font-mono ${cantidadNum === 0 ? "text-zinc-700" : ""}`}>{cantidadNum > 0 ? `$${fmt(ivaMXN)}` : "—"}</span>
         </div>
       </div>
 
-      <div className="bg-amber-400/5 border-t border-amber-400/20 px-4 py-4">
+      <div className={`border-t px-4 py-4 ${cantidadNum > 0 ? "bg-amber-400/5 border-amber-400/20" : "bg-zinc-800/30 border-zinc-800"}`}>
         <div className="flex items-end justify-between">
-          <span className="text-sm font-semibold text-zinc-300">Total</span>
+          <span className={`text-sm font-semibold ${cantidadNum > 0 ? "text-zinc-300" : "text-zinc-600"}`}>Total</span>
           <div className="text-right">
-            <div className="text-2xl font-bold text-amber-400 font-mono leading-none">
-              ${fmt(totalMXN)}
+            <div className={`text-2xl font-bold font-mono leading-none ${cantidadNum > 0 ? "text-amber-400" : "text-zinc-700"}`}>
+              {cantidadNum > 0 ? `$${fmt(totalMXN)}` : "—"}
             </div>
-            <div className="text-xs text-zinc-500 mt-0.5">MXN con IVA</div>
+            {cantidadNum > 0 && <div className="text-xs text-zinc-500 mt-0.5">MXN con IVA</div>}
           </div>
         </div>
       </div>
