@@ -14,14 +14,11 @@ interface LineItem {
 const CENTRO_RE = /centro de carga/i;
 const PASTILLA_RE = /pastilla/i;
 const CABLE_RUDO_RE = /cable de uso rudo/i;
-const INSTALACION_RE = /instalación.*mano de obra/i;
-
 function isAutoManaged(nombre: string): boolean {
   return (
     CENTRO_RE.test(nombre) ||
     PASTILLA_RE.test(nombre) ||
-    CABLE_RUDO_RE.test(nombre) ||
-    INSTALACION_RE.test(nombre)
+    CABLE_RUDO_RE.test(nombre)
   );
 }
 
@@ -100,15 +97,6 @@ export function syncGeneralesFromElectrical(
     unidad: "mL",
   };
 
-  // --- Instalación (mano de obra por panel) ---
-  const instalacionItem: LineItem = {
-    id: findExistingId(existingAuto, INSTALACION_RE) ?? uid(),
-    nombre: "Instalación (mano de obra por panel)",
-    cantidad: String(cantidadPaneles),
-    precioUnitario: findExistingPrecio(existingAuto, INSTALACION_RE) ?? "350.00",
-    unidad: "Pza",
-  };
-
   // Reassemble: auto-managed in order, then manual items preserved as-is
-  return [centroItem, ...pastillaItems, cableItem, instalacionItem, ...manualItems];
+  return [centroItem, ...pastillaItems, cableItem, ...manualItems];
 }

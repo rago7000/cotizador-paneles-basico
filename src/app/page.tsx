@@ -36,6 +36,7 @@ import SectionPaneles from "./components/SectionPaneles";
 import SectionMicroinversores from "./components/SectionMicroinversores";
 import SectionEstructura from "./components/SectionEstructura";
 import SectionLineItems from "./components/SectionLineItems";
+import SectionGenerales from "./components/SectionGenerales";
 import TipoCambioWidget from "./components/TipoCambioWidget";
 import ResumenSidebar from "./components/ResumenSidebar";
 import PrecioClienteWidget from "./components/PrecioClienteWidget";
@@ -792,9 +793,10 @@ export default function Home() {
             />
 
             {/* 5. Generales */}
-            <SectionLineItems
-              num="5" title="Generales" items={generales}
-              onChange={updateGeneral} partidaMXN={partidaGeneralesMXN}
+            <SectionGenerales
+              items={generales}
+              onChange={updateGeneral}
+              partidaMXN={partidaGeneralesMXN}
             />
           </div>
 
