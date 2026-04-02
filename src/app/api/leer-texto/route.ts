@@ -122,29 +122,35 @@ export async function POST(req: NextRequest) {
       );
 
       if (allValid) {
-        // Still send to AI but with validation-only prompt (much shorter response)
-        const response = await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 32768,
-          messages: [
-            {
-              role: "user",
-              content: `${prompt}\n\n--- JSON A VALIDAR ---\n${texto}`,
-            },
-          ],
+        // JSON is valid and well-structured — normalize locally without AI call
+        // This avoids timeout issues with large JSON files
+        const normalizedItems = items.map((it) => ({
+          tipo: String(it.tipo || "otro"),
+          marca: String(it.marca || ""),
+          modelo: String(it.modelo || ""),
+          descripcion: String(it.descripcion || ""),
+          potencia: Number(it.potencia) || 0,
+          panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
+          precio: Number(it.precio) || 0,
+          precioTiers: Array.isArray(it.precioTiers)
+            ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({
+                etiqueta: String(t.etiqueta || ""),
+                precio: Number(t.precio) || 0,
+              })).filter((t) => t.precio > 0)
+            : [],
+          moneda: String(it.moneda || "USD"),
+          unidad: String(it.unidad || "por_unidad"),
+          notas: String(it.notas || ""),
+        }));
+
+        return NextResponse.json({
+          proveedor: String(parsedInput.proveedor || ""),
+          fechaDocumento: String(parsedInput.fechaDocumento || ""),
+          condiciones: String(parsedInput.condiciones || ""),
+          resumenCondiciones: String(parsedInput.resumenCondiciones || ""),
+          notasGenerales: String(parsedInput.notasGenerales || ""),
+          items: normalizedItems,
         });
-
-        const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
-        const jsonStr = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-
-        try {
-          const data = JSON.parse(jsonStr);
-          return NextResponse.json(data);
-        } catch {
-          // AI response was truncated or bad — fall back to using the original parsed input
-          // The original JSON was valid, so just return it directly
-          return NextResponse.json(parsedInput);
-        }
       }
     }
 
