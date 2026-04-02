@@ -23,6 +23,8 @@ import type {
 } from "./lib/types";
 import { calculateStructure } from "./lib/structure";
 import type { StructureRowInput } from "./lib/structure";
+import { calculateElectrical, listProfiles } from "./lib/electrical";
+import type { EquipmentProfile } from "./lib/electrical";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -452,6 +454,8 @@ export default function Home() {
   const [fleteAluminio, setFleteAluminio] = useState("500");
   const [structureRows, setStructureRows] = useState<StructureRowInput[]>([]);
   const [showStructure, setShowStructure] = useState(false);
+  const [electricalProfileId, setElectricalProfileId] = useState("apsystems-ds3d");
+  const [showElectrical, setShowElectrical] = useState(false);
   const [tornilleria, setTornilleria] = useState<LineItem[]>(tornilleriaDefault);
   const [generales, setGenerales] = useState<GeneralItem[]>(generalesDefault);
   const [tc, setTc] = useState<TipoCambioData | null>(null);
@@ -624,6 +628,14 @@ export default function Home() {
 
   const panelesPorMicro = microSeleccionado?.panelesPorUnidad ?? 4;
   const cantidadMicros = cantidadNum > 0 ? Math.ceil(cantidadNum / panelesPorMicro) : 0;
+  const electricalResult = useMemo(
+    () => cantidadMicros > 0 ? calculateElectrical({
+      equipmentProfileId: electricalProfileId,
+      cantidadEquipos: cantidadMicros,
+      cantidadPaneles: cantidadNum,
+    }) : null,
+    [electricalProfileId, cantidadMicros, cantidadNum],
+  );
   const costoMicrosUSD = cantidadMicros * precioMicroNum;
   const costoCablesUSD = cantidadMicros * precioCableNum;
   const costoECUUSD = incluyeECU ? precioECUNum : 0;
@@ -1886,6 +1898,97 @@ export default function Home() {
                     <Field label="Precio herramienta (USD)">
                       <NumInput value={precioHerramienta} onChange={setPrecioHerramienta} placeholder="Ej: 35.00" step={0.01} />
                     </Field>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Calculadora eléctrica ── */}
+              <div className="mt-4 border-t border-zinc-800 pt-4">
+                <button
+                  onClick={() => setShowElectrical(!showElectrical)}
+                  className="flex items-center gap-2 text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                  <svg className={`w-3 h-3 transition-transform ${showElectrical ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  Cálculo eléctrico (breakers y cable)
+                </button>
+
+                {showElectrical && (
+                  <div className="mt-3 rounded-xl border border-cyan-400/20 bg-zinc-800/50 p-4 space-y-3">
+                    {/* Profile selector */}
+                    <div className="flex items-center gap-3">
+                      <label className="text-[11px] text-zinc-500">Perfil equipo:</label>
+                      <select
+                        value={electricalProfileId}
+                        onChange={(e) => setElectricalProfileId(e.target.value)}
+                        className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-400"
+                      >
+                        {listProfiles().map((p) => (
+                          <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {electricalResult && cantidadMicros > 0 && (
+                      <div className="space-y-3">
+                        {/* Circuit breakdown */}
+                        <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/80 p-3 space-y-2">
+                          <h4 className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wide">
+                            Circuitos — {electricalResult.totalCircuitos} circuito{electricalResult.totalCircuitos !== 1 ? "s" : ""}
+                          </h4>
+                          <div className="space-y-1.5">
+                            {electricalResult.circuitos.map((c) => (
+                              <div key={c.circuitoNumero} className="flex items-center gap-3 text-[11px]">
+                                <span className="text-zinc-600 w-16">Circuito {c.circuitoNumero}</span>
+                                <span className="text-zinc-400">{c.unidadesEnCircuito} micro{c.unidadesEnCircuito !== 1 ? "s" : ""}</span>
+                                <span className="text-zinc-500">→</span>
+                                <span className="text-zinc-200 font-mono">{c.amperajeConTolerancia.toFixed(1)}A</span>
+                                <span className="text-zinc-500">→</span>
+                                <span className="text-amber-400 font-medium">Pastilla {c.breakerSeleccionado}A</span>
+                                <span className="text-zinc-500">·</span>
+                                <span className="text-zinc-300">{c.tipoCable}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                          <div className="flex justify-between"><span className="text-zinc-500">Amperaje total AC</span><span className="text-zinc-200 font-mono">{electricalResult.amperajeTotalAC.toFixed(1)} A</span></div>
+                          <div className="flex justify-between"><span className="text-zinc-500">Con tolerancia (×1.25)</span><span className="text-zinc-200 font-mono">{electricalResult.amperajeTotalConTolerancia.toFixed(1)} A</span></div>
+                          {electricalResult.breakerResumen.map((b) => (
+                            <div key={b.amperaje} className="flex justify-between">
+                              <span className="text-zinc-500">Pastilla {b.amperaje}A</span>
+                              <span className="text-amber-400 font-mono">{b.cantidad} pza{b.cantidad !== 1 ? "s" : ""}</span>
+                            </div>
+                          ))}
+                          {electricalResult.cableACResumen.map((c) => (
+                            <div key={c.tipo} className="flex justify-between">
+                              <span className="text-zinc-500">{c.tipo}</span>
+                              <span className="text-zinc-200 font-mono">{c.circuitos} circuito{c.circuitos !== 1 ? "s" : ""}</span>
+                            </div>
+                          ))}
+                          {electricalResult.tierraFisica && (
+                            <div className="flex justify-between"><span className="text-zinc-500">Tierra física</span><span className="text-zinc-200 font-mono">{electricalResult.tierraFisica.calibreAWG} AWG</span></div>
+                          )}
+                          {electricalResult.desconectorDC && (
+                            <div className="flex justify-between"><span className="text-zinc-500">Desconector DC</span><span className="text-zinc-200 font-mono">{electricalResult.desconectorDC.amperaje}A</span></div>
+                          )}
+                        </div>
+
+                        {/* Warnings */}
+                        {electricalResult.warnings.length > 0 && (
+                          <div className="space-y-1">
+                            {electricalResult.warnings.map((w, i) => (
+                              <p key={i} className="text-[10px] text-amber-400/80">⚠ {w}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {cantidadMicros === 0 && (
+                      <p className="text-[11px] text-zinc-600">Define cantidad de paneles arriba para ver el cálculo eléctrico.</p>
+                    )}
                   </div>
                 )}
               </div>
