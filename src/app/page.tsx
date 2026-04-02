@@ -803,6 +803,27 @@ export default function Home() {
     } else {
       setMostrarPrecioCliente(false);
     }
+    // Try to re-match catalog panel and micro from saved values
+    const savedPotencia = Number(data.potencia) || 0;
+    const savedPrecioW = Number(data.precioPorWatt) || 0;
+    if (savedPotencia > 0 && savedPrecioW > 0) {
+      const matchPanel = catalogoPaneles.find((p) =>
+        p.potencia === savedPotencia && Math.abs(p.precioPorWatt - savedPrecioW) < 0.0001
+      );
+      setPanelSeleccionado(matchPanel ?? null);
+    } else {
+      setPanelSeleccionado(null);
+    }
+    const savedPrecioMicro = Number(data.precioMicroinversor) || 0;
+    const savedPrecioCable = Number(data.precioCable) || 0;
+    if (savedPrecioMicro > 0) {
+      const matchMicro = catalogoMicros.find((m) =>
+        Math.abs(m.precio - savedPrecioMicro) < 0.01 && Math.abs(m.precioCable - savedPrecioCable) < 0.01
+      );
+      setMicroSeleccionado(matchMicro ?? null);
+    } else {
+      setMicroSeleccionado(null);
+    }
     // variantes are now reactive via Convex query (keyed on nombreCotizacion)
     setReciboDetalle(false);
     setMostrarGuardadas(false);
