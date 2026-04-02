@@ -264,6 +264,115 @@ export function useConvexCatalogo() {
 
 // ── Cotizaciones hook (separate, used by cotizador page) ─────────────────────
 
+import type {
+  CotizacionData,
+  LineItem,
+  UtilidadConfig,
+} from "./types";
+
+/**
+ * Strip null/undefined values from an object.
+ * Convex doesn't accept `undefined` as a value — omit the key instead.
+ */
+function pickDefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== null && v !== undefined),
+  ) as Partial<T>;
+}
+
+/**
+ * Convert app-side CotizacionData → Convex structured mutation args.
+ * Filters out null/undefined so Convex receives only defined fields.
+ */
+function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
+  return pickDefined({
+    nombre,
+    fecha: data.fecha,
+    // Tipo de cambio
+    tcCustomPaneles: data.tcCustomPaneles || undefined,
+    tcCustomMicros: data.tcCustomMicros || undefined,
+    tcSnapshot: data.tcSnapshot || undefined,
+    tcFrozen: data.tcFrozen || undefined,
+    // Paneles
+    cantidad: data.cantidad || undefined,
+    potencia: data.potencia || undefined,
+    precioPorWatt: data.precioPorWatt || undefined,
+    fletePaneles: data.fletePaneles || undefined,
+    garantiaPaneles: data.garantiaPaneles || undefined,
+    // Microinversores
+    precioMicroinversor: data.precioMicroinversor || undefined,
+    precioCable: data.precioCable || undefined,
+    precioECU: data.precioECU || undefined,
+    incluyeECU: data.incluyeECU,   // preserve boolean false
+    precioHerramienta: data.precioHerramienta || undefined,
+    incluyeHerramienta: data.incluyeHerramienta, // preserve boolean false
+    fleteMicros: data.fleteMicros || undefined,
+    // Estructura
+    aluminio: data.aluminio?.length ? data.aluminio : undefined,
+    fleteAluminio: data.fleteAluminio || undefined,
+    // Tornillería
+    tornilleria: data.tornilleria?.length ? data.tornilleria : undefined,
+    // Generales
+    generales: data.generales?.length ? data.generales : undefined,
+    // Catálogo refs
+    panelCatalogoId: data.panelCatalogoId || undefined,
+    microCatalogoId: data.microCatalogoId || undefined,
+    // Recibo CFE
+    reciboCFE: data.reciboCFE ?? undefined,
+    reciboPDFBase64: data.reciboPDFBase64 ?? undefined,
+    // Minisplits
+    minisplits: data.minisplits?.length ? data.minisplits : undefined,
+    minisplitTemporada: data.minisplitTemporada || undefined,
+    // Utilidad
+    utilidad: data.utilidad ?? undefined,
+  });
+}
+
+/**
+ * Convert Convex document → app-side CotizacionData.
+ * Handles both structured documents and legacy JSON blobs (for migration).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function docToCotizacionData(doc: any): CotizacionData | null {
+  // Legacy format: has `data` JSON blob but no structured fields
+  if (doc.data && doc.cantidad === undefined) {
+    try { return JSON.parse(doc.data); } catch { return null; }
+  }
+
+  // Structured format
+  return {
+    nombre: doc.nombre ?? "",
+    fecha: doc.fecha ?? "",
+    tcCustomPaneles: doc.tcCustomPaneles ?? "",
+    tcCustomMicros: doc.tcCustomMicros ?? "",
+    tcSnapshot: doc.tcSnapshot,
+    tcFrozen: doc.tcFrozen,
+    cantidad: doc.cantidad ?? "",
+    potencia: doc.potencia ?? "",
+    precioPorWatt: doc.precioPorWatt ?? "",
+    fletePaneles: doc.fletePaneles ?? "",
+    garantiaPaneles: doc.garantiaPaneles ?? "",
+    precioMicroinversor: doc.precioMicroinversor ?? "",
+    precioCable: doc.precioCable ?? "",
+    precioECU: doc.precioECU ?? "",
+    incluyeECU: doc.incluyeECU ?? true,
+    precioHerramienta: doc.precioHerramienta ?? "",
+    incluyeHerramienta: doc.incluyeHerramienta ?? false,
+    fleteMicros: doc.fleteMicros ?? "",
+    aluminio: (doc.aluminio as LineItem[]) ?? [],
+    fleteAluminio: doc.fleteAluminio ?? "",
+    tornilleria: (doc.tornilleria as LineItem[]) ?? [],
+    generales: (doc.generales as LineItem[]) ?? [],
+    panelCatalogoId: doc.panelCatalogoId,
+    microCatalogoId: doc.microCatalogoId,
+    reciboCFE: doc.reciboCFE ?? null,
+    reciboPDFBase64: doc.reciboPDFBase64 ?? null,
+    minisplits: doc.minisplits,
+    minisplitTemporada: doc.minisplitTemporada as CotizacionData["minisplitTemporada"],
+    utilidad: doc.utilidad as UtilidadConfig | undefined,
+  };
+}
+
 export function useConvexCotizaciones() {
   const rawList = useQuery(api.cotizaciones.list) ?? [];
   const list = rawList.map(addId);
@@ -277,18 +386,15 @@ export function useConvexCotizaciones() {
   return {
     cotizaciones: list,
 
-    guardarCotizacion: async (nombre: string, data: unknown) => {
-      await saveMut({
-        nombre,
-        fecha: new Date().toISOString(),
-        data: JSON.stringify(data),
-      });
+    guardarCotizacion: async (nombre: string, data: CotizacionData) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await saveMut(cotizacionDataToArgs(nombre, data) as any);
     },
 
-    cargarCotizacion: (nombre: string) => {
+    cargarCotizacion: (nombre: string): CotizacionData | null => {
       const found = list.find((c) => c.nombre === nombre);
       if (!found) return null;
-      try { return JSON.parse(found.data); } catch { return null; }
+      return docToCotizacionData(found);
     },
 
     eliminarCotizacion: async (nombre: string) => {

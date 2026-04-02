@@ -132,14 +132,12 @@ export default function Home() {
 
   // ── Derived data from Convex ──────────────────────────────────────────────
   const cotizacionesGuardadas = useMemo<CotizacionGuardada[]>(() => {
-    return convexCotizaciones.map((c: { nombre: string; fecha?: string; data: string }) => {
-      try {
-        return { nombre: c.nombre, fecha: c.fecha ?? "", data: JSON.parse(c.data) };
-      } catch {
-        return { nombre: c.nombre, fecha: c.fecha ?? "", data: {} as CotizacionData };
-      }
-    });
-  }, [convexCotizaciones]);
+    return convexCotizaciones.map((c) => ({
+      nombre: c.nombre,
+      fecha: c.fecha ?? "",
+      data: (convexCargarCotizacion(c.nombre) ?? {} as CotizacionData),
+    }));
+  }, [convexCotizaciones, convexCargarCotizacion]);
 
   const catalogoPaneles = useMemo<CatalogoPanel[]>(() => {
     return convexPaneles

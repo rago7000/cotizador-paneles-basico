@@ -13,6 +13,7 @@ import type * as cotizaciones from "../cotizaciones.js";
 import type * as ofertas from "../ofertas.js";
 import type * as productos from "../productos.js";
 import type * as proveedores from "../proveedores.js";
+import type * as validators from "../validators.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   ofertas: typeof ofertas;
   productos: typeof productos;
   proveedores: typeof proveedores;
+  validators: typeof validators;
 }>;
 
 /**

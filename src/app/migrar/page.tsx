@@ -166,11 +166,30 @@ export default function MigrarPage() {
       const cotizacionesRaw = JSON.parse(localStorage.getItem("cotizaciones_paneles") || "[]");
       log(`Migrando ${cotizacionesRaw.length} cotizaciones...`);
       for (const c of cotizacionesRaw) {
-        await saveCotizacion({
+        const d = c.data || c;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const args: any = {
           nombre: c.nombre || "",
           fecha: c.fecha || new Date().toISOString(),
-          data: JSON.stringify(c.data || c),
-        });
+        };
+        // Map scalar fields
+        const strFields = [
+          "tcCustomPaneles","tcCustomMicros","tcSnapshot","cantidad","potencia",
+          "precioPorWatt","fletePaneles","garantiaPaneles","precioMicroinversor",
+          "precioCable","precioECU","precioHerramienta","fleteMicros","fleteAluminio",
+          "panelCatalogoId","microCatalogoId","reciboPDFBase64","minisplitTemporada",
+        ];
+        for (const k of strFields) if (d[k] != null && d[k] !== "") args[k] = String(d[k]);
+        if (d.tcFrozen != null) args.tcFrozen = Boolean(d.tcFrozen);
+        if (d.incluyeECU != null) args.incluyeECU = Boolean(d.incluyeECU);
+        if (d.incluyeHerramienta != null) args.incluyeHerramienta = Boolean(d.incluyeHerramienta);
+        if (d.aluminio?.length) args.aluminio = d.aluminio;
+        if (d.tornilleria?.length) args.tornilleria = d.tornilleria;
+        if (d.generales?.length) args.generales = d.generales;
+        if (d.reciboCFE) args.reciboCFE = d.reciboCFE;
+        if (d.minisplits?.length) args.minisplits = d.minisplits;
+        if (d.utilidad) args.utilidad = d.utilidad;
+        await saveCotizacion(args);
       }
       log(`✓ ${cotizacionesRaw.length} cotizaciones migradas`);
 

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { cotizacionFieldsV } from "./validators";
 
 export default defineSchema({
   // ── Proveedores ──
@@ -63,11 +64,11 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")), // PDF in Convex file storage
   }),
 
-  // ── Cotizaciones (quotes) ──
+  // ── Cotizaciones (quotes) — structured fields ──
   cotizaciones: defineTable({
-    nombre: v.string(),
-    fecha: v.string(),
-    data: v.string(), // JSON-serialized CotizacionData (complex nested structure)
+    ...cotizacionFieldsV,
+    // Legacy JSON blob — kept as optional during migration, will be removed
+    data: v.optional(v.string()),
   }).index("by_nombre", ["nombre"]),
 
   // ── Cotizaciones Cliente (customer pricing variants) ──
