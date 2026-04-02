@@ -1052,6 +1052,7 @@ function ImportadorPDF({
     setError("");
 
     try {
+      // Always send to AI for validation/normalization, even if JSON
       const res = await fetch("/api/leer-texto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1060,7 +1061,9 @@ function ImportadorPDF({
       const data = await res.json();
       if (data.error) { setError(data.error); setStep("upload"); return; }
 
-      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = data as any;
+      const extracted: ImportItem[] = (d.items || []).map((it: Record<string, unknown>) => {
         const tiers: ImportTier[] = Array.isArray(it.precioTiers)
           ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({ etiqueta: String(t.etiqueta || ""), precio: Number(t.precio) || 0 })).filter((t) => t.precio > 0)
           : [];
@@ -1083,14 +1086,17 @@ function ImportadorPDF({
       if (extracted.length === 0) { setError("No se encontraron productos en el texto"); setStep("upload"); return; }
 
       setItems(extracted);
-      if (data.fechaDocumento) setFechaDocumento(data.fechaDocumento);
-      if (data.condiciones) setCondiciones(data.condiciones);
-      if (data.resumenCondiciones) setResumenCondiciones(data.resumenCondiciones);
-      if (data.proveedor) {
-        const norm = normalizeName(data.proveedor);
+      if (d.fechaDocumento) setFechaDocumento(d.fechaDocumento);
+      if (d.condiciones) setCondiciones(d.condiciones);
+      if (d.resumenCondiciones) setResumenCondiciones(d.resumenCondiciones);
+      // Also capture notasGenerales into condiciones if present
+      if (d.notasGenerales && !d.condiciones) setCondiciones(d.notasGenerales);
+      else if (d.notasGenerales && d.condiciones) setCondiciones(d.condiciones + "\n\n" + d.notasGenerales);
+      if (d.proveedor) {
+        const norm = normalizeName(d.proveedor);
         const match = proveedores.find((p) => normalizeName(p.nombre) === norm);
         if (match) setProveedorId(match.id);
-        else setNuevoProvNombre(data.proveedor);
+        else setNuevoProvNombre(d.proveedor);
       }
       setStep("review");
     } catch {
