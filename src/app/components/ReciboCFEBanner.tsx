@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { fmt } from "../components/primitives";
 import type { ReciboCFEData, Minisplit } from "../lib/cotizacion-state";
+import ChartConsumoGeneracion from "./ChartConsumoGeneracion";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -263,6 +265,23 @@ export default function ReciboCFEBanner({
                 </p>
               </div>
             )}
+
+            {/* Gráfica consumo vs generación */}
+            <ChartConsumoGeneracion
+              bimestres={(() => {
+                const items = [
+                  { label: reciboCFE.periodoInicio?.slice(0, 7) || "Actual", consumoKwh: reciboCFE.consumoKwh },
+                  ...historicoFiltrado.map((h) => ({ label: h.periodo?.replace(/\s*-\s*/, "–").slice(0, 12) || "", consumoKwh: h.kwh })),
+                ];
+                return items.reverse();
+              })()}
+              panelesPromedio={panelesPromedio}
+              panelesEquilibrado={panelesEquilibrado}
+              panelesMax={panelesMax}
+              panelesConIncremento={panelesConIncremento}
+              panelW={panelW}
+              hasMinisplits={minisplits.length > 0}
+            />
 
             {/* Propuestas de sistema */}
             <div>
