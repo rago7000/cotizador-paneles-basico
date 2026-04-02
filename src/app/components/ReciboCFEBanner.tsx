@@ -104,6 +104,7 @@ export default function ReciboCFEBanner({
   consumoConIncremento,
   historicoFiltrado,
 }: ReciboCFEBannerProps) {
+  const [showChart, setShowChart] = useState(false);
   const panelW = Number(potencia) || 545;
 
   if (reciboCFE) {
@@ -266,22 +267,36 @@ export default function ReciboCFEBanner({
               </div>
             )}
 
-            {/* Gráfica consumo vs generación */}
-            <ChartConsumoGeneracion
-              bimestres={(() => {
-                const items = [
-                  { label: reciboCFE.periodoInicio?.slice(0, 7) || "Actual", consumoKwh: reciboCFE.consumoKwh },
-                  ...historicoFiltrado.map((h) => ({ label: h.periodo?.replace(/\s*-\s*/, "–").slice(0, 12) || "", consumoKwh: h.kwh })),
-                ];
-                return items.reverse();
-              })()}
-              panelesPromedio={panelesPromedio}
-              panelesEquilibrado={panelesEquilibrado}
-              panelesMax={panelesMax}
-              panelesConIncremento={panelesConIncremento}
-              panelW={panelW}
-              hasMinisplits={minisplits.length > 0}
-            />
+            {/* Gráfica consumo vs generación (oculta por defecto) */}
+            <div className="mb-1">
+              <button
+                onClick={() => setShowChart(!showChart)}
+                className="flex items-center gap-2 text-[11px] font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                <svg className={`w-3 h-3 transition-transform ${showChart ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                Gráfica consumo vs generación
+              </button>
+              {showChart && (
+                <div className="mt-3">
+                  <ChartConsumoGeneracion
+                    bimestres={(() => {
+                      const items = [
+                        { label: reciboCFE.periodoInicio?.slice(0, 7) || "Actual", consumoKwh: reciboCFE.consumoKwh },
+                        ...historicoFiltrado.map((h) => ({ label: h.periodo?.replace(/\s*-\s*/, "–").slice(0, 12) || "", consumoKwh: h.kwh })),
+                      ];
+                      return items.reverse();
+                    })()}
+                    panelesPromedio={panelesPromedio}
+                    panelesEquilibrado={panelesEquilibrado}
+                    panelesMax={panelesMax}
+                    panelesConIncremento={panelesConIncremento}
+                    panelW={panelW}
+                    hasMinisplits={minisplits.length > 0}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Propuestas de sistema */}
             <div>

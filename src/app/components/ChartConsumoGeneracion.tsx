@@ -5,8 +5,8 @@ import { useState, useMemo } from "react";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface BimestreData {
-  label: string;        // e.g. "Sep-Nov 25"
-  consumoKwh: number;   // bimestral
+  label: string;
+  consumoKwh: number;
 }
 
 export interface ChartConsumoGeneracionProps {
@@ -19,13 +19,13 @@ export interface ChartConsumoGeneracionProps {
   hasMinisplits?: boolean;
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────
+// ── Series config ──────────────────────────────────────────────────────────
 
 const SERIES = [
-  { key: "promedio",    label: "Promedio",    color: "#34d399", colorDim: "#34d39940" },
-  { key: "equilibrada", label: "Equilibrada", color: "#fbbf24", colorDim: "#fbbf2440" },
-  { key: "maxima",      label: "Máxima",      color: "#a1a1aa", colorDim: "#a1a1aa40" },
-  { key: "incremento",  label: "Con incremento", color: "#22d3ee", colorDim: "#22d3ee40" },
+  { key: "promedio",    label: "Promedio",        color: "#34d399" },
+  { key: "equilibrada", label: "Equilibrada",     color: "#fbbf24" },
+  { key: "maxima",      label: "Máxima",          color: "#a1a1aa" },
+  { key: "incremento",  label: "Con incremento",  color: "#22d3ee" },
 ] as const;
 
 type SeriesKey = typeof SERIES[number]["key"];
@@ -66,46 +66,67 @@ export default function ChartConsumoGeneracion({
     incremento:  genBimKwh(panelesConIncremento, panelW),
   }), [panelesPromedio, panelesEquilibrado, panelesMax, panelesConIncremento, panelW]);
 
+  // The "primary" active series for excedente visualization (highest priority active)
+  const primarySeries = useMemo(() => {
+    const order: SeriesKey[] = ["equilibrada", "promedio", "incremento", "maxima"];
+    return order.find((k) => active[k] && (k !== "incremento" || hasMinisplits)) ?? null;
+  }, [active, hasMinisplits]);
+
+  const primaryGen = primarySeries ? genValues[primarySeries] : 0;
+  const primaryColor = primarySeries ? SERIES.find((s) => s.key === primarySeries)!.color : "#34d399";
+
   const maxY = useMemo(() => {
-    const vals = [
+    const allVals = [
       ...bimestres.map((b) => b.consumoKwh),
       ...Object.entries(genValues)
         .filter(([k]) => active[k as SeriesKey])
         .map(([, v]) => v),
     ];
-    return Math.ceil(Math.max(...vals, 100) / 100) * 100;
+    return Math.ceil(Math.max(...allVals, 100) / 100) * 100;
   }, [bimestres, genValues, active]);
 
   if (bimestres.length === 0) return null;
 
   // ── Layout ──
   const W = 720;
-  const H = 320;
-  const PAD = { top: 20, right: 20, bottom: 48, left: 52 };
+  const H = 340;
+  const PAD = { top: 24, right: 24, bottom: 52, left: 54 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
   const n = bimestres.length;
   const barGroupW = plotW / n;
-  const barW = Math.min(barGroupW * 0.5, 40);
+  const barW = Math.min(barGroupW * 0.55, 48);
   const barGap = (barGroupW - barW) / 2;
 
-  // Y-axis ticks
   const tickCount = 5;
   const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => Math.round((maxY / tickCount) * i));
 
-  const y = (v: number) => PAD.top + plotH - (v / maxY) * plotH;
-  const x = (i: number) => PAD.left + barGroupW * i;
+  const yPos = (v: number) => PAD.top + plotH - (v / maxY) * plotH;
+  const xPos = (i: number) => PAD.left + barGroupW * i;
 
-  // Active generation lines
   const activeLines = SERIES.filter(
     (s) => active[s.key] && (s.key !== "incremento" || hasMinisplits),
   );
 
+  // Excedente/deficit totals for primary series
+  const balanceStats = useMemo(() => {
+    if (!primarySeries) return null;
+    const gen = genValues[primarySeries];
+    let excedente = 0;
+    let deficit = 0;
+    for (const b of bimestres) {
+      const diff = gen - b.consumoKwh;
+      if (diff > 0) excedente += diff;
+      else deficit += Math.abs(diff);
+    }
+    return { excedente, deficit, balance: excedente - deficit };
+  }, [primarySeries, genValues, bimestres]);
+
   return (
     <div className="space-y-3">
       {/* Legend / toggles */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] text-zinc-500 mr-1">Comparar:</span>
         {SERIES.filter((s) => s.key !== "incremento" || hasMinisplits).map((s) => (
           <button
@@ -119,12 +140,12 @@ export default function ChartConsumoGeneracion({
             style={active[s.key] ? { borderColor: s.color + "50", color: s.color, backgroundColor: s.color + "12" } : undefined}
           >
             <span
-              className="w-2.5 h-2.5 rounded-sm shrink-0 transition-opacity"
+              className="w-2 h-2 rounded-sm shrink-0 transition-opacity"
               style={{ backgroundColor: s.color, opacity: active[s.key] ? 1 : 0.25 }}
             />
             {s.label}
             {active[s.key] && (
-              <span className="font-mono text-[10px] opacity-70">
+              <span className="font-mono text-[10px] opacity-60">
                 {s.key === "promedio" ? panelesPromedio : s.key === "equilibrada" ? panelesEquilibrado : s.key === "maxima" ? panelesMax : panelesConIncremento}p
               </span>
             )}
@@ -135,15 +156,22 @@ export default function ChartConsumoGeneracion({
       {/* Chart */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }}>
+          <defs>
+            {/* Hatch pattern for deficit zones */}
+            <pattern id="hatch-deficit" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="#ef444440" strokeWidth="1.5" />
+            </pattern>
+          </defs>
+
           {/* Grid lines */}
           {yTicks.map((tick) => (
             <g key={tick}>
               <line
-                x1={PAD.left} y1={y(tick)} x2={W - PAD.right} y2={y(tick)}
-                stroke="#27272a" strokeWidth={1}
+                x1={PAD.left} y1={yPos(tick)} x2={W - PAD.right} y2={yPos(tick)}
+                stroke="#27272a" strokeWidth={tick === 0 ? 1.5 : 1}
               />
               <text
-                x={PAD.left - 8} y={y(tick)} dy="0.35em"
+                x={PAD.left - 8} y={yPos(tick)} dy="0.35em"
                 textAnchor="end" fill="#52525b" fontSize={10} fontFamily="monospace"
               >
                 {fmt(tick)}
@@ -151,14 +179,29 @@ export default function ChartConsumoGeneracion({
             </g>
           ))}
 
-          {/* Bars (consumo) */}
+          {/* Bars + excedente/deficit overlays */}
           {bimestres.map((bim, i) => {
-            const bx = x(i) + barGap;
-            const bh = (bim.consumoKwh / maxY) * plotH;
-            const by = y(bim.consumoKwh);
+            const bx = xPos(i) + barGap;
+            const barBottom = yPos(0);
+            const barTop = yPos(bim.consumoKwh);
+            const bh = barBottom - barTop;
             const isHovered = hoveredBar === i;
 
-            // Check which series cover this bimestre
+            // Excedente/deficit for primary series
+            const hasPrimary = primarySeries !== null;
+            const diff = hasPrimary ? primaryGen - bim.consumoKwh : 0;
+            const isExcedente = diff > 0;
+            const isDeficit = diff < 0;
+
+            // Excedente zone: from top of bar up to generation line
+            const excTop = hasPrimary && isExcedente ? yPos(primaryGen) : barTop;
+            const excH = hasPrimary && isExcedente ? barTop - excTop : 0;
+
+            // Deficit zone: from generation line down to where bar exceeds it
+            const defTop = hasPrimary && isDeficit ? barTop : 0;
+            const defBottom = hasPrimary && isDeficit ? yPos(primaryGen) : 0;
+            const defH = hasPrimary && isDeficit ? defBottom - defTop : 0;
+
             const diffs = activeLines.map((s) => ({
               ...s,
               gen: genValues[s.key],
@@ -172,66 +215,117 @@ export default function ChartConsumoGeneracion({
                 onMouseLeave={() => setHoveredBar(null)}
                 className="cursor-default"
               >
-                {/* Invisible hit area */}
-                <rect
-                  x={x(i)} y={PAD.top} width={barGroupW} height={plotH}
-                  fill="transparent"
-                />
+                {/* Hit area */}
+                <rect x={xPos(i)} y={PAD.top} width={barGroupW} height={plotH} fill="transparent" />
 
-                {/* Bar */}
+                {/* Excedente zone (generation > consumo): ghost bar extending above */}
+                {excH > 0 && (
+                  <rect
+                    x={bx} y={excTop} width={barW} height={excH}
+                    rx={3} ry={3}
+                    fill={primaryColor}
+                    opacity={isHovered ? 0.2 : 0.1}
+                    stroke={primaryColor}
+                    strokeWidth={isHovered ? 1 : 0.5}
+                    strokeDasharray="3 2"
+                    className="transition-all duration-150"
+                  />
+                )}
+
+                {/* Consumo bar */}
                 <rect
-                  x={bx} y={by} width={barW} height={bh}
+                  x={bx} y={barTop} width={barW} height={bh}
                   rx={3}
-                  fill={isHovered ? "#6ee7b7" : "#059669"}
-                  opacity={isHovered ? 0.9 : 0.7}
+                  fill={isDeficit && hasPrimary ? "#71717a" : isHovered ? "#6ee7b7" : "#059669"}
+                  opacity={isHovered ? 0.9 : 0.75}
                   className="transition-all duration-150"
                 />
 
+                {/* Deficit overlay (consumo > generation): hatched red zone on top portion of bar */}
+                {defH > 0 && (
+                  <>
+                    <rect
+                      x={bx} y={defTop} width={barW} height={defH}
+                      rx={3}
+                      fill="#ef444420"
+                      className="transition-all duration-150"
+                    />
+                    <rect
+                      x={bx} y={defTop} width={barW} height={defH}
+                      rx={3}
+                      fill="url(#hatch-deficit)"
+                      className="transition-all duration-150"
+                    />
+                  </>
+                )}
+
+                {/* Excedente value label (on hover or always if significant) */}
+                {hasPrimary && isExcedente && isHovered && (
+                  <text
+                    x={bx + barW / 2} y={excTop - 4}
+                    textAnchor="middle" fill={primaryColor} fontSize={9} fontWeight={600} fontFamily="monospace"
+                  >
+                    +{fmt(diff)}
+                  </text>
+                )}
+
+                {/* Deficit value label (on hover) */}
+                {hasPrimary && isDeficit && isHovered && (
+                  <text
+                    x={bx + barW / 2} y={barTop - 4}
+                    textAnchor="middle" fill="#f87171" fontSize={9} fontWeight={600} fontFamily="monospace"
+                  >
+                    {fmt(diff)}
+                  </text>
+                )}
+
                 {/* X label */}
                 <text
-                  x={x(i) + barGroupW / 2} y={H - PAD.bottom + 16}
-                  textAnchor="middle" fill="#71717a" fontSize={9} fontFamily="sans-serif"
+                  x={xPos(i) + barGroupW / 2} y={H - PAD.bottom + 14}
+                  textAnchor="middle" fill={isHovered ? "#e4e4e7" : "#71717a"} fontSize={9} fontFamily="sans-serif"
+                  className="transition-all duration-150"
                 >
                   {bim.label}
                 </text>
+                {/* kWh below label */}
+                <text
+                  x={xPos(i) + barGroupW / 2} y={H - PAD.bottom + 26}
+                  textAnchor="middle" fill="#52525b" fontSize={8} fontFamily="monospace"
+                >
+                  {fmt(bim.consumoKwh)}
+                </text>
 
                 {/* Hover tooltip */}
-                {isHovered && (
+                {isHovered && diffs.length > 0 && (
                   <g>
-                    {/* Tooltip background */}
                     <rect
-                      x={x(i) + barGroupW / 2 - 70}
-                      y={Math.max(PAD.top, by - 14 - diffs.length * 16 - 8)}
-                      width={140}
-                      height={14 + diffs.length * 16 + 8}
+                      x={Math.min(xPos(i) + barGroupW / 2 - 76, W - PAD.right - 152)}
+                      y={Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10)}
+                      width={152}
+                      height={18 + diffs.length * 15 + 6}
                       rx={6}
-                      fill="#18181b"
-                      stroke="#3f3f46"
-                      strokeWidth={1}
-                      opacity={0.95}
+                      fill="#18181b" stroke="#3f3f46" strokeWidth={1} opacity={0.96}
                     />
-                    {/* Consumo value */}
                     <text
-                      x={x(i) + barGroupW / 2}
-                      y={Math.max(PAD.top, by - 14 - diffs.length * 16 - 8) + 16}
-                      textAnchor="middle" fill="#e4e4e7" fontSize={11} fontWeight={600} fontFamily="monospace"
+                      x={Math.min(xPos(i) + barGroupW / 2, W - PAD.right - 76)}
+                      y={Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10) + 15}
+                      textAnchor="middle" fill="#e4e4e7" fontSize={10} fontWeight={600} fontFamily="monospace"
                     >
                       Consumo: {fmt(bim.consumoKwh)} kWh
                     </text>
-                    {/* Series diffs */}
                     {diffs.map((d, di) => {
-                      const ty = Math.max(PAD.top, by - 14 - diffs.length * 16 - 8) + 32 + di * 16;
+                      const ty = Math.max(4, Math.min(barTop, excTop) - 18 - diffs.length * 15 - 10) + 32 + di * 15;
                       return (
                         <text
                           key={d.key}
-                          x={x(i) + barGroupW / 2}
+                          x={Math.min(xPos(i) + barGroupW / 2, W - PAD.right - 76)}
                           y={ty}
                           textAnchor="middle"
                           fill={d.diff >= 0 ? d.color : "#f87171"}
-                          fontSize={10}
+                          fontSize={9.5}
                           fontFamily="monospace"
                         >
-                          {d.label}: {d.diff >= 0 ? "+" : ""}{fmt(d.diff)} kWh
+                          {d.label}: {d.diff >= 0 ? "+" : ""}{fmt(d.diff)}
                         </text>
                       );
                     })}
@@ -244,41 +338,28 @@ export default function ChartConsumoGeneracion({
           {/* Generation lines */}
           {activeLines.map((s) => {
             const gv = genValues[s.key];
-            const ly = y(gv);
+            const ly = yPos(gv);
+            const isPrimary = s.key === primarySeries;
             return (
               <g key={s.key}>
                 <line
                   x1={PAD.left} y1={ly} x2={W - PAD.right} y2={ly}
-                  stroke={s.color} strokeWidth={2} strokeDasharray="6 4"
-                  opacity={0.8}
+                  stroke={s.color} strokeWidth={isPrimary ? 2.5 : 1.5}
+                  strokeDasharray={isPrimary ? "8 4" : "4 4"}
+                  opacity={isPrimary ? 0.9 : 0.5}
                 />
-                {/* Label on right */}
+                {/* Label */}
                 <rect
-                  x={W - PAD.right - 90} y={ly - 10}
-                  width={88} height={18} rx={4}
-                  fill="#18181b" stroke={s.color} strokeWidth={0.5} opacity={0.9}
+                  x={W - PAD.right - 82} y={ly - 9}
+                  width={80} height={18} rx={4}
+                  fill="#18181b" stroke={s.color} strokeWidth={isPrimary ? 1 : 0.5} opacity={0.92}
                 />
                 <text
-                  x={W - PAD.right - 46} y={ly + 3}
+                  x={W - PAD.right - 42} y={ly + 4}
                   textAnchor="middle" fill={s.color} fontSize={9} fontWeight={600} fontFamily="monospace"
                 >
-                  {fmt(gv)} kWh
+                  {fmt(gv)}
                 </text>
-
-                {/* Indicators: green dots where gen >= consumo, red where gen < consumo */}
-                {bimestres.map((bim, i) => {
-                  const cx = x(i) + barGroupW / 2;
-                  const covers = gv >= bim.consumoKwh;
-                  return (
-                    <circle
-                      key={i}
-                      cx={cx} cy={ly} r={3.5}
-                      fill={covers ? s.color : "#ef4444"}
-                      opacity={covers ? 0.9 : 0.7}
-                      stroke="#18181b" strokeWidth={1.5}
-                    />
-                  );
-                })}
               </g>
             );
           })}
@@ -294,9 +375,10 @@ export default function ChartConsumoGeneracion({
         </svg>
       </div>
 
-      {/* Summary: coverage counts */}
-      {activeLines.length > 0 && (
-        <div className="flex flex-wrap gap-3">
+      {/* Summary footer */}
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-2">
+        {/* Coverage counts */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
           {activeLines.map((s) => {
             const gv = genValues[s.key];
             const covered = bimestres.filter((b) => gv >= b.consumoKwh).length;
@@ -306,12 +388,32 @@ export default function ChartConsumoGeneracion({
                 <span style={{ color: s.color }} className="font-medium">{s.label}</span>
                 <span className="text-zinc-500">cubre</span>
                 <span className="font-mono font-semibold" style={{ color: s.color }}>{covered}/{bimestres.length}</span>
-                <span className="text-zinc-600">bimestres</span>
+                <span className="text-zinc-600">bim</span>
               </div>
             );
           })}
         </div>
-      )}
+
+        {/* Balance anual for primary series */}
+        {balanceStats && primarySeries && (
+          <div className="flex items-center gap-3 text-[11px] border-l border-zinc-800 pl-4">
+            <div className="flex items-center gap-1">
+              <span className="text-zinc-500">Excedente anual:</span>
+              <span className="font-mono font-semibold text-emerald-400">+{fmt(balanceStats.excedente)} kWh</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-zinc-500">Deficit:</span>
+              <span className="font-mono font-semibold text-red-400">-{fmt(balanceStats.deficit)} kWh</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-zinc-500">Balance:</span>
+              <span className={`font-mono font-semibold ${balanceStats.balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {balanceStats.balance >= 0 ? "+" : ""}{fmt(balanceStats.balance)} kWh
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
