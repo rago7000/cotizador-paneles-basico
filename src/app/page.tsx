@@ -820,6 +820,11 @@ export default function Home() {
               partidaGeneralesMXN={partidaGeneralesMXN}
               subtotalMXN={subtotalMXN} ivaMXN={ivaMXN} totalMXN={totalMXN}
               costoPorPanel={costoPorPanel} cantidadNum={cantidadNum}
+              panelSeleccionado={panelSeleccionado}
+              microSeleccionado={microSeleccionado}
+              cantidadMicros={cantidadMicros}
+              panelesPorMicro={panelesPorMicro}
+              onApplyProposal={handleApplyProposal}
             />
 
             <PrecioClienteWidget
