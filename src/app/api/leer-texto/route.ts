@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-const PROMPT = `Eres un extractor y normalizador de datos de listas de precios de proveedores de energía solar.
+const PROMPT_FREETEXT = `Eres un extractor y normalizador de datos de listas de precios de proveedores de energía solar.
 
 El usuario pegó texto que obtuvo pre-procesando un PDF de proveedor (posiblemente con otra IA, o copiado a mano). El texto puede estar en cualquier formato: tablas, TSV, CSV, JSON, texto libre, listas, etc.
 
@@ -56,6 +56,23 @@ REGLAS:
 - Si ves columnas separadas por tabs o comas, interpreta cada fila como un producto.
 - Responde SOLO con el JSON, absolutamente nada más.`;
 
+const PROMPT_JSON_VALIDATE = `Eres un validador y normalizador de datos de listas de precios de proveedores de energía solar.
+
+El usuario te pasa un JSON que ya fue pre-procesado por otra IA. Tu trabajo es VALIDAR y CORREGIR los datos, NO reescribir todo el JSON.
+
+Revisa cada item y corrige si es necesario:
+- Que "tipo" sea uno de: "panel", "micro", "monitoreo", "cable", "herramienta", "estructura", "tornilleria", "otro"
+- Que "potencia" solo tenga valor para paneles (en Watts), 0 para los demás
+- Que "panelesPorUnidad" solo tenga valor para microinversores, 0 para los demás
+- Que "precio" sea número, no string
+- Que "precioTiers" sea un array de objetos {etiqueta, precio} o [] si solo hay un precio
+- Que "moneda" sea "USD" o "MXN"
+- Que "unidad" sea "por_watt" o "por_unidad"
+- Que no falten campos obligatorios
+
+Si todo está bien, devuelve el JSON tal cual (sin markdown). Si hay errores, corrígelos.
+Devuelve ÚNICAMENTE el JSON corregido, sin markdown, sin explicaciones.`;
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 500 });
@@ -75,14 +92,69 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  // Detect if input is already valid JSON with expected structure
+  let isPreformatted = false;
+  let parsedInput: Record<string, unknown> | null = null;
   try {
+    const parsed = JSON.parse(texto);
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.items)) {
+      isPreformatted = true;
+      parsedInput = parsed;
+    }
+  } catch {
+    // Not JSON — will use freetext prompt
+  }
+
+  // If already valid JSON with items, use lighter validation prompt
+  const prompt = isPreformatted ? PROMPT_JSON_VALIDATE : PROMPT_FREETEXT;
+
+  try {
+    // For pre-formatted JSON, we can try to skip AI if structure looks correct
+    if (isPreformatted && parsedInput) {
+      // Quick local validation — check if all items have required fields
+      const items = parsedInput.items as Record<string, unknown>[];
+      const validTypes = ["panel", "micro", "monitoreo", "cable", "herramienta", "estructura", "tornilleria", "otro"];
+      const allValid = items.every((it) =>
+        validTypes.includes(String(it.tipo || "")) &&
+        typeof it.precio === "number" &&
+        typeof it.marca === "string" &&
+        typeof it.modelo === "string"
+      );
+
+      if (allValid) {
+        // Still send to AI but with validation-only prompt (much shorter response)
+        const response = await client.messages.create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 32768,
+          messages: [
+            {
+              role: "user",
+              content: `${prompt}\n\n--- JSON A VALIDAR ---\n${texto}`,
+            },
+          ],
+        });
+
+        const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+        const jsonStr = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+
+        try {
+          const data = JSON.parse(jsonStr);
+          return NextResponse.json(data);
+        } catch {
+          // AI response was truncated or bad — fall back to using the original parsed input
+          // The original JSON was valid, so just return it directly
+          return NextResponse.json(parsedInput);
+        }
+      }
+    }
+
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 16384,
+      max_tokens: 32768,
       messages: [
         {
           role: "user",
-          content: `${PROMPT}\n\n--- DATOS DEL USUARIO ---\n${texto}`,
+          content: `${prompt}\n\n--- DATOS DEL USUARIO ---\n${texto}`,
         },
       ],
     });
