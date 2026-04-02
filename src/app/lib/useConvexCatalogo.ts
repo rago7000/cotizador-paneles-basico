@@ -120,6 +120,7 @@ export function useConvexCatalogo() {
   const removeOfertaMut = useMutation(api.ofertas.remove);
   const saveArchivoMut = useMutation(api.archivos.save);
   const removeArchivoMut = useMutation(api.archivos.remove);
+  const generateUploadUrlMut = useMutation(api.archivos.generateUploadUrl);
 
   // Loading state
   const isLoading =
@@ -244,6 +245,16 @@ export function useConvexCatalogo() {
         resumenCondiciones: a.resumenCondiciones,
         storageId: a.storageId as Id<"_storage"> | undefined,
       });
+    },
+    subirArchivo: async (file: File): Promise<string> => {
+      const uploadUrl = await generateUploadUrlMut();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = await res.json();
+      return storageId as string;
     },
     eliminarArchivoProveedor: async (id: string) => {
       await removeArchivoMut({ id: id as Id<"archivosProveedor"> });

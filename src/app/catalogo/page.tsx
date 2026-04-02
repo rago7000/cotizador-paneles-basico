@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import AppNav from "../components/AppNav";
 import {
   TIPO_LABELS,
@@ -1029,19 +1032,15 @@ function ImportadorPDF({
   const [showCondiciones, setShowCondiciones] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [optionalPdf, setOptionalPdf] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const optionalFileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
+    setOptionalPdf(file); // Store for upload to Convex storage on save
     setStep("loading");
     setError("");
-
-    // Read PDF as base64 for storage
-    const arrayBuf = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuf);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    setPdfBase64(btoa(binary));
 
     const formData = new FormData();
     formData.append("pdf", file);
@@ -1175,14 +1174,21 @@ function ImportadorPDF({
       ? new Date(fechaDocumento + "T00:00:00").toISOString()
       : new Date().toISOString();
 
-    // Save PDF archive
+    // Upload optional PDF to Convex storage
+    let storageId: string | undefined;
+    if (optionalPdf) {
+      storageId = await ctx.subirArchivo(optionalPdf);
+    }
+
+    // Save archive record
     const archivoId = await ctx.guardarArchivoProveedor({
-      nombre: fileName,
+      nombre: optionalPdf ? optionalPdf.name : fileName,
       proveedorId: provId,
       fechaImportacion: new Date().toISOString(),
       fechaDocumento: fechaDocumento || "",
       condiciones,
       resumenCondiciones,
+      storageId,
     });
 
     let count = 0;
@@ -1344,6 +1350,21 @@ function ImportadorPDF({
               value={textoImport}
               onChange={(e) => setTextoImport(e.target.value)}
             />
+            {/* Optional PDF attachment */}
+            <div className="flex items-center gap-3">
+              <input ref={optionalFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setOptionalPdf(f); setFileName(f.name); } }} />
+              <button
+                onClick={() => optionalFileRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                {optionalPdf ? optionalPdf.name : "Adjuntar PDF original (opcional)"}
+              </button>
+              {optionalPdf && (
+                <button onClick={() => { setOptionalPdf(null); setFileName("Texto pegado"); }} className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors">quitar</button>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={handleTexto}
@@ -1592,15 +1613,22 @@ function ImportadorPDF({
 
 function ArchivoViewerModal({ archivo, onClose }: { archivo: ArchivoProveedor; onClose: () => void }) {
   const [tab, setTab] = useState<"preview" | "condiciones">("preview");
+  // Fetch Convex storage URL if storageId is present
+  const storageUrl = useQuery(
+    api.archivos.getFileUrl,
+    archivo.storageId ? { storageId: archivo.storageId as Id<"_storage"> } : "skip",
+  );
 
   const isPdf = archivo.nombre.toLowerCase().endsWith(".pdf");
   // base64 may be present on legacy records but is not part of the Convex type
   const b64 = (archivo as ArchivoProveedor & { base64?: string }).base64;
-  const dataUrl = b64
-    ? isPdf
-      ? `data:application/pdf;base64,${b64}`
-      : `data:image/${archivo.nombre.toLowerCase().endsWith(".png") ? "png" : "jpeg"};base64,${b64}`
-    : null;
+  const dataUrl = storageUrl
+    ? storageUrl
+    : b64
+      ? isPdf
+        ? `data:application/pdf;base64,${b64}`
+        : `data:image/${archivo.nombre.toLowerCase().endsWith(".png") ? "png" : "jpeg"};base64,${b64}`
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>

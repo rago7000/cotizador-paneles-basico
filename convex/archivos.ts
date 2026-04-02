@@ -37,6 +37,20 @@ export const save = mutation({
   },
 });
 
+export const getFileUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    return await ctx.storage.getUrl(storageId);
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("archivosProveedor") },
   handler: async (ctx, { id }) => {
