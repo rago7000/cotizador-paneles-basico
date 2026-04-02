@@ -323,24 +323,30 @@ export default function Home() {
   const GEN_POR_KWP = 5.5 * 30 * 0.8;
   const panelW = Number(potencia) || 545;
 
+  // Último año = 6 bimestres: el actual + 5 del historial
+  // Todo el historial = actual + todos los anteriores
   const historicoFiltrado = reciboCFE
-    ? reciboUltimoAnio ? reciboCFE.historico.slice(0, 6) : reciboCFE.historico
+    ? reciboUltimoAnio ? reciboCFE.historico.slice(0, 5) : reciboCFE.historico
+    : [];
+  // Todos los bimestres (incluyendo actual) para cálculos de promedio/P75
+  const todosBimestres = reciboCFE
+    ? [reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh)]
     : [];
   const consumoMensualCalc = reciboCFE
-    ? historicoFiltrado.length > 0
-      ? Math.round(historicoFiltrado.reduce((s, h) => s + h.kwh, 0) / historicoFiltrado.length / 2)
+    ? todosBimestres.length > 0
+      ? Math.round(todosBimestres.reduce((s, kwh) => s + kwh, 0) / todosBimestres.length / 2)
       : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
     : 0;
 
   const kWpPromedio = consumoMensualCalc / GEN_POR_KWP;
   const panelesPromedio = reciboCFE ? Math.ceil((kWpPromedio * 1000) / panelW) : 0;
-  const maxHistKwh = reciboCFE ? Math.max(reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh)) : 0;
+  const maxHistKwh = reciboCFE ? Math.max(...todosBimestres) : 0;
   const consumoMensualMax = Math.round(maxHistKwh / 2);
   const kWpMax = consumoMensualMax / GEN_POR_KWP;
   const panelesMax = reciboCFE ? Math.ceil((kWpMax * 1000) / panelW) : 0;
-  const todosKwh = reciboCFE ? [reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh)].sort((a, b) => a - b) : [];
-  const p75Index = Math.floor(todosKwh.length * 0.75);
-  const consumoP75 = todosKwh.length > 0 ? Math.round(todosKwh[p75Index] / 2) : 0;
+  const todosKwhSorted = [...todosBimestres].sort((a, b) => a - b);
+  const p75Index = Math.floor(todosKwhSorted.length * 0.75);
+  const consumoP75 = todosKwhSorted.length > 0 ? Math.round(todosKwhSorted[p75Index] / 2) : 0;
   const kWpEquilibrado = consumoP75 / GEN_POR_KWP;
   const panelesEquilibrado = reciboCFE ? Math.ceil((kWpEquilibrado * 1000) / panelW) : 0;
 
@@ -561,7 +567,7 @@ export default function Home() {
       // Calculate directly from recibo data + current potencia to avoid stale state
       const pw = Number(potencia) || 545;
       const GEN = 5.5 * 30 * 0.8; // GEN_POR_KWP
-      const hist = reciboUltimoAnio ? data.historico.slice(0, 6) : data.historico;
+      const hist = reciboUltimoAnio ? data.historico.slice(0, 5) : data.historico;
       const allKwh = [data.consumoKwh, ...hist.map((h: { kwh: number }) => h.kwh)].sort((a: number, b: number) => a - b);
       const p75Idx = Math.floor(allKwh.length * 0.75);
       const cP75 = allKwh.length > 0 ? Math.round(allKwh[p75Idx] / 2) : 0;

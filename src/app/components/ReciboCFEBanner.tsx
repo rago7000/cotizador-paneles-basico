@@ -294,7 +294,7 @@ export default function ReciboCFEBanner({
                     onClick={() => onSetReciboUltimoAnio(true)}
                     className={`text-[11px] px-3 py-1 rounded-md transition-colors font-medium ${reciboUltimoAnio ? "bg-amber-400/15 text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
                   >
-                    Ultimo ano ({Math.min(6, reciboCFE.historico.length) + 1} bim)
+                    Ultimo ano ({Math.min(5, reciboCFE.historico.length) + 1} bim)
                   </button>
                   <button
                     onClick={() => onSetReciboUltimoAnio(false)}
@@ -306,7 +306,7 @@ export default function ReciboCFEBanner({
               </div>
               <p className="text-[10px] text-zinc-600 mb-3">
                 {reciboUltimoAnio
-                  ? `Usando los ultimos ${Math.min(6, reciboCFE.historico.length) + 1} bimestres (${Math.min(6, reciboCFE.historico.length)} del historial + periodo actual).`
+                  ? `Usando los ultimos ${Math.min(5, reciboCFE.historico.length) + 1} bimestres (${Math.min(5, reciboCFE.historico.length)} del historial + periodo actual).`
                   : `Usando todo el historial (${reciboCFE.historico.length + 1} bimestres incluyendo periodo actual).`
                 }
               </p>
