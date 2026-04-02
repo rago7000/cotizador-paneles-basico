@@ -272,9 +272,9 @@ export default function Home() {
   const tcPaneles = Number(tcCustomPaneles) > 0 ? Number(tcCustomPaneles) : tcVal;
   const tcMicros  = Number(tcCustomMicros)  > 0 ? Number(tcCustomMicros)  : tcVal;
 
-  const totalPanelesUSD = costoPanelesUSD + fletePanelesNum + garantiaPanelesNum;
+  const totalPanelesUSD = cantidadNum > 0 ? costoPanelesUSD + fletePanelesNum + garantiaPanelesNum : 0;
   const partidaPanelesMXN = totalPanelesUSD * tcPaneles;
-  const totalInversoresUSD = costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + fleteMicrosNum;
+  const totalInversoresUSD = cantidadNum > 0 ? costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + fleteMicrosNum : 0;
   const partidaInversoresMXN = totalInversoresUSD * tcMicros;
   const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
   const partidaTornilleriaMXN = costoTornilleriaMXN;
