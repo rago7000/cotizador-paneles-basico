@@ -12,6 +12,7 @@ import type {
   UtilidadConfig,
 } from "./types";
 import type { StructureRowInput } from "./structure";
+import type { ArrangementResult } from "./structure/generate-arrangements";
 
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -67,6 +68,10 @@ export interface CotizacionState {
   showStructure: boolean;
   electricalProfileId: string;
   showElectrical: boolean;
+
+  // ── Auto-cotización ──
+  structureMode: "conservador" | "optimo" | "manual";
+  autoArrangements: ArrangementResult | null;
 
   // ── Tornillería ──
   tornilleria: LineItem[];
@@ -181,6 +186,8 @@ export const INITIAL_STATE: CotizacionState = {
   showStructure: false,
   electricalProfileId: "apsystems-ds3d",
   showElectrical: false,
+  structureMode: "conservador",
+  autoArrangements: null,
   // Tornillería
   tornilleria: tornilleriaDefault,
   // Generales
@@ -306,6 +313,8 @@ export function cotizacionReducer(
         // Reset UI flags on load
         reciboDetalle: false,
         mostrarGuardadas: false,
+        structureMode: "conservador",
+        autoArrangements: null,
       };
     }
 

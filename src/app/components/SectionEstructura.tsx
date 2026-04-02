@@ -2,6 +2,7 @@
 
 import type { LineItem } from "../lib/types";
 import type { StructureRowInput, StructureCalculationResult } from "../lib/structure/types";
+import type { ArrangementResult } from "../lib/structure/generate-arrangements";
 import { SectionCard, Field, NumInput, LineItemTable, fmt } from "./primitives";
 
 export interface SectionEstructuraProps {
@@ -16,6 +17,9 @@ export interface SectionEstructuraProps {
   structureResult: StructureCalculationResult | null;
   partidaEstructuraMXN: number;
   fleteAluminioSinIVA: number;
+  structureMode?: "conservador" | "optimo" | "manual";
+  autoArrangements?: ArrangementResult | null;
+  onSetStructureMode?: (mode: "conservador" | "optimo" | "manual") => void;
 }
 
 export default function SectionEstructura({
@@ -29,6 +33,9 @@ export default function SectionEstructura({
   onSetStructureRows,
   structureResult,
   partidaEstructuraMXN,
+  structureMode = "manual",
+  autoArrangements,
+  onSetStructureMode,
 }: SectionEstructuraProps) {
   return (
     <SectionCard num="3" title="Estructura — Aluminio" badge="MXN sin IVA">
@@ -44,6 +51,29 @@ export default function SectionEstructura({
 
         {showStructure && (
           <div className="mt-3 rounded-xl border border-cyan-400/20 bg-zinc-800/50 p-4 space-y-3">
+            {/* Mode toggle (when auto-arrangements are available) */}
+            {autoArrangements && onSetStructureMode && (
+              <div className="flex items-center gap-2 pb-2 border-b border-zinc-700/50">
+                <span className="text-[11px] text-zinc-500">Acomodo:</span>
+                {(["conservador", "optimo", "manual"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => onSetStructureMode(mode)}
+                    className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
+                      structureMode === mode
+                        ? mode === "conservador"
+                          ? "bg-amber-400/15 text-amber-400 border border-amber-400/30"
+                          : mode === "optimo"
+                          ? "bg-emerald-400/15 text-emerald-400 border border-emerald-400/30"
+                          : "bg-zinc-700 text-zinc-300 border border-zinc-600"
+                        : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                    }`}
+                  >
+                    {mode === "conservador" ? `Conservador (${autoArrangements.conservador.totalMaterial} pzas)` : mode === "optimo" ? `Optimo (${autoArrangements.optimo.totalMaterial} pzas)` : "Manual"}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500">Define las filas de acomodo de paneles (horizontal x vertical) para calcular materiales estructurales.</p>
 
             {/* Rows */}

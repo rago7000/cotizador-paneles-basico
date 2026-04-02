@@ -25,6 +25,10 @@ import { useCotizacion } from "./lib/useCotizacion";
 import { useAutosave } from "./lib/useAutosave";
 import { uid, UTILIDAD_DEFAULT } from "./lib/cotizacion-state";
 import { fmt } from "./components/primitives";
+import { generateArrangements } from "./lib/structure/generate-arrangements";
+import { syncGeneralesFromElectrical } from "./lib/sync-generales";
+import { autoSelectPanel } from "./lib/auto-select-panel";
+import type { CatalogoPanelConPrecio } from "./lib/auto-select-panel";
 
 // ── Extracted components ─────────────────────────────────────────────────────
 import ReciboCFEBanner from "./components/ReciboCFEBanner";
@@ -116,6 +120,7 @@ export default function Home() {
     precioHerramienta, incluyeHerramienta, fleteMicros,
     aluminio, fleteAluminio, structureRows, showStructure,
     electricalProfileId, showElectrical,
+    structureMode, autoArrangements,
     tornilleria, generales,
     tc, tcError, tcFrozen, tcManual, tcSnapshotLocal, tcUsarManana,
     tcCustomPaneles, tcCustomMicros,
@@ -371,6 +376,86 @@ export default function Home() {
     }
   }, [catalogoMicros, precioMicroinversor]);
 
+  // ── Auto-select panel (Step 5) ────────────────────────────────────────────
+  const autoSelectedPanel = useRef(false);
+  useEffect(() => {
+    if (autoSelectedPanel.current || catalogoPaneles.length === 0 || precioPorWatt) return;
+    const panelConPrecio: CatalogoPanelConPrecio[] = catalogoPaneles.map((p) => ({
+      id: p.id, marca: p.marca, modelo: p.modelo, potencia: p.potencia,
+      precioWatt: p.precioPorWatt, precio: p.precioPorWatt * p.potencia,
+    }));
+    const best = autoSelectPanel(panelConPrecio);
+    if (best) {
+      const match = catalogoPaneles.find((p) => p.id === best.id);
+      if (match) {
+        setMany({ potencia: String(match.potencia), precioPorWatt: String(match.precioPorWatt), panelSeleccionado: match });
+        autoSelectedPanel.current = true;
+      }
+    }
+  }, [catalogoPaneles, precioPorWatt]);
+
+  // ── Apply proposal cascade (Step 6) ──────────────────────────────────────
+  const handleApplyProposal = (cantidadPaneles: number) => {
+    const updates: Record<string, unknown> = { cantidad: String(cantidadPaneles) };
+
+    // Auto-select panel if none selected
+    let currentPotencia = Number(potencia) || 0;
+    if (!panelSeleccionado && catalogoPaneles.length > 0) {
+      const panelConPrecio: CatalogoPanelConPrecio[] = catalogoPaneles.map((p) => ({
+        id: p.id, marca: p.marca, modelo: p.modelo, potencia: p.potencia,
+        precioWatt: p.precioPorWatt, precio: p.precioPorWatt * p.potencia,
+      }));
+      const best = autoSelectPanel(panelConPrecio);
+      if (best) {
+        const match = catalogoPaneles.find((p) => p.id === best.id);
+        if (match) {
+          updates.potencia = String(match.potencia);
+          updates.precioPorWatt = String(match.precioPorWatt);
+          updates.panelSeleccionado = match;
+          currentPotencia = match.potencia;
+          autoSelectedPanel.current = true;
+        }
+      }
+    }
+
+    // Generate structure arrangements
+    const arrangements = generateArrangements(cantidadPaneles);
+    if (arrangements) {
+      const mode = structureMode === "manual" ? "conservador" : structureMode;
+      const chosen = mode === "optimo" ? arrangements.optimo : arrangements.conservador;
+      updates.autoArrangements = arrangements;
+      updates.structureMode = mode;
+      updates.structureRows = chosen.rows;
+      updates.showStructure = true;
+
+      // Update aluminio from structure calculation
+      const structResult = calculateStructure(chosen.rows);
+      if (structResult.totals.totalPaneles > 0) {
+        const t = structResult.totals;
+        updates.aluminio = [
+          { id: uid(), nombre: "Angulo - 1 1/2 X 1 1/2 X 0.1875\" (3/16)", cantidad: String(t.totalAngulosCompra + t.totalAngulosContraflambeoCompra), precioUnitario: "700.94", unidad: "Pza" },
+          { id: uid(), nombre: "Unicanal - PARA PANEL SOLAR GRANDE", cantidad: String(t.totalUnicanalesCompra), precioUnitario: "839.34", unidad: "Pza" },
+          { id: uid(), nombre: "Clip - PARA PANEL SOLAR", cantidad: String(t.clipsConDesperdicio), precioUnitario: "41.58", unidad: "Pza" },
+        ];
+      }
+    }
+
+    // Calculate electrical and sync generales
+    const ppMicro = microSeleccionado?.panelesPorUnidad ?? 4;
+    const microCount = cantidadPaneles > 0 ? Math.ceil(cantidadPaneles / ppMicro) : 0;
+    if (microCount > 0) {
+      const elecResult = calculateElectrical({
+        equipmentProfileId: electricalProfileId,
+        cantidadEquipos: microCount,
+        cantidadPaneles: cantidadPaneles,
+      });
+      const syncedGenerales = syncGeneralesFromElectrical(elecResult, generales, cantidadPaneles);
+      updates.generales = syncedGenerales;
+    }
+
+    setMany(updates as Partial<typeof s>);
+  };
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleGuardar = async () => {
@@ -569,6 +654,7 @@ export default function Home() {
               onUploadClick={() => reciboInputRef.current?.click()}
               onSetReciboCFE={(v) => set("reciboCFE", v)}
               onSetCantidad={(v) => set("cantidad", v)}
+              onApplyProposal={handleApplyProposal}
               consumoMensualCFE={consumoMensualCFE} kWpSugerido={kWpSugerido}
               panelesSugeridosCFE={panelesSugeridosCFE}
               consumoMensualCalc={consumoMensualCalc}
@@ -652,10 +738,29 @@ export default function Home() {
               showStructure={showStructure}
               onSetShowStructure={(v) => set("showStructure", v)}
               structureRows={structureRows}
-              onSetStructureRows={(rows) => set("structureRows", rows)}
+              onSetStructureRows={(rows) => { set("structureRows", rows); set("structureMode", "manual"); }}
               structureResult={structureResult}
               partidaEstructuraMXN={partidaEstructuraMXN}
               fleteAluminioSinIVA={fleteAluminioSinIVA}
+              structureMode={structureMode}
+              autoArrangements={autoArrangements}
+              onSetStructureMode={(mode) => {
+                set("structureMode", mode);
+                if (mode !== "manual" && autoArrangements) {
+                  const chosen = mode === "optimo" ? autoArrangements.optimo : autoArrangements.conservador;
+                  set("structureRows", chosen.rows);
+                  // Recalculate aluminio
+                  const structResult = calculateStructure(chosen.rows);
+                  if (structResult.totals.totalPaneles > 0) {
+                    const t = structResult.totals;
+                    set("aluminio", [
+                      { id: uid(), nombre: "Angulo - 1 1/2 X 1 1/2 X 0.1875\" (3/16)", cantidad: String(t.totalAngulosCompra + t.totalAngulosContraflambeoCompra), precioUnitario: "700.94", unidad: "Pza" },
+                      { id: uid(), nombre: "Unicanal - PARA PANEL SOLAR GRANDE", cantidad: String(t.totalUnicanalesCompra), precioUnitario: "839.34", unidad: "Pza" },
+                      { id: uid(), nombre: "Clip - PARA PANEL SOLAR", cantidad: String(t.clipsConDesperdicio), precioUnitario: "41.58", unidad: "Pza" },
+                    ]);
+                  }
+                }
+              }}
             />
 
             {/* 4. Tornillería */}

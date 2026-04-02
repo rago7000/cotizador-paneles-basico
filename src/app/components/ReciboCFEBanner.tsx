@@ -30,6 +30,8 @@ export interface ReciboCFEBannerProps {
   onUploadClick: () => void;
   onSetReciboCFE: (v: ReciboCFEData | null) => void;
   onSetCantidad: (v: string) => void;
+  /** Apply proposal cascade: sets cantidad + structure + electrical + generales */
+  onApplyProposal?: (cantidadPaneles: number) => void;
   /** Optional: use client name as cotización name */
   onSetNombreCotizacion?: (v: string) => void;
   /** Optional: base64 string of the original PDF */
@@ -77,6 +79,7 @@ export default function ReciboCFEBanner({
   onUploadClick,
   onSetReciboCFE,
   onSetCantidad,
+  onApplyProposal,
   onSetNombreCotizacion,
   reciboPDFBase64,
   consumoMensualCFE,
@@ -323,7 +326,7 @@ export default function ReciboCFEBanner({
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubre el promedio de todos los periodos. Meses altos generan un poco de deuda con CFE, meses bajos acumulan excedente.</p>
                       <button
-                        onClick={() => onSetCantidad(String(panelesPromedio))}
+                        onClick={() => onApplyProposal ? onApplyProposal(panelesPromedio) : onSetCantidad(String(panelesPromedio))}
                         className="w-full text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-400/25 hover:border-emerald-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                       >
                         Aplicar {panelesPromedio} paneles
@@ -355,7 +358,7 @@ export default function ReciboCFEBanner({
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubre el 75% de los periodos sin depender del acumulado. Reduce al minimo la deuda con CFE en meses de alto consumo.</p>
                       <button
-                        onClick={() => onSetCantidad(String(panelesEquilibrado))}
+                        onClick={() => onApplyProposal ? onApplyProposal(panelesEquilibrado) : onSetCantidad(String(panelesEquilibrado))}
                         className="w-full text-xs text-amber-400 hover:text-amber-300 border border-amber-400/25 hover:border-amber-400/50 rounded-lg px-3 py-1.5 transition-colors mt-1"
                       >
                         Aplicar {panelesEquilibrado} paneles
@@ -387,7 +390,7 @@ export default function ReciboCFEBanner({
                       </div>
                       <p className="text-[10px] text-zinc-600 leading-tight">Cubriria hasta el bimestre de mayor consumo. Puede resultar sobredimensionado &mdash; solo como referencia.</p>
                       <button
-                        onClick={() => onSetCantidad(String(panelesMax))}
+                        onClick={() => onApplyProposal ? onApplyProposal(panelesMax) : onSetCantidad(String(panelesMax))}
                         className="w-full text-xs text-zinc-400 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-600 rounded-lg px-3 py-1.5 transition-colors mt-1"
                       >
                         Aplicar {panelesMax} paneles
@@ -474,7 +477,7 @@ export default function ReciboCFEBanner({
                         <div className="flex justify-between"><span className="text-zinc-500">Sistema</span><span className="text-zinc-300 font-mono">{kWpConIncremento.toFixed(2)} kWp</span></div>
                       </div>
                       <button
-                        onClick={() => onSetCantidad(String(panelesConIncremento))}
+                        onClick={() => onApplyProposal ? onApplyProposal(panelesConIncremento) : onSetCantidad(String(panelesConIncremento))}
                         className="w-full text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-400/25 hover:border-cyan-400/50 rounded-lg px-3 py-1.5 transition-colors"
                       >
                         Aplicar {panelesConIncremento} paneles
