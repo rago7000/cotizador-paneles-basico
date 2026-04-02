@@ -948,6 +948,51 @@ interface ImportItem {
   notas: string;
 }
 
+const PROMPT_EXTERNA = `Extrae ABSOLUTAMENTE TODO el contenido de este PDF de proveedor de energía solar. No omitas nada. Quiero ver el PDF completo representado en JSON.
+
+Responde ÚNICAMENTE con un JSON válido, sin markdown, sin texto adicional:
+
+{
+  "proveedor": "nombre exacto del proveedor tal como aparece",
+  "fechaDocumento": "YYYY-MM-DD (fecha de la lista, vigencia, emisión)",
+  "condiciones": "TEXTO COMPLETO de todas las condiciones, términos, notas legales, políticas de pago, garantías, tiempos de entrega, tipo de cambio, mínimos de compra, costos de flete, restricciones, ABSOLUTAMENTE TODO tal como aparece en el documento",
+  "resumenCondiciones": "resumen en bullets de los puntos más importantes para un comprador",
+  "notasGenerales": "cualquier otro texto, avisos, promociones, leyendas o información que aparezca en el documento y no encaje en los campos anteriores",
+  "items": [
+    {
+      "tipo": "panel",
+      "marca": "Canadian Solar",
+      "modelo": "CS6R-425MS",
+      "descripcion": "descripción COMPLETA tal como aparece en el PDF",
+      "potencia": 425,
+      "panelesPorUnidad": 0,
+      "precio": 0.22,
+      "precioTiers": [
+        {"etiqueta": "1 panel", "precio": 0.25},
+        {"etiqueta": "1 pallet (36 pzas)", "precio": 0.22},
+        {"etiqueta": "+5 pallets", "precio": 0.20}
+      ],
+      "moneda": "USD",
+      "unidad": "por_watt",
+      "notas": "TODAS las notas, asteriscos, aclaraciones, disponibilidad, tiempo de entrega, garantía, o cualquier texto asociado a este producto específico"
+    }
+  ]
+}
+
+Reglas:
+- tipo: panel / micro / monitoreo / cable / herramienta / estructura / tornilleria / otro
+- potencia: solo para paneles (Watts), 0 para los demás
+- panelesPorUnidad: solo para microinversores, 0 para los demás
+- precio: precio base (menor volumen). Solo número
+- precioTiers: TODOS los precios por volumen que existan. Array vacío [] si solo hay un precio
+- moneda: USD o MXN
+- unidad: por_watt (solo paneles con precio por Watt) o por_unidad
+- Todos los números como números, no strings
+- NO OMITAS NINGÚN PRODUCTO NI NINGÚN TEXTO DEL DOCUMENTO
+- Si hay notas al pie, asteriscos, leyendas, o condiciones que aplican a productos específicos, inclúyelas en el campo "notas" de ese producto
+- Si hay texto que aplica a todos los productos, va en "condiciones"
+- Prefiero que sobre información a que falte`;
+
 function ImportadorPDF({
   proveedores,
   paneles,
@@ -982,6 +1027,8 @@ function ImportadorPDF({
   const [resumenCondiciones, setResumenCondiciones] = useState("");
   const [pdfBase64, setPdfBase64] = useState("");
   const [showCondiciones, setShowCondiciones] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -1258,10 +1305,42 @@ function ImportadorPDF({
           </>
         ) : (
           <>
-            <p className="text-xs text-zinc-500">Pega los datos de la lista de precios (tabla, CSV, TSV, JSON, texto libre). La AI los revisará y normalizará automáticamente.</p>
+            {/* Prompt helper */}
+            <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-400">
+                  <span className="text-amber-400 font-medium">Paso 1:</span> Copia este prompt y pégalo en ChatGPT (u otra IA) junto con el PDF
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowPrompt(!showPrompt)}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showPrompt ? "Ocultar" : "Ver prompt"}
+                  </button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(PROMPT_EXTERNA); setPromptCopied(true); setTimeout(() => setPromptCopied(false), 2000); }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${promptCopied ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"}`}
+                  >
+                    {promptCopied ? (
+                      <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Copiado</>
+                    ) : (
+                      <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>Copiar prompt</>
+                    )}
+                  </button>
+                </div>
+              </div>
+              {showPrompt && (
+                <pre className="text-[10px] text-zinc-500 bg-zinc-900/80 rounded-md p-3 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">{PROMPT_EXTERNA}</pre>
+              )}
+            </div>
+
+            <p className="text-xs text-zinc-500">
+              <span className="text-amber-400 font-medium">Paso 2:</span> Pega aquí el JSON que te devolvió la otra IA
+            </p>
             <textarea
               className={`${inputCls} w-full h-48 font-mono text-[11px] leading-relaxed resize-y`}
-              placeholder={"PROVEEDOR: DM Solar\nFECHA: 2026-03-15\nCONDICIONES: Precios vigentes marzo 2026\n\ntipo\tmarca\tmodelo\tdescripcion\tpotencia\tprecio\tmoneda\tunidad\npanel\tCanadian Solar\tCS6R-425MS\tMono PERC 425W\t425\t0.22\tUSD\tpor_watt\nmicro\tHoymiles\tHMS-2000-4T\tMicro 4 paneles\t0\t185\tUSD\tpor_unidad"}
+              placeholder='{"proveedor": "DM Solar", "fechaDocumento": "2026-03-15", ...}'
               value={textoImport}
               onChange={(e) => setTextoImport(e.target.value)}
             />
