@@ -122,12 +122,13 @@ export default function ResumenSidebar({
       )}
 
       {/* Partidas — always show all, $0 when no panels */}
+      {/* Partidas — all show as dash until panels are assigned */}
       <div className="px-4 py-2">
-        <PartidaRow label="Paneles" value={partidaPanelesMXN} />
-        <PartidaRow label="Inversores" value={partidaInversoresMXN} />
-        <PartidaRow label="Estructura" value={partidaEstructuraMXN} />
-        <PartidaRow label="Tornillería" value={partidaTornilleriaMXN} />
-        <PartidaRow label="Generales" value={partidaGeneralesMXN} />
+        <PartidaRow label="Paneles" value={cantidadNum > 0 ? partidaPanelesMXN : 0} />
+        <PartidaRow label="Inversores" value={cantidadNum > 0 ? partidaInversoresMXN : 0} />
+        <PartidaRow label="Estructura" value={cantidadNum > 0 ? partidaEstructuraMXN : 0} />
+        <PartidaRow label="Tornillería" value={cantidadNum > 0 ? partidaTornilleriaMXN : 0} />
+        <PartidaRow label="Generales" value={cantidadNum > 0 ? partidaGeneralesMXN : 0} />
       </div>
 
       <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
