@@ -427,7 +427,7 @@ export default function Home() {
     // Generate structure arrangements
     const arrangements = generateArrangements(cantidadPaneles);
     if (arrangements) {
-      const mode = structureMode === "manual" ? "conservador" : structureMode;
+      const mode = structureMode === "manual" ? "optimo" : structureMode;
       const chosen = mode === "optimo" ? arrangements.optimo : arrangements.conservador;
       updates.autoArrangements = arrangements;
       updates.structureMode = mode;

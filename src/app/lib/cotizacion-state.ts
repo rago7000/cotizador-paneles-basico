@@ -186,7 +186,7 @@ export const INITIAL_STATE: CotizacionState = {
   showStructure: false,
   electricalProfileId: "apsystems-ds3d",
   showElectrical: false,
-  structureMode: "conservador",
+  structureMode: "optimo",
   autoArrangements: null,
   // Tornillería
   tornilleria: tornilleriaDefault,
@@ -313,7 +313,7 @@ export function cotizacionReducer(
         // Reset UI flags on load
         reciboDetalle: false,
         mostrarGuardadas: false,
-        structureMode: "conservador",
+        structureMode: "optimo",
         autoArrangements: null,
       };
     }
