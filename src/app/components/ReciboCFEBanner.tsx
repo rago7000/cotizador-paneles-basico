@@ -295,6 +295,12 @@ export default function ReciboCFEBanner({
                     incrementoBimKwh={Math.round(minisplitKwhMesProm * 2)}
                     panelW={panelW}
                     hasMinisplits={minisplits.length > 0}
+                    consumoObjetivoBim={{
+                      promedio: consumoMensualCalc * 2,
+                      equilibrada: consumoP75 * 2,
+                      maxima: maxHistKwh,
+                      incremento: consumoConIncremento * 2,
+                    }}
                   />
                 </div>
               )}

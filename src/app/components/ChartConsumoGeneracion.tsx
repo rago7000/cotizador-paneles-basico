@@ -19,6 +19,8 @@ export interface ChartConsumoGeneracionProps {
   hasMinisplits?: boolean;
   /** Extra kWh per bimestre from minisplits (shown as projected consumption when "Con incremento" is active) */
   incrementoBimKwh?: number;
+  /** Target bimestral consumption used to size each option (before ceil rounding) */
+  consumoObjetivoBim?: { promedio: number; equilibrada: number; maxima: number; incremento: number };
 }
 
 // ── Series config ──────────────────────────────────────────────────────────
@@ -53,6 +55,7 @@ export default function ChartConsumoGeneracion({
   panelW,
   hasMinisplits = false,
   incrementoBimKwh = 0,
+  consumoObjetivoBim,
 }: ChartConsumoGeneracionProps) {
   const [active, setActive] = useState<Record<SeriesKey, boolean>>({
     promedio: true,
@@ -388,6 +391,30 @@ export default function ChartConsumoGeneracion({
             );
           })}
 
+          {/* Target consumption lines (thin, shows where system was designed for before ceil rounding) */}
+          {consumoObjetivoBim && activeLines.map((s) => {
+            const target = consumoObjetivoBim[s.key];
+            const gv = genValues[s.key];
+            if (!target || Math.abs(gv - target) < maxY * 0.02) return null; // skip if too close to gen line
+            const ty = yPos(target);
+            return (
+              <g key={`target-${s.key}`}>
+                <line
+                  x1={PAD.left} y1={ty} x2={W - PAD.right} y2={ty}
+                  stroke={s.color} strokeWidth={0.75}
+                  strokeDasharray="2 3"
+                  opacity={0.3}
+                />
+                <text
+                  x={PAD.left + 4} y={ty - 4}
+                  fill={s.color} fontSize={8} opacity={0.4} fontFamily="monospace"
+                >
+                  objetivo: {fmt(target)}
+                </text>
+              </g>
+            );
+          })}
+
           {/* Generation lines */}
           {activeLines.map((s) => {
             const gv = genValues[s.key];
@@ -401,7 +428,7 @@ export default function ChartConsumoGeneracion({
                   strokeDasharray={isPrimary ? "8 4" : "4 4"}
                   opacity={isPrimary ? 0.9 : 0.5}
                 />
-                {/* Label */}
+                {/* Label: generation + label text */}
                 <rect
                   x={W - PAD.right - 82} y={ly - 9}
                   width={80} height={18} rx={4}
@@ -411,7 +438,7 @@ export default function ChartConsumoGeneracion({
                   x={W - PAD.right - 42} y={ly + 4}
                   textAnchor="middle" fill={s.color} fontSize={9} fontWeight={600} fontFamily="monospace"
                 >
-                  {fmt(gv)}
+                  {fmt(gv)} kWh
                 </text>
               </g>
             );
@@ -435,6 +462,12 @@ export default function ChartConsumoGeneracion({
           {activeLines.map((s) => {
             const gv = genValues[s.key];
             const covered = bimestres.filter((b) => gv >= b.consumoKwh).length;
+            // How many bimesters the target consumption was designed to cover (before ceil rounding)
+            const targetBim = consumoObjetivoBim?.[s.key] ?? 0;
+            const designedCoverage = targetBim > 0
+              ? bimestres.filter((b) => b.consumoKwh <= targetBim).length
+              : covered;
+            const extraFromRounding = covered > designedCoverage;
             return (
               <div key={s.key} className="flex items-center gap-1.5 text-[11px]">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
@@ -442,6 +475,9 @@ export default function ChartConsumoGeneracion({
                 <span className="text-zinc-500">cubre</span>
                 <span className="font-mono font-semibold" style={{ color: s.color }}>{covered}/{bimestres.length}</span>
                 <span className="text-zinc-600">bim</span>
+                {extraFromRounding && (
+                  <span className="text-zinc-600 text-[10px]">(objetivo: {designedCoverage}, +{covered - designedCoverage} por redondeo)</span>
+                )}
               </div>
             );
           })}
