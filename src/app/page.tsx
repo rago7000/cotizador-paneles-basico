@@ -338,17 +338,17 @@ export default function Home() {
       : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
     : 0;
 
-  const kWpPromedio = consumoMensualCalc / GEN_POR_KWP;
-  const panelesPromedio = reciboCFE ? Math.ceil((kWpPromedio * 1000) / panelW) : 0;
+  const panelesPromedio = reciboCFE ? Math.ceil((consumoMensualCalc / GEN_POR_KWP * 1000) / panelW) : 0;
+  const kWpPromedio = panelesPromedio * panelW / 1000;
   const maxHistKwh = reciboCFE ? Math.max(...todosBimestres) : 0;
   const consumoMensualMax = Math.round(maxHistKwh / 2);
-  const kWpMax = consumoMensualMax / GEN_POR_KWP;
-  const panelesMax = reciboCFE ? Math.ceil((kWpMax * 1000) / panelW) : 0;
+  const panelesMax = reciboCFE ? Math.ceil((consumoMensualMax / GEN_POR_KWP * 1000) / panelW) : 0;
+  const kWpMax = panelesMax * panelW / 1000;
   const todosKwhSorted = [...todosBimestres].sort((a, b) => a - b);
   const p75Index = Math.floor(todosKwhSorted.length * 0.75);
   const consumoP75 = todosKwhSorted.length > 0 ? Math.round(todosKwhSorted[p75Index] / 2) : 0;
-  const kWpEquilibrado = consumoP75 / GEN_POR_KWP;
-  const panelesEquilibrado = reciboCFE ? Math.ceil((kWpEquilibrado * 1000) / panelW) : 0;
+  const panelesEquilibrado = reciboCFE ? Math.ceil((consumoP75 / GEN_POR_KWP * 1000) / panelW) : 0;
+  const kWpEquilibrado = panelesEquilibrado * panelW / 1000;
 
   const WATTS_POR_TON: Record<string, number> = { inverter: 900, convencional: 1400 };
   const minisplitKwhMes = minisplits.reduce((sum, m) => {
@@ -357,9 +357,9 @@ export default function Home() {
   }, 0);
   const minisplitKwhMesProm = minisplitTemporada === "temporada" ? Math.round(minisplitKwhMes / 2) : Math.round(minisplitKwhMes);
   const consumoConIncremento = consumoMensualCalc + minisplitKwhMesProm;
-  const kWpConIncremento = consumoConIncremento / GEN_POR_KWP;
-  const panelesConIncremento = reciboCFE ? Math.ceil((kWpConIncremento * 1000) / panelW) : 0;
-  const kWpSugerido = kWpPromedio;
+  const panelesConIncremento = reciboCFE ? Math.ceil((consumoConIncremento / GEN_POR_KWP * 1000) / panelW) : 0;
+  const kWpConIncremento = panelesConIncremento * panelW / 1000;
+  const kWpSugerido = panelesPromedio * panelW / 1000;
   const panelesSugeridosCFE = panelesPromedio;
 
   // ── Effects ───────────────────────────────────────────────────────────────
