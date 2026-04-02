@@ -1,0 +1,472 @@
+"use client";
+
+import { fmt } from "../components/primitives";
+import type { UtilidadConfig, CotizacionCliente } from "../lib/types";
+
+export interface PrecioClienteWidgetProps {
+  mostrarPrecioCliente: boolean;
+  onSetMostrarPrecioCliente: (v: boolean) => void;
+
+  subtotalMXN: number;
+  totalMXN: number;
+
+  utilidad: UtilidadConfig;
+  onSetUtilidad: (u: UtilidadConfig) => void;
+
+  // Partida costs (pre-utilidad)
+  partidaPanelesMXN: number;
+  partidaInversoresMXN: number;
+  partidaEstructuraMXN: number;
+  partidaTornilleriaMXN: number;
+  partidaGeneralesMXN: number;
+
+  // Client prices (post-utilidad, before IVA)
+  clientePanelesMXN: number;
+  clienteInversoresMXN: number;
+  clienteEstructuraMXN: number;
+  clienteTornilleriaMXN: number;
+  clienteGeneralesMXN: number;
+
+  // Client totals
+  clienteSubtotalMXN: number;
+  clienteIvaMXN: number;
+  clienteTotalMXN: number;
+
+  // Per-unit metrics
+  clientePorPanel: number;
+  clientePorWatt: number;
+  utilidadNetaMXN: number;
+  utilidadNetaPct: number;
+
+  cantidadNum: number;
+  potenciaNum: number;
+  kWpSistema: number;
+
+  // ROI data
+  roiAnios: number;
+  roiMeses: number;
+  ahorroMensualMXN: number;
+  ahorroAnualMXN: number;
+  costoCFEporKwh: number;
+  generacionMensualKwh: number;
+  reciboCFEExists: boolean;
+
+  // Variantes
+  nombreCotizacion: string;
+  nombreVariante: string;
+  onSetNombreVariante: (v: string) => void;
+
+  variantes: CotizacionCliente[];
+  mostrarVariantes: boolean;
+  onSetMostrarVariantes: (v: boolean) => void;
+
+  mostrarComparador: boolean;
+  onSetMostrarComparador: (v: boolean) => void;
+
+  onGuardarVariante: () => void;
+  onEliminarVariante: (id: string) => void;
+  onCargarVariante: (v: CotizacionCliente) => void;
+}
+
+export default function PrecioClienteWidget({
+  mostrarPrecioCliente,
+  onSetMostrarPrecioCliente,
+  subtotalMXN,
+  utilidad,
+  onSetUtilidad,
+  partidaPanelesMXN,
+  partidaInversoresMXN,
+  partidaEstructuraMXN,
+  partidaTornilleriaMXN,
+  partidaGeneralesMXN,
+  clientePanelesMXN,
+  clienteInversoresMXN,
+  clienteEstructuraMXN,
+  clienteTornilleriaMXN,
+  clienteGeneralesMXN,
+  clienteSubtotalMXN,
+  clienteIvaMXN,
+  clienteTotalMXN,
+  clientePorPanel,
+  clientePorWatt,
+  utilidadNetaMXN,
+  utilidadNetaPct,
+  cantidadNum,
+  nombreCotizacion,
+  nombreVariante,
+  onSetNombreVariante,
+  variantes,
+  mostrarVariantes,
+  onSetMostrarVariantes,
+  mostrarComparador,
+  onSetMostrarComparador,
+  onGuardarVariante,
+  onEliminarVariante,
+  onCargarVariante,
+}: PrecioClienteWidgetProps) {
+  if (subtotalMXN <= 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <button
+        onClick={() => onSetMostrarPrecioCliente(!mostrarPrecioCliente)}
+        className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors"
+      >
+        <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">
+          Precio al Cliente
+        </h3>
+        <span className="text-xs text-zinc-600">
+          {mostrarPrecioCliente ? "\u25B2" : "\u25BC"}
+        </span>
+      </button>
+
+      {mostrarPrecioCliente && (
+        <div>
+          {/* Tipo de utilidad */}
+          <div className="px-4 py-3 border-b border-zinc-800 space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => onSetUtilidad({ ...utilidad, tipo: "global" })}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  utilidad.tipo === "global"
+                    ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400"
+                    : "border-zinc-700 text-zinc-500 hover:border-zinc-600"
+                }`}
+              >
+                % Global
+              </button>
+              <button
+                onClick={() => onSetUtilidad({ ...utilidad, tipo: "por_partida" })}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  utilidad.tipo === "por_partida"
+                    ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-400"
+                    : "border-zinc-700 text-zinc-500 hover:border-zinc-600"
+                }`}
+              >
+                % Por partida
+              </button>
+            </div>
+
+            {utilidad.tipo === "global" ? (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-zinc-500 w-20">Utilidad</label>
+                <input
+                  type="number"
+                  value={utilidad.globalPct}
+                  onChange={(e) =>
+                    onSetUtilidad({ ...utilidad, globalPct: Number(e.target.value) || 0 })
+                  }
+                  className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                />
+                <span className="text-xs text-zinc-500">%</span>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {(
+                  [
+                    ["panelesPct", "Paneles", partidaPanelesMXN],
+                    ["inversoresPct", "Inversores", partidaInversoresMXN],
+                    ["estructuraPct", "Estructura", partidaEstructuraMXN],
+                    ["tornilleriaPct", "Tornilleria", partidaTornilleriaMXN],
+                    ["generalesPct", "Generales", partidaGeneralesMXN],
+                  ] as const
+                ).map(([key, label, val]) =>
+                  val > 0 ? (
+                    <div key={key} className="flex items-center gap-2">
+                      <label className="text-xs text-zinc-500 w-20">{label}</label>
+                      <input
+                        type="number"
+                        value={utilidad[key]}
+                        onChange={(e) =>
+                          onSetUtilidad({ ...utilidad, [key]: Number(e.target.value) || 0 })
+                        }
+                        className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                      />
+                      <span className="text-xs text-zinc-500">%</span>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+            )}
+
+            {/* Monto fijo adicional */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-zinc-500 w-20">+ Fijo</label>
+              <input
+                type="number"
+                value={utilidad.montoFijo || ""}
+                onChange={(e) =>
+                  onSetUtilidad({ ...utilidad, montoFijo: Number(e.target.value) || 0 })
+                }
+                placeholder="0"
+                className="w-24 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400 placeholder-zinc-700"
+              />
+              <span className="text-xs text-zinc-500">MXN</span>
+            </div>
+          </div>
+
+          {/* Desglose precio cliente */}
+          <div className="px-4 py-2">
+            {clientePanelesMXN > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Paneles</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(clientePanelesMXN * 1.16)}
+                </span>
+              </div>
+            )}
+            {clienteInversoresMXN > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Inversores</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(clienteInversoresMXN * 1.16)}
+                </span>
+              </div>
+            )}
+            {clienteEstructuraMXN > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Estructura</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(clienteEstructuraMXN * 1.16)}
+                </span>
+              </div>
+            )}
+            {clienteTornilleriaMXN > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Tornilleria</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(clienteTornilleriaMXN * 1.16)}
+                </span>
+              </div>
+            )}
+            {clienteGeneralesMXN > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Generales</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(clienteGeneralesMXN * 1.16)}
+                </span>
+              </div>
+            )}
+            {utilidad.montoFijo > 0 && (
+              <div className="flex items-center justify-between py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-400">Adicional fijo</span>
+                <span className="text-xs font-mono text-zinc-300">
+                  ${fmt(utilidad.montoFijo * 1.16)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Totales cliente */}
+          <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
+            <div className="flex justify-between text-xs text-zinc-400">
+              <span>Subtotal</span>
+              <span className="font-mono">${fmt(clienteSubtotalMXN)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-zinc-400">
+              <span>IVA 16%</span>
+              <span className="font-mono">${fmt(clienteIvaMXN)}</span>
+            </div>
+          </div>
+
+          <div className="bg-emerald-400/5 border-t border-emerald-400/20 px-4 py-4 space-y-3">
+            <div className="flex items-end justify-between">
+              <span className="text-sm font-semibold text-zinc-300">Total cliente</span>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-emerald-400 font-mono leading-none">
+                  ${fmt(clienteTotalMXN)}
+                </div>
+                <div className="text-xs text-zinc-500 mt-0.5">MXN con IVA</div>
+              </div>
+            </div>
+            {cantidadNum > 0 && (
+              <div className="flex items-end justify-between pt-2 border-t border-emerald-400/10">
+                <div>
+                  <span className="text-xs font-semibold text-zinc-400">Precio por panel</span>
+                  <p className="text-[10px] text-zinc-600">
+                    Total &divide; {cantidadNum} paneles
+                  </p>
+                </div>
+                <span className="text-xl font-bold text-emerald-300 font-mono">
+                  ${fmt(clientePorPanel)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Precio por Watt */}
+          {cantidadNum > 0 && (
+            <div className="border-t border-zinc-800 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-zinc-600 uppercase">Precio por Watt</p>
+                <p className="text-sm font-bold text-emerald-400 font-mono">
+                  ${fmt(clientePorWatt)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Utilidad neta */}
+          <div className="border-t border-zinc-800 px-4 py-3 bg-zinc-800/40">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[10px] text-zinc-600 uppercase">Utilidad neta</p>
+                <p className="text-[10px] text-zinc-600">
+                  {utilidadNetaPct.toFixed(1)}% sobre costo
+                </p>
+              </div>
+              <span className="text-lg font-bold text-amber-400 font-mono">
+                ${fmt(utilidadNetaMXN)}
+              </span>
+            </div>
+          </div>
+
+          {/* Guardar variante */}
+          {nombreCotizacion.trim() && (
+            <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={nombreVariante}
+                  onChange={(e) => onSetNombreVariante(e.target.value)}
+                  placeholder="Nombre de variante (ej: Opcion A)"
+                  className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-emerald-400"
+                />
+                <button
+                  onClick={onGuardarVariante}
+                  disabled={!nombreVariante.trim()}
+                  className="rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+              {!nombreCotizacion.trim() && (
+                <p className="text-[10px] text-red-400">
+                  Primero guarda la cotizacion de costos
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Lista de variantes guardadas */}
+          {variantes.length > 0 && (
+            <div className="border-t border-zinc-800">
+              <button
+                onClick={() => onSetMostrarVariantes(!mostrarVariantes)}
+                className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-zinc-800/50 transition-colors"
+              >
+                <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">
+                  {variantes.length} variante{variantes.length > 1 ? "s" : ""} guardada
+                  {variantes.length > 1 ? "s" : ""}
+                </span>
+                <span className="text-xs text-zinc-600">
+                  {mostrarVariantes ? "\u25B2" : "\u25BC"}
+                </span>
+              </button>
+
+              {mostrarVariantes && (
+                <div className="space-y-px">
+                  {variantes.map((v) => (
+                    <div
+                      key={v.id}
+                      className="px-4 py-3 bg-zinc-800/30 border-t border-zinc-800/50"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-xs font-medium text-zinc-300">{v.nombre}</p>
+                          <p className="text-[10px] text-zinc-600">
+                            {v.utilidad.tipo === "global"
+                              ? `${v.utilidad.globalPct}% global`
+                              : "% por partida"}
+                            {v.utilidad.montoFijo > 0 && ` + $${fmt(v.utilidad.montoFijo)}`}
+                          </p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => onCargarVariante(v)}
+                            className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                          >
+                            Usar
+                          </button>
+                          <button
+                            onClick={() => onEliminarVariante(v.id)}
+                            className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
+                          >
+                            &#x2715;
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Total</p>
+                          <p className="text-xs font-bold text-emerald-400 font-mono">
+                            ${fmt(v.precios.total)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Por panel</p>
+                          <p className="text-xs font-bold text-emerald-300 font-mono">
+                            ${fmt(v.precios.porPanel)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-600">Utilidad</p>
+                          <p className="text-xs font-bold text-amber-400 font-mono">
+                            ${fmt(v.precios.utilidadNeta)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Comparacion: mejor para cliente vs mejor para nosotros */}
+                  {variantes.length >= 2 && (
+                    <div className="px-4 py-3 bg-zinc-900/80 border-t border-zinc-700 space-y-2">
+                      <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">
+                        Comparacion
+                      </p>
+                      {(() => {
+                        const mejorCliente = [...variantes].sort(
+                          (a, b) => a.precios.total - b.precios.total,
+                        )[0];
+                        const mejorNosotros = [...variantes].sort(
+                          (a, b) => b.precios.utilidadNeta - a.precios.utilidadNeta,
+                        )[0];
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-500">
+                                Mejor para cliente
+                              </span>
+                              <span className="text-xs text-emerald-400 font-medium">
+                                {mejorCliente.nombre} &mdash; ${fmt(mejorCliente.precios.total)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-500">
+                                Mejor para nosotros
+                              </span>
+                              <span className="text-xs text-amber-400 font-medium">
+                                {mejorNosotros.nombre} &mdash;{" "}
+                                ${fmt(mejorNosotros.precios.utilidadNeta)}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                      <button
+                        onClick={() => onSetMostrarComparador(!mostrarComparador)}
+                        className="w-full text-xs text-center py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors mt-1"
+                      >
+                        {mostrarComparador ? "Cerrar comparador" : "Ver comparador completo"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
