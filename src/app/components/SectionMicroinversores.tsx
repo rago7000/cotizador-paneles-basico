@@ -21,6 +21,8 @@ export interface SectionMicroinversoresProps {
   incluyeECU: boolean;
   precioHerramienta: string;
   incluyeHerramienta: boolean;
+  precioEndCap: string;
+  incluyeEndCap: boolean;
   fleteMicros: string;
   tcCustomMicros: string;
 
@@ -31,6 +33,8 @@ export interface SectionMicroinversoresProps {
   onSetIncluyeECU: (v: boolean) => void;
   onSetPrecioHerramienta: (v: string) => void;
   onSetIncluyeHerramienta: (v: boolean) => void;
+  onSetPrecioEndCap: (v: string) => void;
+  onSetIncluyeEndCap: (v: boolean) => void;
   onSetFleteMicros: (v: string) => void;
   onSetTcCustomMicros: (v: string) => void;
 
@@ -49,11 +53,13 @@ export interface SectionMicroinversoresProps {
   precioCableNum: number;
   precioECUNum: number;
   precioHerramientaNum: number;
+  precioEndCapNum: number;
   fleteMicrosNum: number;
   costoMicrosUSD: number;
   costoCablesUSD: number;
   costoECUUSD: number;
   costoHerramientaUSD: number;
+  costoEndCapUSD: number;
   totalInversoresUSD: number;
 
   // Electrical calculator
@@ -76,6 +82,8 @@ export default function SectionMicroinversores({
   incluyeECU,
   precioHerramienta,
   incluyeHerramienta,
+  precioEndCap,
+  incluyeEndCap,
   fleteMicros,
   tcCustomMicros,
   onSetPrecioMicroinversor,
@@ -84,6 +92,8 @@ export default function SectionMicroinversores({
   onSetIncluyeECU,
   onSetPrecioHerramienta,
   onSetIncluyeHerramienta,
+  onSetPrecioEndCap,
+  onSetIncluyeEndCap,
   onSetFleteMicros,
   onSetTcCustomMicros,
   sugerirGuardarMicro,
@@ -98,11 +108,13 @@ export default function SectionMicroinversores({
   precioCableNum,
   precioECUNum,
   precioHerramientaNum,
+  precioEndCapNum,
   fleteMicrosNum,
   costoMicrosUSD,
   costoCablesUSD,
   costoECUUSD,
   costoHerramientaUSD,
+  costoEndCapUSD,
   totalInversoresUSD,
   showElectrical,
   onSetShowElectrical,
@@ -210,6 +222,16 @@ export default function SectionMicroinversores({
             </div>
           )}
 
+          {/* End Cap */}
+          {incluyeEndCap && precioEndCapNum > 0 && (
+            <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
+              <span className="text-xs text-zinc-300">End Cap APS</span>
+              <span className="text-xs text-center text-zinc-400 font-mono">{cantidadMicros}</span>
+              <span className="text-xs text-right text-zinc-400 font-mono">${fmtUSD(precioEndCapNum)}</span>
+              <span className="text-xs text-right text-zinc-200 font-mono font-medium">${fmtUSD(costoEndCapUSD)}</span>
+            </div>
+          )}
+
           {/* Flete */}
           <div className="grid grid-cols-[1fr_56px_90px_90px] gap-2 px-4 py-2.5 border-t border-zinc-800/60 items-center">
             <span className="text-xs text-zinc-300">Flete microinversores</span>
@@ -296,6 +318,20 @@ export default function SectionMicroinversores({
           <div className="pl-12">
             <Field label="Precio herramienta (USD)">
               <NumInput value={precioHerramienta} onChange={onSetPrecioHerramienta} placeholder="Ej: 35.00" step={0.01} />
+            </Field>
+          </div>
+        )}
+
+        <Toggle
+          checked={incluyeEndCap}
+          onChange={onSetIncluyeEndCap}
+          label="End Cap APS"
+          hint="1 por microinversor — sella la entrada no utilizada del cable troncal"
+        />
+        {incluyeEndCap && (
+          <div className="pl-12">
+            <Field label="Precio end cap (USD)" hint="1 por microinversor">
+              <NumInput value={precioEndCap} onChange={onSetPrecioEndCap} placeholder="Ej: 5.00" step={0.01} />
             </Field>
           </div>
         )}

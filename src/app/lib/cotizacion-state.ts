@@ -59,6 +59,8 @@ export interface CotizacionState {
   incluyeECU: boolean;
   precioHerramienta: string;
   incluyeHerramienta: boolean;
+  precioEndCap: string;
+  incluyeEndCap: boolean;
   fleteMicros: string;
 
   // ── Estructura ──
@@ -178,6 +180,8 @@ export const INITIAL_STATE: CotizacionState = {
   incluyeECU: true,
   precioHerramienta: "",
   incluyeHerramienta: false,
+  precioEndCap: "5",
+  incluyeEndCap: true,
   fleteMicros: "35",
   // Estructura
   aluminio: aluminioDefault,
@@ -286,6 +290,8 @@ export function cotizacionReducer(
         incluyeECU: d.incluyeECU ?? true,
         precioHerramienta: d.precioHerramienta ?? "",
         incluyeHerramienta: d.incluyeHerramienta ?? false,
+        precioEndCap: d.precioEndCap ?? "5",
+        incluyeEndCap: d.incluyeEndCap ?? true,
         fleteMicros: d.fleteMicros ?? "35",
         // Estructura
         aluminio: ensureIds(d.aluminio ?? aluminioDefault),
@@ -381,6 +387,8 @@ export function stateToFormData(state: CotizacionState): CotizacionData {
     incluyeECU: state.incluyeECU,
     precioHerramienta: state.precioHerramienta,
     incluyeHerramienta: state.incluyeHerramienta,
+    precioEndCap: state.precioEndCap,
+    incluyeEndCap: state.incluyeEndCap,
     fleteMicros: state.fleteMicros,
     aluminio: state.aluminio,
     fleteAluminio: state.fleteAluminio,

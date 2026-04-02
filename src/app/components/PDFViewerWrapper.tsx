@@ -17,6 +17,8 @@ interface Props {
   incluyeECU: boolean;
   precioHerramienta: number;
   incluyeHerramienta: boolean;
+  precioEndCap: number;
+  incluyeEndCap: boolean;
   fleteMicros: number;
   aluminio: LineItem[];
   fleteAluminio: number;

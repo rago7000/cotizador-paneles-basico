@@ -38,6 +38,8 @@ export interface CotizacionData {
   incluyeECU: boolean;
   precioHerramienta: string;
   incluyeHerramienta: boolean;
+  precioEndCap?: string;
+  incluyeEndCap?: boolean;
   fleteMicros: string;
   // Estructura
   aluminio: LineItem[];

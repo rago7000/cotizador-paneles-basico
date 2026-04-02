@@ -79,6 +79,8 @@ interface Props {
   incluyeECU: boolean;
   precioHerramienta: number;
   incluyeHerramienta: boolean;
+  precioEndCap: number;
+  incluyeEndCap: boolean;
   fleteMicros: number;
   aluminio: LineItem[];
   fleteAluminio: number;
@@ -92,7 +94,8 @@ export default function CotizacionPDF(props: Props) {
     nombreCotizacion, cantidad, potencia, precioPorWatt,
     fletePaneles, garantiaPaneles,
     precioMicroinversor, precioCable, precioECU, incluyeECU,
-    precioHerramienta, incluyeHerramienta, fleteMicros,
+    precioHerramienta, incluyeHerramienta,
+    precioEndCap, incluyeEndCap, fleteMicros,
     aluminio, fleteAluminio, tornilleria, generales, tc,
   } = props;
 
@@ -110,7 +113,8 @@ export default function CotizacionPDF(props: Props) {
   const costoCablesUSD = cantidadMicros * precioCable;
   const costoECUUSD = incluyeECU ? precioECU : 0;
   const costoHerramientaUSD = incluyeHerramienta ? precioHerramienta : 0;
-  const totalInversoresUSD = costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + fleteMicros;
+  const costoEndCapUSD = incluyeEndCap ? precioEndCap * cantidadMicros : 0;
+  const totalInversoresUSD = costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + costoEndCapUSD + fleteMicros;
   const partidaInversoresMXN = totalInversoresUSD * tcVal;
 
   // Partida 3: Estructura
@@ -194,6 +198,12 @@ export default function CotizacionPDF(props: Props) {
             <View style={s.detailRow}>
               <Text style={s.detailName}>Herramienta desconectora APS</Text>
               <Text style={s.detailSubt}>{fmt(costoHerramientaUSD)} USD</Text>
+            </View>
+          )}
+          {costoEndCapUSD > 0 && (
+            <View style={s.detailRow}>
+              <Text style={s.detailName}>End Cap APS ({cantidadMicros} pzas)</Text>
+              <Text style={s.detailSubt}>{fmt(costoEndCapUSD)} USD</Text>
             </View>
           )}
           {fleteMicros > 0 && (

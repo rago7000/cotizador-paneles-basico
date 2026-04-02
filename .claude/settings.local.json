@@ -18,7 +18,24 @@
       "Bash(grep -r \"file\\\\|document\\\\|pdf\" C:Usersrafa7devcotizador-paneles-basiconode_modulesaidocs --include=*.md -l)",
       "Bash(python3 -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p.get\\(''''version'''',''''?''''\\)\\)\")",
       "Bash(node -e \"const p = require\\(''./node_modules/ai/package.json''\\); console.log\\(p.version\\)\")",
-      "Bash(curl -s https://ai-sdk.dev/api/search-docs?q=pdf+file+content+part)"
+      "Bash(curl -s https://ai-sdk.dev/api/search-docs?q=pdf+file+content+part)",
+      "Bash(npm list:*)",
+      "Bash(vercel --prod)",
+      "Bash(vercel env:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npx next:*)",
+      "Bash(grep -r \"BANXICO_TOKEN\" .env*)",
+      "Bash(curl -s -H \"Bmx-Token: 6243c06353df5bc11795a0df7660efd687944f174eb579bd1cebbb9907a967eb\" \"https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?mediaType=json\")",
+      "Bash(curl -sk -H \"Bmx-Token: 6243c06353df5bc11795a0df7660efd687944f174eb579bd1cebbb9907a967eb\" \"https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?mediaType=json\")",
+      "Bash(npx convex:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f''''Total items: {len\\(d[\"\"items\"\"]\\)}''''\\); from collections import Counter; c=Counter\\(it[''''tipo''''] for it in d[''''items'''']\\); print\\(dict\\(c\\)\\)\")",
+      "Bash(node -e \"const d=require\\(''C:/Users/rafa7/dev/cotizador-paneles-basico/package.json''\\); console.log\\(''test:'', d.scripts?.test || ''none''\\); console.log\\(''devDeps:'', Object.keys\\(d.devDependencies||{}\\).join\\('', ''\\)\\)\")",
+      "Bash(npx vitest:*)",
+      "Bash(ls -la src/app/components/*.tsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(git status:*)"
     ]
   }
 }

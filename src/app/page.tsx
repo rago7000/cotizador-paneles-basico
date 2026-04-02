@@ -118,7 +118,8 @@ export default function Home() {
   const {
     cantidad, potencia, precioPorWatt, fletePaneles, garantiaPaneles,
     precioMicroinversor, precioCable, precioECU, incluyeECU,
-    precioHerramienta, incluyeHerramienta, fleteMicros,
+    precioHerramienta, incluyeHerramienta,
+    precioEndCap, incluyeEndCap, fleteMicros,
     aluminio, fleteAluminio, structureRows, showStructure,
     electricalProfileId, showElectrical,
     structureMode, autoArrangements,
@@ -236,6 +237,7 @@ export default function Home() {
   const precioCableNum = Number(precioCable) || 0;
   const precioECUNum = Number(precioECU) || 0;
   const precioHerramientaNum = Number(precioHerramienta) || 0;
+  const precioEndCapNum = Number(precioEndCap) || 0;
   const fleteMicrosNum = Number(fleteMicros) || 0;
 
   const costoPanel = potenciaNum * precioNum;
@@ -255,6 +257,7 @@ export default function Home() {
   const costoCablesUSD = cantidadMicros * precioCableNum;
   const costoECUUSD = incluyeECU ? precioECUNum : 0;
   const costoHerramientaUSD = incluyeHerramienta ? precioHerramientaNum : 0;
+  const costoEndCapUSD = incluyeEndCap ? precioEndCapNum * cantidadMicros : 0;
 
   const costoAluminioMXN = aluminio.reduce(
     (s, it) => s + (Number(it.cantidad) || 0) * (Number(it.precioUnitario) || 0), 0
@@ -275,7 +278,7 @@ export default function Home() {
 
   const totalPanelesUSD = cantidadNum > 0 ? costoPanelesUSD + fletePanelesNum + garantiaPanelesNum : 0;
   const partidaPanelesMXN = totalPanelesUSD * tcPaneles;
-  const totalInversoresUSD = cantidadNum > 0 ? costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + fleteMicrosNum : 0;
+  const totalInversoresUSD = cantidadNum > 0 ? costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + costoEndCapUSD + fleteMicrosNum : 0;
   const partidaInversoresMXN = totalInversoresUSD * tcMicros;
   const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
   const partidaTornilleriaMXN = costoTornilleriaMXN;
@@ -724,6 +727,7 @@ export default function Home() {
               precioMicroinversor={precioMicroinversor} precioCable={precioCable}
               precioECU={precioECU} incluyeECU={incluyeECU}
               precioHerramienta={precioHerramienta} incluyeHerramienta={incluyeHerramienta}
+              precioEndCap={precioEndCap} incluyeEndCap={incluyeEndCap}
               fleteMicros={fleteMicros} tcCustomMicros={tcCustomMicros}
               onSetPrecioMicroinversor={(v) => { set("precioMicroinversor", v); if (v) { set("sugerirGuardarMicro", true); set("microSeleccionado", null); } }}
               onSetPrecioCable={(v) => { set("precioCable", v); if (v) { set("sugerirGuardarMicro", true); set("microSeleccionado", null); } }}
@@ -731,6 +735,8 @@ export default function Home() {
               onSetIncluyeECU={(v) => set("incluyeECU", v)}
               onSetPrecioHerramienta={(v) => set("precioHerramienta", v)}
               onSetIncluyeHerramienta={(v) => set("incluyeHerramienta", v)}
+              onSetPrecioEndCap={(v) => set("precioEndCap", v)}
+              onSetIncluyeEndCap={(v) => set("incluyeEndCap", v)}
               onSetFleteMicros={(v) => set("fleteMicros", v)}
               onSetTcCustomMicros={(v) => set("tcCustomMicros", v)}
               sugerirGuardarMicro={sugerirGuardarMicro}
@@ -741,9 +747,11 @@ export default function Home() {
               panelesPorMicro={panelesPorMicro}
               precioMicroNum={precioMicroNum} precioCableNum={precioCableNum}
               precioECUNum={precioECUNum} precioHerramientaNum={precioHerramientaNum}
+              precioEndCapNum={precioEndCapNum}
               fleteMicrosNum={fleteMicrosNum}
               costoMicrosUSD={costoMicrosUSD} costoCablesUSD={costoCablesUSD}
               costoECUUSD={costoECUUSD} costoHerramientaUSD={costoHerramientaUSD}
+              costoEndCapUSD={costoEndCapUSD}
               totalInversoresUSD={totalInversoresUSD}
               showElectrical={showElectrical}
               onSetShowElectrical={(v) => set("showElectrical", v)}
@@ -905,6 +913,7 @@ export default function Home() {
               precioMicroinversor={precioMicroNum} precioCable={precioCableNum}
               precioECU={precioECUNum} incluyeECU={incluyeECU}
               precioHerramienta={precioHerramientaNum} incluyeHerramienta={incluyeHerramienta}
+              precioEndCap={precioEndCapNum} incluyeEndCap={incluyeEndCap}
               fleteMicros={fleteMicrosNum}
               aluminio={aluminio} fleteAluminio={fleteAluminioNum}
               tornilleria={tornilleria} generales={generales} tc={tc}
