@@ -70,6 +70,8 @@ export interface CotizacionClientePDFProps {
   porWatt: number;
   vigenciaDias: number;
   notas: string;
+  /** If set, shows a discount badge comparing to this previous price */
+  precioAnteriorPorPanel?: number;
 }
 
 export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
@@ -77,8 +79,11 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
     nombreCotizacion, clienteNombre,
     cantidadPaneles, potenciaW, kWp, generacionMensualKwh,
     partidas, subtotal, iva, total,
-    porPanel, porWatt, vigenciaDias, notas,
+    porPanel, porWatt, vigenciaDias, notas, precioAnteriorPorPanel,
   } = props;
+
+  const tieneDescuento = precioAnteriorPorPanel && precioAnteriorPorPanel > porPanel;
+  const descuentoPct = tieneDescuento ? Math.round((1 - porPanel / precioAnteriorPorPanel) * 100) : 0;
 
   const fecha = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
   const generacionAnualKwh = generacionMensualKwh * 12;
@@ -167,8 +172,18 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
         {/* Metricas */}
         <View style={s.metricasBox}>
           <View style={[s.metrica, { marginRight: 4 }]}>
+            {tieneDescuento && (
+              <Text style={{ fontSize: 9, color: "#999", textDecoration: "line-through", marginBottom: 1 }}>
+                {fmt(precioAnteriorPorPanel)}
+              </Text>
+            )}
             <Text style={s.metricaValor}>{fmt(porPanel)}</Text>
             <Text style={s.metricaLabel}>Precio por panel</Text>
+            {tieneDescuento && (
+              <View style={{ backgroundColor: "#16a34a", borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3 }}>
+                <Text style={{ fontSize: 9, color: "#fff", fontWeight: "bold" }}>-{descuentoPct}% de descuento</Text>
+              </View>
+            )}
           </View>
           <View style={[s.metrica, { marginLeft: 4 }]}>
             <Text style={s.metricaValor}>{fmt(porWatt)}</Text>

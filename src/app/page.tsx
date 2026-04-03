@@ -595,6 +595,9 @@ export default function Home() {
   const handleVerPDFVariante = async (v: CotizacionCliente, tipo: "cliente" | "costos") => {
     if (tipo === "cliente") {
       const CotizacionClientePDF = await loadCotizacionClientePDF();
+      // Find base variant for discount comparison
+      const baseVariant = variantes.find((vv) => vv.nombre === "Propuesta Base" && vv.cotizacionBase === v.cotizacionBase);
+      const precioAnterior = baseVariant && baseVariant.id !== v.id ? baseVariant.precios.porPanel : undefined;
       const el = createElement(CotizacionClientePDF, {
         nombreCotizacion: `${nombreCotizacion} — ${v.nombre}`,
         clienteNombre: reciboCFE?.nombre || "",
@@ -610,6 +613,7 @@ export default function Home() {
         subtotal: v.precios.subtotal, iva: v.precios.iva, total: v.precios.total,
         porPanel: v.precios.porPanel, porWatt: v.precios.porWatt,
         vigenciaDias: 15, notas: "",
+        precioAnteriorPorPanel: precioAnterior,
       });
       await openPDFInNewWindow(el);
     } else if (tc) {
