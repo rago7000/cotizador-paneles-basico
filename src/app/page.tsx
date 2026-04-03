@@ -166,19 +166,31 @@ export default function Home() {
 
   const reciboInputRef = useRef<HTMLInputElement>(null);
 
-  const rawVariantes = useQuery(
+  const rawVariantesById = useQuery(
     api.cotizaciones.listCliente,
     cotizacionId ? { cotizacionBase: cotizacionId } : "skip"
   );
+  // Also fetch legacy variants stored with nombreCotizacion as key
+  const rawVariantesByName = useQuery(
+    api.cotizaciones.listCliente,
+    nombreCotizacion.trim() ? { cotizacionBase: nombreCotizacion.trim() } : "skip"
+  );
   const variantes = useMemo<CotizacionCliente[]>(() => {
-    if (!rawVariantes) return [];
-    return rawVariantes.map((v) => {
-      try {
-        const parsed = JSON.parse(v.data);
-        return { ...parsed, id: v._id as string } as CotizacionCliente;
-      } catch { return null; }
-    }).filter((x): x is CotizacionCliente => x !== null);
-  }, [rawVariantes]);
+    const seen = new Set<string>();
+    const result: CotizacionCliente[] = [];
+    for (const raw of [rawVariantesById, rawVariantesByName]) {
+      if (!raw) continue;
+      for (const v of raw) {
+        if (seen.has(v._id as string)) continue;
+        seen.add(v._id as string);
+        try {
+          const parsed = JSON.parse(v.data);
+          result.push({ ...parsed, id: v._id as string } as CotizacionCliente);
+        } catch { /* skip */ }
+      }
+    }
+    return result;
+  }, [rawVariantesById, rawVariantesByName]);
 
   // ── Picker filtered lists ─────────────────────────────────────────────────
   const pq = pickerSearch.toLowerCase().trim();
@@ -584,14 +596,29 @@ export default function Home() {
 
   const handleEliminarVariante = async (id: string) => { await convexEliminarCotizacionCliente(id); };
   const handleCargarVariante = (v: CotizacionCliente) => {
+    const currentCotizacionId = cotizacionId;
+    const currentNombre = nombreCotizacion;
     if (v.stateSnapshot) {
       // Full restore: all parameters (panels, micros, structure, generales, etc.)
       loadCotizacion(v.stateSnapshot);
+      // Restore panel/micro selection from catalog IDs in snapshot
+      const restoredPanel = v.stateSnapshot.panelCatalogoId
+        ? catalogoPaneles.find((p) => p.id === v.stateSnapshot!.panelCatalogoId) ?? null
+        : null;
+      const restoredMicro = v.stateSnapshot.microCatalogoId
+        ? catalogoMicros.find((m) => m.id === v.stateSnapshot!.microCatalogoId) ?? null
+        : null;
       setMany({
+        // Keep current cotizacion identity (don't let snapshot change it)
+        cotizacionId: currentCotizacionId,
+        nombreCotizacion: currentNombre,
+        // Restore catalog selections
+        panelSeleccionado: restoredPanel,
+        microSeleccionado: restoredMicro,
         utilidad: v.utilidad,
         mostrarPrecioCliente: true,
         mostrarVariantes: false,
-        nombreVariante: v.nombre,
+        nombreVariante: "",
       });
     } else {
       // Legacy variants without snapshot: restore what we can
@@ -600,7 +627,7 @@ export default function Home() {
         utilidad: v.utilidad,
         mostrarPrecioCliente: true,
         mostrarVariantes: false,
-        nombreVariante: v.nombre,
+        nombreVariante: "",
       });
     }
   };
