@@ -1029,6 +1029,12 @@ export default function Home() {
               onApplyProposal={handleApplyProposal}
               cantidadMicros={cantidadMicros}
               panelesPorMicro={panelesPorMicro}
+              panelesPromedio={panelesPromedio}
+              panelesEquilibrado={panelesEquilibrado}
+              panelesMax={panelesMax}
+              panelesConIncremento={panelesConIncremento}
+              reciboUltimoAnio={reciboUltimoAnio}
+              onSetReciboUltimoAnio={(v) => set("reciboUltimoAnio", v)}
             />
 
             {/* PDF Buttons — open in new window */}

@@ -77,6 +77,14 @@ export interface PrecioClienteWidgetProps {
   onApplyProposal: (cantidad: number) => void;
   cantidadMicros: number;
   panelesPorMicro: number;
+
+  // CFE proposals (for quick switch)
+  panelesPromedio: number;
+  panelesEquilibrado: number;
+  panelesMax: number;
+  panelesConIncremento: number;
+  reciboUltimoAnio: boolean;
+  onSetReciboUltimoAnio: (v: boolean) => void;
 }
 
 /* ── Conversion helpers ───────────────────────────────────────────── */
@@ -198,6 +206,7 @@ export default function PrecioClienteWidget({
   utilidadNetaMXN,
   utilidadNetaPct,
   cantidadNum,
+  reciboCFEExists,
   nombreCotizacion,
   nombreVariante,
   onSetNombreVariante,
@@ -216,6 +225,12 @@ export default function PrecioClienteWidget({
   onApplyProposal,
   cantidadMicros,
   panelesPorMicro,
+  panelesPromedio,
+  panelesEquilibrado,
+  panelesMax,
+  panelesConIncremento,
+  reciboUltimoAnio,
+  onSetReciboUltimoAnio,
 }: PrecioClienteWidgetProps) {
   const [showQuickControls, setShowQuickControls] = useState(false);
   const [cantidadInput, setCantidadInput] = useState("");
@@ -292,6 +307,60 @@ export default function PrecioClienteWidget({
 
             {showQuickControls && (
               <div className="px-4 pb-3 space-y-3">
+                {/* CFE proposal quick switch */}
+                {reciboCFEExists && panelesPromedio > 0 && (() => {
+                  const proposals = [
+                    { id: "promedio", label: "Promedio", paneles: panelesPromedio, color: "amber" },
+                    { id: "equilibrada", label: "P75", paneles: panelesEquilibrado, color: "emerald" },
+                    { id: "maxima", label: "Máxima", paneles: panelesMax, color: "zinc" },
+                    ...(panelesConIncremento > 0 && panelesConIncremento !== panelesEquilibrado
+                      ? [{ id: "incremento", label: "+Splits", paneles: panelesConIncremento, color: "cyan" }]
+                      : []),
+                  ];
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Propuesta</p>
+                        <button
+                          onClick={() => onSetReciboUltimoAnio(!reciboUltimoAnio)}
+                          className="text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+                        >
+                          {reciboUltimoAnio ? "6 bim" : "12 bim"}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {proposals.map((p) => {
+                          const isActive = cantidadNum === p.paneles;
+                          const activeBorder = p.color === "amber" ? "border-amber-400/50 bg-amber-400/10"
+                            : p.color === "emerald" ? "border-emerald-400/50 bg-emerald-400/10"
+                            : p.color === "cyan" ? "border-cyan-400/50 bg-cyan-400/10"
+                            : "border-zinc-400/50 bg-zinc-400/10";
+                          const activeText = p.color === "amber" ? "text-amber-400"
+                            : p.color === "emerald" ? "text-emerald-400"
+                            : p.color === "cyan" ? "text-cyan-400"
+                            : "text-zinc-300";
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => onApplyProposal(p.paneles)}
+                              className={`flex items-center gap-1 rounded-md border px-2 py-1 transition-all ${
+                                isActive ? activeBorder : "border-zinc-700/60 bg-zinc-800/40 hover:border-zinc-600"
+                              }`}
+                            >
+                              <span className={`text-[10px] font-semibold ${isActive ? activeText : "text-zinc-400"}`}>
+                                {p.label}
+                              </span>
+                              <span className={`text-[10px] font-mono ${isActive ? activeText : "text-zinc-500"}`}>
+                                {p.paneles}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Panel recommendations */}
                 {panelRecommendations && (
                   <div className="space-y-1.5">
