@@ -234,6 +234,8 @@ export interface CotizacionCliente {
   };
   notas: string;
   vigenciaDias: number;
+  /** Full state snapshot for restoring via "Usar" */
+  stateSnapshot?: CotizacionData;
 }
 
 // ── Seguimiento ──────────────────────────────────────────────────────────────

@@ -424,6 +424,7 @@ export default function Home() {
       utilidadNeta: utilidadNetaMXN, utilidadPct: utilidadNetaPct,
     },
     notas: "", vigenciaDias: 15,
+    stateSnapshot: getFormData(),
   });
 
   // ── Auto-proposals after first recibo ───────────────────────────────────
@@ -573,25 +574,7 @@ export default function Home() {
 
   const handleGuardarVariante = async () => {
     if (!nombreCotizacion.trim() || !nombreVariante.trim() || subtotalMXN <= 0) return;
-    const c: CotizacionCliente = {
-      id: uid(), cotizacionBase: nombreCotizacion, nombre: nombreVariante,
-      fecha: new Date().toISOString(), utilidad: { ...utilidad },
-      costos: {
-        paneles: partidaPanelesMXN, inversores: partidaInversoresMXN,
-        estructura: partidaEstructuraMXN, tornilleria: partidaTornilleriaMXN,
-        generales: partidaGeneralesMXN, subtotal: subtotalMXN, iva: ivaMXN,
-        total: totalMXN, cantidadPaneles: cantidadNum, potenciaW: potenciaNum,
-      },
-      precios: {
-        paneles: clientePanelesMXN, inversores: clienteInversoresMXN,
-        estructura: clienteEstructuraMXN, tornilleria: clienteTornilleriaMXN,
-        generales: clienteGeneralesMXN, montoFijo: utilidad.montoFijo,
-        subtotal: clienteSubtotalMXN, iva: clienteIvaMXN, total: clienteTotalMXN,
-        porPanel: clientePorPanel, porWatt: clientePorWatt,
-        utilidadNeta: utilidadNetaMXN, utilidadPct: utilidadNetaPct,
-      },
-      notas: "", vigenciaDias: 15,
-    };
+    const c: CotizacionCliente = buildVariantSnapshot(nombreVariante);
     await convexGuardarCotizacionCliente({
       cotizacionBase: c.cotizacionBase, nombre: c.nombre, fecha: c.fecha, data: c,
     });
@@ -601,13 +584,25 @@ export default function Home() {
 
   const handleEliminarVariante = async (id: string) => { await convexEliminarCotizacionCliente(id); };
   const handleCargarVariante = (v: CotizacionCliente) => {
-    setMany({
-      cantidad: String(v.costos.cantidadPaneles),
-      utilidad: v.utilidad,
-      mostrarPrecioCliente: true,
-      mostrarVariantes: false,
-      nombreVariante: v.nombre,
-    });
+    if (v.stateSnapshot) {
+      // Full restore: all parameters (panels, micros, structure, generales, etc.)
+      loadCotizacion(v.stateSnapshot);
+      setMany({
+        utilidad: v.utilidad,
+        mostrarPrecioCliente: true,
+        mostrarVariantes: false,
+        nombreVariante: v.nombre,
+      });
+    } else {
+      // Legacy variants without snapshot: restore what we can
+      setMany({
+        cantidad: String(v.costos.cantidadPaneles),
+        utilidad: v.utilidad,
+        mostrarPrecioCliente: true,
+        mostrarVariantes: false,
+        nombreVariante: v.nombre,
+      });
+    }
   };
   // ── Variant PDF (open in new window) ──
   const handleVerPDFVariante = async (v: CotizacionCliente, tipo: "cliente" | "costos") => {
