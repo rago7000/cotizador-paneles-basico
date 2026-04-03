@@ -86,6 +86,10 @@ export interface PrecioClienteWidgetProps {
   panelesConIncremento: number;
   reciboUltimoAnio: boolean;
   onSetReciboUltimoAnio: (v: boolean) => void;
+
+  // Expand to full width
+  expanded: boolean;
+  onSetExpanded: (v: boolean) => void;
 }
 
 /* ── Conversion helpers ───────────────────────────────────────────── */
@@ -233,6 +237,8 @@ export default function PrecioClienteWidget({
   panelesConIncremento,
   reciboUltimoAnio,
   onSetReciboUltimoAnio,
+  expanded,
+  onSetExpanded,
 }: PrecioClienteWidgetProps) {
   const [showQuickControls, setShowQuickControls] = useState(false);
   const [cantidadInput, setCantidadInput] = useState("");
@@ -244,19 +250,34 @@ export default function PrecioClienteWidget({
   const espaciosLibres = capacidadTotal - cantidadNum;
   const infrautilizado = cantidadNum > 0 && espaciosLibres > 0;
 
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-      <button
-        onClick={() => onSetMostrarPrecioCliente(!mostrarPrecioCliente)}
-        className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors"
-      >
-        <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">
-          Precio al Cliente
-        </h3>
-        <span className="text-xs text-zinc-600">
-          {mostrarPrecioCliente ? "\u25B2" : "\u25BC"}
-        </span>
-      </button>
+  const content = (
+    <div className={`rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden ${expanded ? "max-w-4xl w-full max-h-[90vh] overflow-y-auto" : ""}`}>
+      <div className="flex items-center border-b border-zinc-800">
+        <button
+          onClick={() => onSetMostrarPrecioCliente(!mostrarPrecioCliente)}
+          className="flex-1 flex items-center justify-between px-4 py-3 hover:bg-zinc-800/50 transition-colors"
+        >
+          <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">
+            Precio al Cliente
+          </h3>
+          <span className="text-xs text-zinc-600">
+            {mostrarPrecioCliente ? "\u25B2" : "\u25BC"}
+          </span>
+        </button>
+        {mostrarPrecioCliente && (
+          <button
+            onClick={() => onSetExpanded(!expanded)}
+            title={expanded ? "Minimizar" : "Expandir"}
+            className="px-3 py-3 text-zinc-500 hover:text-zinc-200 transition-colors"
+          >
+            {expanded ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m6 6l5 5m0 0v-4m0 4h-4" /></svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" /></svg>
+            )}
+          </button>
+        )}
+      </div>
 
       {mostrarPrecioCliente && (
         <div>
@@ -882,4 +903,14 @@ export default function PrecioClienteWidget({
       )}
     </div>
   );
+
+  if (expanded) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+        {content}
+      </div>
+    );
+  }
+
+  return content;
 }

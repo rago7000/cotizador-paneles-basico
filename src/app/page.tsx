@@ -118,6 +118,7 @@ export default function Home() {
   } = s;
 
   const [collapseAllCounter, setCollapseAllCounter] = useState(0);
+  const [precioClienteExpanded, setPrecioClienteExpanded] = useState(false);
 
   // ── Derived data from Convex ──────────────────────────────────────────────
   const cotizacionesGuardadas = useMemo<CotizacionGuardada[]>(() => {
@@ -800,7 +801,7 @@ export default function Home() {
           )}
 
           <button
-            onClick={() => { setCollapseAllCounter((c) => c + 1); set("mostrarPrecioCliente", false); set("reciboDetalle", false); }}
+            onClick={() => { setCollapseAllCounter((c) => c + 1); set("mostrarPrecioCliente", false); set("reciboDetalle", false); setPrecioClienteExpanded(false); }}
             title="Ocultar todo"
             className="shrink-0 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
@@ -1057,6 +1058,8 @@ export default function Home() {
               panelesConIncremento={panelesConIncremento}
               reciboUltimoAnio={reciboUltimoAnio}
               onSetReciboUltimoAnio={(v) => set("reciboUltimoAnio", v)}
+              expanded={precioClienteExpanded}
+              onSetExpanded={setPrecioClienteExpanded}
             />
 
             {/* PDF Buttons — open in new window */}
