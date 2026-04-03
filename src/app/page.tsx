@@ -602,6 +602,7 @@ export default function Home() {
   const handleEliminarVariante = async (id: string) => { await convexEliminarCotizacionCliente(id); };
   const handleCargarVariante = (v: CotizacionCliente) => {
     setMany({
+      cantidad: String(v.costos.cantidadPaneles),
       utilidad: v.utilidad,
       mostrarPrecioCliente: true,
       mostrarVariantes: false,
