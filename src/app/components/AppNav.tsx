@@ -38,6 +38,16 @@ export default function AppNav() {
       >
         Comparativa
       </Link>
+      <Link
+        href="/cliente"
+        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          path === "/cliente"
+            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+            : "text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10"
+        }`}
+      >
+        Cliente
+      </Link>
     </nav>
   );
 }

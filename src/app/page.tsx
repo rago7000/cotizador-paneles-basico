@@ -129,6 +129,52 @@ export default function Home() {
     }));
   }, [convexCotizaciones, convexCargarCotizacion]);
 
+  // ── Client history: exact + fuzzy name matches ───────────────────────────
+  const clienteHistorial = useMemo(() => {
+    const clienteNombre = reciboCFE?.nombre?.trim();
+    if (!clienteNombre || convexCotizaciones.length === 0) return null;
+
+    // Normalize: lowercase, remove accents, split into sorted tokens
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const tokens = (s: string) => normalize(s).split(/\s+/).filter(Boolean).sort();
+
+    const clienteNorm = normalize(clienteNombre);
+    const clienteTokens = tokens(clienteNombre);
+
+    const exactas: { nombre: string; fecha: string }[] = [];
+    const similares: { nombre: string; fecha: string; razon: string }[] = [];
+
+    for (const c of convexCotizaciones) {
+      const nombre = c.nombre?.trim();
+      if (!nombre) continue;
+      const norm = normalize(nombre);
+
+      // Exact match (case/accent insensitive)
+      if (norm === clienteNorm) {
+        exactas.push({ nombre, fecha: c.fecha ?? "" });
+        continue;
+      }
+
+      // Token-based matching: same words in different order
+      const cTokens = tokens(nombre);
+      const shared = clienteTokens.filter((t) => cTokens.includes(t));
+      const minLen = Math.min(clienteTokens.length, cTokens.length);
+      if (minLen >= 2 && shared.length >= minLen) {
+        similares.push({ nombre, fecha: c.fecha ?? "", razon: "mismo nombre, diferente orden" });
+        continue;
+      }
+
+      // Partial overlap: most tokens match (for typos or extra words)
+      if (minLen >= 2 && shared.length >= minLen - 1 && shared.length >= 2) {
+        similares.push({ nombre, fecha: c.fecha ?? "", razon: "nombre similar" });
+      }
+    }
+
+    if (exactas.length === 0 && similares.length === 0) return null;
+    return { exactas, similares };
+  }, [reciboCFE?.nombre, convexCotizaciones]);
+
   const catalogoPaneles = useMemo<CatalogoPanel[]>(() => {
     return convexPaneles
       .map((p) => {
@@ -884,6 +930,8 @@ export default function Home() {
               minisplitKwhMesProm={minisplitKwhMesProm}
               consumoConIncremento={consumoConIncremento}
               historicoFiltrado={historicoFiltrado}
+              clienteHistorial={clienteHistorial}
+              onCargarCotizacion={handleCargar}
             />
 
             {/* 1. Paneles */}

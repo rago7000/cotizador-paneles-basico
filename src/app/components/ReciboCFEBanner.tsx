@@ -59,6 +59,13 @@ export interface ReciboCFEBannerProps {
   minisplitKwhMesProm: number;
   consumoConIncremento: number;
   historicoFiltrado: { periodo: string; kwh: number; importe: number }[];
+  /** Client history: exact and fuzzy matches from saved cotizaciones */
+  clienteHistorial?: {
+    exactas: { nombre: string; fecha: string }[];
+    similares: { nombre: string; fecha: string; razon: string }[];
+  } | null;
+  /** Load a saved cotización by name */
+  onCargarCotizacion?: (nombre: string) => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -103,6 +110,8 @@ export default function ReciboCFEBanner({
   minisplitKwhMesProm,
   consumoConIncremento,
   historicoFiltrado,
+  clienteHistorial,
+  onCargarCotizacion,
 }: ReciboCFEBannerProps) {
   const [showChart, setShowChart] = useState(false);
   const [showFormula, setShowFormula] = useState<"promedio" | "equilibrada" | "maxima" | null>(null);
@@ -165,6 +174,66 @@ export default function ReciboCFEBanner({
             <div className="text-xs text-zinc-600 mt-0.5">MXN con IVA</div>
           </div>
         </div>
+
+        {/* ── Client history: existing cotizaciones for this client ── */}
+        {clienteHistorial && (
+          <div className="mx-5 mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 space-y-2">
+            {clienteHistorial.exactas.length > 0 && (
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-xs text-amber-300 font-medium">
+                    Este cliente tiene {clienteHistorial.exactas.length} cotización{clienteHistorial.exactas.length > 1 ? "es" : ""} guardada{clienteHistorial.exactas.length > 1 ? "s" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {clienteHistorial.exactas.map((c) => (
+                      <button
+                        key={c.nombre + c.fecha}
+                        onClick={() => onCargarCotizacion?.(c.nombre)}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 px-2.5 py-1 text-xs text-amber-200 transition-colors"
+                        title={`Cargar cotización: ${c.nombre}`}
+                      >
+                        <span className="truncate max-w-40">{c.nombre}</span>
+                        {c.fecha && (
+                          <span className="text-amber-400/50 shrink-0">
+                            {new Date(c.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {clienteHistorial.similares.length > 0 && (
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-xs text-zinc-400">
+                    Nombres similares encontrados:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {clienteHistorial.similares.map((c) => (
+                      <button
+                        key={c.nombre + c.fecha}
+                        onClick={() => onCargarCotizacion?.(c.nombre)}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition-colors"
+                        title={`${c.razon} — Cargar: ${c.nombre}`}
+                      >
+                        <span className="truncate max-w-40">{c.nombre}</span>
+                        <span className="text-zinc-600 shrink-0">({c.razon})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Expandable detail ──────────────────────────────────────── */}
         {reciboDetalle && (
