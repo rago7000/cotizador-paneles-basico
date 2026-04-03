@@ -1046,6 +1046,7 @@ export default function Home() {
               onVerPDFVariante={handleVerPDFVariante}
               panelRecommendations={panelRecommendations}
               panelSeleccionado={panelSeleccionado}
+              defaultPanel={defaultPanelCatalogo}
               onSelectPanel={handleSelectPanelById}
               onApplyProposal={handleApplyProposal}
               cantidadMicros={cantidadMicros}

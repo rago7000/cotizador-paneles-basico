@@ -73,6 +73,7 @@ export interface PrecioClienteWidgetProps {
   // Quick controls
   panelRecommendations: PanelRecommendations | null;
   panelSeleccionado: CatalogoPanel | null;
+  defaultPanel: CatalogoPanel | null;
   onSelectPanel: (id: string) => void;
   onApplyProposal: (cantidad: number) => void;
   cantidadMicros: number;
@@ -221,6 +222,7 @@ export default function PrecioClienteWidget({
   onVerPDFVariante,
   panelRecommendations,
   panelSeleccionado,
+  defaultPanel,
   onSelectPanel,
   onApplyProposal,
   cantidadMicros,
@@ -408,6 +410,18 @@ export default function PrecioClienteWidget({
                           <div>
                             <p className="text-[9px] text-cyan-400 font-semibold leading-none">Mejor pallet</p>
                             <p className="text-[9px] text-zinc-500">{panelRecommendations.mejorPallet.marca} {panelRecommendations.mejorPallet.potencia}W</p>
+                          </div>
+                        </button>
+                      )}
+                      {defaultPanel && panelSeleccionado?.id !== defaultPanel.id && (
+                        <button
+                          onClick={() => onSelectPanel(defaultPanel.id)}
+                          className="flex items-center gap-1 rounded-md border border-zinc-700/60 bg-zinc-800/40 hover:border-violet-400/30 px-2 py-1 transition-all text-left"
+                        >
+                          <span className="text-[9px]">{"\u2302"}</span>
+                          <div>
+                            <p className="text-[9px] text-violet-400 font-semibold leading-none">Default</p>
+                            <p className="text-[9px] text-zinc-500">{defaultPanel.marca} {defaultPanel.potencia}W</p>
                           </div>
                         </button>
                       )}
