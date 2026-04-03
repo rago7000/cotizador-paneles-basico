@@ -793,7 +793,7 @@ export default function Home() {
           )}
 
           <button
-            onClick={() => { setCollapseAllCounter((c) => c + 1); set("mostrarPrecioCliente", false); }}
+            onClick={() => { setCollapseAllCounter((c) => c + 1); set("mostrarPrecioCliente", false); set("reciboDetalle", false); }}
             title="Ocultar todo"
             className="shrink-0 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
