@@ -421,6 +421,7 @@ export default function Home() {
   // ── Auto-proposals after first recibo ───────────────────────────────────
   const autoProposalPhase = useRef<"idle" | "save-base" | "save-opt">("idle");
   const basePortPanelRef = useRef(0);
+  const basePanelCountRef = useRef(0);
 
   useEffect(() => {
     if (autoProposalPhase.current === "idle") return;
@@ -430,6 +431,7 @@ export default function Home() {
       // Save current config as base proposal
       const base = buildVariantSnapshot("Propuesta Base");
       basePortPanelRef.current = base.precios.porPanel;
+      basePanelCountRef.current = cantidadNum;
       convexGuardarCotizacionCliente({
         cotizacionBase: base.cotizacionBase, nombre: base.nombre, fecha: base.fecha, data: base,
       });
@@ -454,6 +456,8 @@ export default function Home() {
         cotizacionBase: opt.cotizacionBase, nombre: opt.nombre, fecha: opt.fecha, data: opt,
       });
       autoProposalPhase.current = "idle";
+      // Restore to base panel count so the main view shows the default config
+      handleApplyProposal(basePanelCountRef.current);
       set("mostrarVariantes", true);
       set("mostrarPrecioCliente", true);
     }
