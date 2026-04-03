@@ -793,11 +793,12 @@ export default function Home() {
           )}
 
           <button
-            onClick={() => setCollapseAllCounter((c) => c + 1)}
+            onClick={() => { setCollapseAllCounter((c) => c + 1); set("mostrarPrecioCliente", false); }}
             title="Ocultar todo"
             className="shrink-0 flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+            <span className="hidden sm:inline">Ocultar</span>
           </button>
 
           <button onClick={handleGuardar} className="shrink-0 flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-300 transition-colors">
@@ -817,10 +818,10 @@ export default function Home() {
 
       {/* ── Main layout ──────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+        <CollapseAllContext.Provider value={collapseAllCounter}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
 
           {/* ── LEFT: Form sections ──────────────────────────────────────── */}
-          <CollapseAllContext.Provider value={collapseAllCounter}>
           <div className="space-y-4 min-w-0">
 
             {/* CFE Recibo */}
@@ -968,7 +969,6 @@ export default function Home() {
               partidaMXN={partidaGeneralesMXN}
             />
           </div>
-          </CollapseAllContext.Provider>
 
           {/* ── RIGHT: Sidebar ───────────────────────────────────────────── */}
           <div className="space-y-4">
@@ -1104,6 +1104,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        </CollapseAllContext.Provider>
 
         {/* ── Comparador de variantes ──────────────────────────────── */}
         {mostrarComparador && variantes.length >= 2 && (

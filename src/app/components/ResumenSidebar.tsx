@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { fmt, PartidaRow } from "../components/primitives";
+import { useState, useEffect, useRef, useContext } from "react";
+import { fmt, PartidaRow, CollapseAllContext } from "../components/primitives";
 import type { CatalogoPanel, CatalogoMicro } from "../lib/types";
 
 interface ResumenSidebarProps {
@@ -43,6 +43,7 @@ export default function ResumenSidebar({
 }: ResumenSidebarProps) {
   const [expanded, setExpanded] = useState(cantidadNum > 0);
   const prevCantidad = useRef(cantidadNum);
+  const collapseAll = useContext(CollapseAllContext);
 
   // Auto-open when panels go from 0 → N
   useEffect(() => {
@@ -51,6 +52,11 @@ export default function ResumenSidebar({
     }
     prevCantidad.current = cantidadNum;
   }, [cantidadNum]);
+
+  // Collapse all
+  useEffect(() => {
+    if (collapseAll > 0) setExpanded(false);
+  }, [collapseAll]);
 
   const capacidadTotal = cantidadMicros * panelesPorMicro;
   const espaciosLibres = capacidadTotal - cantidadNum;
