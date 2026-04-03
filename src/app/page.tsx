@@ -397,6 +397,13 @@ export default function Home() {
     }
   }, [catalogoPaneles, convexPaneles, precioPorWatt]);
 
+  // ── Default panel from catalog (for quick-switch tag) ──
+  const defaultPanelCatalogo = useMemo(() => {
+    const dp = convexPaneles.find((p) => p.esDefault);
+    if (!dp) return null;
+    return catalogoPaneles.find((cp) => cp.id === `v2_${dp._id}`) ?? null;
+  }, [convexPaneles, catalogoPaneles]);
+
   // ── Build variant snapshot helper ─────────────────────────────────────────
   const buildVariantSnapshot = (nombre: string): CotizacionCliente => ({
     id: uid(), cotizacionBase: nombreCotizacion || "Auto", nombre,
@@ -862,6 +869,7 @@ export default function Home() {
               onClearSeleccion={() => { set("panelSeleccionado", null); set("sugerirGuardarPanel", true); }}
               onSelectPanel={handleSelectPanelById}
               recommendations={panelRecommendations}
+              defaultPanel={defaultPanelCatalogo}
               cantidad={cantidad} potencia={potencia} precioPorWatt={precioPorWatt}
               fletePaneles={fletePaneles} garantiaPaneles={garantiaPaneles}
               tcCustomPaneles={tcCustomPaneles}

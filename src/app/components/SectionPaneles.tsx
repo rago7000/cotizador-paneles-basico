@@ -20,6 +20,7 @@ export interface SectionPanelesProps {
 
   // Recommendations
   recommendations: PanelRecommendations | null;
+  defaultPanel: CatalogoPanel | null;
 
   // Field values
   cantidad: string;
@@ -64,6 +65,7 @@ export default function SectionPaneles({
   onClearSeleccion,
   onSelectPanel,
   recommendations,
+  defaultPanel,
   cantidad,
   potencia,
   precioPorWatt,
@@ -180,6 +182,43 @@ export default function SectionPaneles({
               </div>
             </button>
           )}
+
+          {defaultPanel && panelSeleccionado?.id !== defaultPanel.id && (
+            <button
+              onClick={() => onSelectPanel(defaultPanel.id)}
+              className="group flex items-center gap-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:border-violet-400/30 hover:bg-violet-400/5 px-2.5 py-1.5 transition-all text-left"
+            >
+              <span className="text-[10px] leading-none">{"\u2302"}</span>
+              <div className="min-w-0">
+                <p className="text-[10px] text-violet-400 font-semibold leading-tight">Default</p>
+                <p className="text-[10px] text-zinc-500 leading-tight truncate">
+                  {defaultPanel.marca} {defaultPanel.potencia}W
+                  <span className="text-zinc-600"> · </span>
+                  <span className="font-mono text-violet-400/70">${fmtUSD3(defaultPanel.precioPorWatt)}/W</span>
+                </p>
+              </div>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Default panel tag (standalone, when no recommendations) */}
+      {!recommendations && defaultPanel && panelSeleccionado?.id !== defaultPanel.id && (
+        <div className="flex flex-wrap gap-1.5 -mt-0.5 mb-1">
+          <button
+            onClick={() => onSelectPanel(defaultPanel.id)}
+            className="group flex items-center gap-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:border-violet-400/30 hover:bg-violet-400/5 px-2.5 py-1.5 transition-all text-left"
+          >
+            <span className="text-[10px] leading-none">{"\u2302"}</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-violet-400 font-semibold leading-tight">Default</p>
+              <p className="text-[10px] text-zinc-500 leading-tight truncate">
+                {defaultPanel.marca} {defaultPanel.potencia}W
+                <span className="text-zinc-600"> · </span>
+                <span className="font-mono text-violet-400/70">${fmtUSD3(defaultPanel.precioPorWatt)}/W</span>
+              </p>
+            </div>
+          </button>
         </div>
       )}
 
