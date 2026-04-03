@@ -943,6 +943,12 @@ export default function Home() {
               onEliminarVariante={handleEliminarVariante}
               onCargarVariante={handleCargarVariante}
               onVerPDFVariante={handleVerPDFVariante}
+              panelRecommendations={panelRecommendations}
+              panelSeleccionado={panelSeleccionado}
+              onSelectPanel={handleSelectPanelById}
+              onApplyProposal={handleApplyProposal}
+              cantidadMicros={cantidadMicros}
+              panelesPorMicro={panelesPorMicro}
             />
 
             {/* PDF Buttons — open in new window */}

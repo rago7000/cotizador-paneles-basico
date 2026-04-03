@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { fmt } from "../components/primitives";
-import type { UtilidadConfig, CotizacionCliente } from "../lib/types";
+import type { UtilidadConfig, CotizacionCliente, CatalogoPanel } from "../lib/types";
+import type { PanelRecommendations } from "../lib/auto-select-panel";
 
 export interface PrecioClienteWidgetProps {
   mostrarPrecioCliente: boolean;
@@ -67,6 +69,14 @@ export interface PrecioClienteWidgetProps {
   onEliminarVariante: (id: string) => void;
   onCargarVariante: (v: CotizacionCliente) => void;
   onVerPDFVariante: (v: CotizacionCliente, tipo: "cliente" | "costos") => void;
+
+  // Quick controls
+  panelRecommendations: PanelRecommendations | null;
+  panelSeleccionado: CatalogoPanel | null;
+  onSelectPanel: (id: string) => void;
+  onApplyProposal: (cantidad: number) => void;
+  cantidadMicros: number;
+  panelesPorMicro: number;
 }
 
 /* ── Conversion helpers ───────────────────────────────────────────── */
@@ -200,8 +210,22 @@ export default function PrecioClienteWidget({
   onEliminarVariante,
   onCargarVariante,
   onVerPDFVariante,
+  panelRecommendations,
+  panelSeleccionado,
+  onSelectPanel,
+  onApplyProposal,
+  cantidadMicros,
+  panelesPorMicro,
 }: PrecioClienteWidgetProps) {
+  const [showQuickControls, setShowQuickControls] = useState(false);
+  const [cantidadInput, setCantidadInput] = useState("");
+
   if (subtotalMXN <= 0) return null;
+
+  // Inverter optimization
+  const capacidadTotal = cantidadMicros * panelesPorMicro;
+  const espaciosLibres = capacidadTotal - cantidadNum;
+  const infrautilizado = cantidadNum > 0 && espaciosLibres > 0;
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
@@ -253,6 +277,131 @@ export default function PrecioClienteWidget({
               </div>
             );
           })()}
+
+          {/* Quick controls (collapsible) */}
+          <div className="border-b border-zinc-800">
+            <button
+              onClick={() => setShowQuickControls(!showQuickControls)}
+              className="w-full flex items-center justify-between px-4 py-2 hover:bg-zinc-800/30 transition-colors"
+            >
+              <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wide">
+                Ajuste rápido
+              </span>
+              <span className="text-[10px] text-zinc-600">{showQuickControls ? "\u25B2" : "\u25BC"}</span>
+            </button>
+
+            {showQuickControls && (
+              <div className="px-4 pb-3 space-y-3">
+                {/* Panel recommendations */}
+                {panelRecommendations && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Panel</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {panelRecommendations.mejorUnitario && (
+                        <button
+                          onClick={() => onSelectPanel(panelRecommendations.mejorUnitario!.id)}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 transition-all text-left ${
+                            panelSeleccionado?.id === panelRecommendations.mejorUnitario.id
+                              ? "border-emerald-400/50 bg-emerald-400/10" : "border-zinc-700/60 bg-zinc-800/40 hover:border-emerald-400/30"
+                          }`}
+                        >
+                          <span className="text-[9px]">{panelSeleccionado?.id === panelRecommendations.mejorUnitario.id ? "\u2713" : "\u26A1"}</span>
+                          <div>
+                            <p className="text-[9px] text-emerald-400 font-semibold leading-none">Mejor $/W</p>
+                            <p className="text-[9px] text-zinc-500">{panelRecommendations.mejorUnitario.marca} {panelRecommendations.mejorUnitario.potencia}W</p>
+                          </div>
+                        </button>
+                      )}
+                      {panelRecommendations.mejorCostoBeneficio && panelRecommendations.mejorCostoBeneficio.id !== panelRecommendations.mejorUnitario?.id && (
+                        <button
+                          onClick={() => onSelectPanel(panelRecommendations.mejorCostoBeneficio!.id)}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 transition-all text-left ${
+                            panelSeleccionado?.id === panelRecommendations.mejorCostoBeneficio.id
+                              ? "border-amber-400/50 bg-amber-400/10" : "border-zinc-700/60 bg-zinc-800/40 hover:border-amber-400/30"
+                          }`}
+                        >
+                          <span className="text-[9px]">{panelSeleccionado?.id === panelRecommendations.mejorCostoBeneficio.id ? "\u2713" : "\u2B50"}</span>
+                          <div>
+                            <p className="text-[9px] text-amber-400 font-semibold leading-none">Costo-beneficio</p>
+                            <p className="text-[9px] text-zinc-500">{panelRecommendations.mejorCostoBeneficio.marca} {panelRecommendations.mejorCostoBeneficio.potencia}W</p>
+                          </div>
+                        </button>
+                      )}
+                      {panelRecommendations.mejorPallet && (
+                        <button
+                          onClick={() => onSelectPanel(panelRecommendations.mejorPallet!.id)}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 transition-all text-left ${
+                            panelSeleccionado?.id === panelRecommendations.mejorPallet.id
+                              ? "border-cyan-400/50 bg-cyan-400/10" : "border-zinc-700/60 bg-zinc-800/40 hover:border-cyan-400/30"
+                          }`}
+                        >
+                          <span className="text-[9px]">{panelSeleccionado?.id === panelRecommendations.mejorPallet.id ? "\u2713" : "\uD83D\uDCE6"}</span>
+                          <div>
+                            <p className="text-[9px] text-cyan-400 font-semibold leading-none">Mejor pallet</p>
+                            <p className="text-[9px] text-zinc-500">{panelRecommendations.mejorPallet.marca} {panelRecommendations.mejorPallet.potencia}W</p>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual quantity + apply */}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Cantidad de paneles</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-400 font-mono">{cantidadNum} paneles</span>
+                    <span className="text-[10px] text-zinc-600">→</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={cantidadInput}
+                      onChange={(e) => setCantidadInput(e.target.value)}
+                      placeholder={String(cantidadNum)}
+                      className="w-16 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 text-right font-mono outline-none focus:border-amber-400 placeholder-zinc-600"
+                    />
+                    <button
+                      onClick={() => {
+                        const n = Number(cantidadInput);
+                        if (n > 0) { onApplyProposal(n); setCantidadInput(""); }
+                      }}
+                      disabled={!cantidadInput || Number(cantidadInput) <= 0}
+                      className="text-[10px] px-2 py-1 rounded-md border border-amber-400/30 text-amber-400 hover:bg-amber-400/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inverter optimization */}
+                {infrautilizado && (
+                  <div className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2">
+                    <p className="text-[10px] text-amber-400 font-medium">Inversor infrautilizado</p>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">
+                      {cantidadMicros} inv. × {panelesPorMicro} = {capacidadTotal} paneles.{" "}
+                      <span className="text-amber-400/80">{espaciosLibres} libre{espaciosLibres > 1 ? "s" : ""}.</span>
+                    </p>
+                    <div className="flex gap-1.5 mt-1.5">
+                      {espaciosLibres > 1 && (
+                        <button
+                          onClick={() => onApplyProposal(cantidadNum + 1)}
+                          className="text-[10px] px-2 py-0.5 rounded-md border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+                        >
+                          +1 → {cantidadNum + 1}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onApplyProposal(capacidadTotal)}
+                        className="text-[10px] px-2 py-0.5 rounded-md border border-amber-400/30 text-amber-400 hover:bg-amber-400/10 transition-colors font-medium"
+                      >
+                        Llenar → {capacidadTotal}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Tipo de utilidad */}
           <div className="px-4 py-3 border-b border-zinc-800 space-y-3">
