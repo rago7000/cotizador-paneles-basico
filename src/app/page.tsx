@@ -538,7 +538,14 @@ export default function Home() {
   };
 
   const handleEliminarVariante = async (id: string) => { await convexEliminarCotizacionCliente(id); };
-  const handleCargarVariante = (v: CotizacionCliente) => { setMany({ utilidad: v.utilidad, mostrarPrecioCliente: true }); };
+  const handleCargarVariante = (v: CotizacionCliente) => {
+    setMany({
+      utilidad: v.utilidad,
+      mostrarPrecioCliente: true,
+      mostrarVariantes: false,
+      nombreVariante: v.nombre,
+    });
+  };
   const handleEliminar = async (nombre: string) => { await convexEliminarCotizacion(nombre); };
 
   const updateAluminio = (i: number, f: keyof AluminioItem, v: string) => updateLineItem("aluminio", i, f, v);
