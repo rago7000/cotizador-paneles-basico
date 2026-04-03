@@ -395,6 +395,69 @@ export default function Home() {
     }
   }, [catalogoPaneles, convexPaneles, precioPorWatt]);
 
+  // ── Build variant snapshot helper ─────────────────────────────────────────
+  const buildVariantSnapshot = (nombre: string): CotizacionCliente => ({
+    id: uid(), cotizacionBase: nombreCotizacion || "Auto", nombre,
+    fecha: new Date().toISOString(), utilidad: { ...utilidad },
+    costos: {
+      paneles: partidaPanelesMXN, inversores: partidaInversoresMXN,
+      estructura: partidaEstructuraMXN, tornilleria: partidaTornilleriaMXN,
+      generales: partidaGeneralesMXN, subtotal: subtotalMXN, iva: ivaMXN,
+      total: totalMXN, cantidadPaneles: cantidadNum, potenciaW: potenciaNum,
+    },
+    precios: {
+      paneles: clientePanelesMXN, inversores: clienteInversoresMXN,
+      estructura: clienteEstructuraMXN, tornilleria: clienteTornilleriaMXN,
+      generales: clienteGeneralesMXN, montoFijo: utilidad.montoFijo,
+      subtotal: clienteSubtotalMXN, iva: clienteIvaMXN, total: clienteTotalMXN,
+      porPanel: clientePorPanel, porWatt: clientePorWatt,
+      utilidadNeta: utilidadNetaMXN, utilidadPct: utilidadNetaPct,
+    },
+    notas: "", vigenciaDias: 15,
+  });
+
+  // ── Auto-proposals after first recibo ───────────────────────────────────
+  const autoProposalPhase = useRef<"idle" | "save-base" | "save-opt">("idle");
+  const basePortPanelRef = useRef(0);
+
+  useEffect(() => {
+    if (autoProposalPhase.current === "idle") return;
+    if (subtotalMXN <= 0 || !nombreCotizacion.trim()) return;
+
+    if (autoProposalPhase.current === "save-base") {
+      // Save current config as base proposal
+      const base = buildVariantSnapshot("Propuesta Base");
+      basePortPanelRef.current = base.precios.porPanel;
+      convexGuardarCotizacionCliente({
+        cotizacionBase: base.cotizacionBase, nombre: base.nombre, fecha: base.fecha, data: base,
+      });
+
+      // Check if inverter is underutilized → apply optimized
+      const cap = cantidadMicros * panelesPorMicro;
+      if (cantidadNum > 0 && cap > cantidadNum) {
+        autoProposalPhase.current = "save-opt";
+        handleApplyProposal(cap);
+      } else {
+        autoProposalPhase.current = "idle";
+        set("mostrarVariantes", true);
+      }
+    } else if (autoProposalPhase.current === "save-opt") {
+      const opt = buildVariantSnapshot("Propuesta Optimizada");
+      // Add discount info comparing to base price per panel
+      if (basePortPanelRef.current > 0) {
+        const descuento = ((basePortPanelRef.current - opt.precios.porPanel) / basePortPanelRef.current * 100).toFixed(0);
+        opt.notas = `Descuento: -${descuento}% por panel vs Base ($${fmt(basePortPanelRef.current)} → $${fmt(opt.precios.porPanel)})`;
+      }
+      convexGuardarCotizacionCliente({
+        cotizacionBase: opt.cotizacionBase, nombre: opt.nombre, fecha: opt.fecha, data: opt,
+      });
+      autoProposalPhase.current = "idle";
+      set("mostrarVariantes", true);
+      set("mostrarPrecioCliente", true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotalMXN, cantidadNum]);
+
   // ── Apply proposal cascade (Step 6) ──────────────────────────────────────
   const handleApplyProposal = (cantidadPaneles: number) => {
     const updates: Record<string, unknown> = { cantidad: String(cantidadPaneles) };
@@ -617,6 +680,7 @@ export default function Home() {
       const panelsP75 = cP75 > 0 ? Math.ceil((cP75 / GEN * 1000) / pw) : 0;
       if (panelsP75 > 0) {
         // Use setTimeout(0) so the state from set("reciboCFE") is committed first
+        autoProposalPhase.current = variantes.length === 0 ? "save-base" : "idle";
         setTimeout(() => handleApplyProposal(panelsP75), 0);
       }
     } catch (err: unknown) {
