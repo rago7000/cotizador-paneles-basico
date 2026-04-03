@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import type { LineItem } from "../lib/types";
+
+/** Increment this counter to force-collapse all SectionCards */
+export const CollapseAllContext = createContext(0);
 
 export const fmt = (n: number) =>
   n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -29,6 +32,10 @@ export function SectionCard({
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const collapseAll = useContext(CollapseAllContext);
+  useEffect(() => {
+    if (collapseAll > 0) setCollapsed(true);
+  }, [collapseAll]);
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
       <button
