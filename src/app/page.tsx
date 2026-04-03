@@ -106,7 +106,7 @@ export default function Home() {
     tornilleria, generales,
     tc, tcError, tcFrozen, tcManual, tcSnapshotLocal, tcUsarManana,
     tcCustomPaneles, tcCustomMicros,
-    nombreCotizacion, mostrarGuardadas, mostrarPDF, msgGuardado,
+    cotizacionId, nombreCotizacion, mostrarGuardadas, mostrarPDF, msgGuardado,
     pickerPanel, pickerMicro, pickerSearch, pickerMarca, pickerOrden,
     sugerirGuardarPanel, sugerirGuardarMicro,
     panelSeleccionado, microSeleccionado,
@@ -168,7 +168,7 @@ export default function Home() {
 
   const rawVariantes = useQuery(
     api.cotizaciones.listCliente,
-    nombreCotizacion.trim() ? { cotizacionBase: nombreCotizacion.trim() } : "skip"
+    cotizacionId ? { cotizacionBase: cotizacionId } : "skip"
   );
   const variantes = useMemo<CotizacionCliente[]>(() => {
     if (!rawVariantes) return [];
@@ -407,7 +407,7 @@ export default function Home() {
 
   // ── Build variant snapshot helper ─────────────────────────────────────────
   const buildVariantSnapshot = (nombre: string): CotizacionCliente => ({
-    id: uid(), cotizacionBase: nombreCotizacion || "Auto", nombre,
+    id: uid(), cotizacionBase: cotizacionId, nombre,
     fecha: new Date().toISOString(), utilidad: { ...utilidad },
     costos: {
       paneles: partidaPanelesMXN, inversores: partidaInversoresMXN,

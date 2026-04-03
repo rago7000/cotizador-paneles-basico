@@ -19,6 +19,7 @@ export interface TipoCambioData {
 
 export interface CotizacionData {
   nombre: string;
+  cotizacionId?: string;  // unique ID per quotation — variants are keyed by this
   fecha: string;
   // Tipos de cambio personalizados (vacío = usar DOF global)
   tcCustomPaneles: string;

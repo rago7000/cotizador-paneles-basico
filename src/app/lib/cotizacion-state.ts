@@ -92,6 +92,7 @@ export interface CotizacionState {
   tcCustomMicros: string;
 
   // ── Cotización meta ──
+  cotizacionId: string;
   nombreCotizacion: string;
   mostrarGuardadas: boolean;
   mostrarPDF: boolean;
@@ -206,6 +207,7 @@ export const INITIAL_STATE: CotizacionState = {
   tcCustomPaneles: "",
   tcCustomMicros: "",
   // Cotización meta
+  cotizacionId: uid(),
   nombreCotizacion: "",
   mostrarGuardadas: false,
   mostrarPDF: false,
@@ -306,6 +308,7 @@ export function cotizacionReducer(
         tcFrozen: d.tcFrozen ?? false,
         tcSnapshotLocal: d.tcSnapshot ?? "",
         // Cotización meta
+        cotizacionId: d.cotizacionId || uid(),
         nombreCotizacion: d.nombre ?? "",
         // Recibo CFE
         reciboCFE: d.reciboCFE ?? null,
@@ -371,6 +374,7 @@ export function stateToFormData(state: CotizacionState): CotizacionData {
 
   return {
     nombre: state.nombreCotizacion,
+    cotizacionId: state.cotizacionId,
     fecha: new Date().toISOString(),
     tcCustomPaneles: state.tcCustomPaneles,
     tcCustomMicros: state.tcCustomMicros,
