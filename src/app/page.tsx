@@ -428,6 +428,11 @@ export default function Home() {
     if (subtotalMXN <= 0 || !nombreCotizacion.trim()) return;
 
     if (autoProposalPhase.current === "save-base") {
+      // Guard: skip if proposals already exist
+      if (variantes.some((v) => v.nombre === "Propuesta Base")) {
+        autoProposalPhase.current = "idle";
+        return;
+      }
       // Save current config as base proposal
       const base = buildVariantSnapshot("Propuesta Base");
       basePortPanelRef.current = base.precios.porPanel;
@@ -690,7 +695,11 @@ export default function Home() {
       const panelsP75 = cP75 > 0 ? Math.ceil((cP75 / GEN * 1000) / pw) : 0;
       if (panelsP75 > 0) {
         // Use setTimeout(0) so the state from set("reciboCFE") is committed first
-        autoProposalPhase.current = variantes.length === 0 ? "save-base" : "idle";
+        if (variantes.length === 0) {
+          autoProposalPhase.current = "save-base";
+          // Force Equilibrado strategy (80%) for auto-proposals
+          set("utilidad", { ...UTILIDAD_DEFAULT });
+        }
         setTimeout(() => handleApplyProposal(panelsP75), 0);
       }
     } catch (err: unknown) {
