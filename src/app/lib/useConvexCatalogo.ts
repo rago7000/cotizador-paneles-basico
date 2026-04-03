@@ -27,6 +27,7 @@ export interface ProductoPanel {
   modelo: string;
   potencia: number;
   aliases?: string[];
+  esDefault?: boolean;
 }
 
 export interface ProductoMicro {
@@ -112,6 +113,7 @@ export function useConvexCatalogo() {
   const removeProveedorMut = useMutation(api.proveedores.remove);
   const savePanelMut = useMutation(api.productos.savePanel);
   const removePanelMut = useMutation(api.productos.removePanel);
+  const setDefaultPanelMut = useMutation(api.productos.setDefaultPanel);
   const saveMicroMut = useMutation(api.productos.saveMicro);
   const removeMicroMut = useMutation(api.productos.removeMicro);
   const saveGeneralMut = useMutation(api.productos.saveGeneral);
@@ -165,6 +167,9 @@ export function useConvexCatalogo() {
     },
     eliminarProductoPanel: async (id: string) => {
       await removePanelMut({ id: id as Id<"productosPaneles"> });
+    },
+    setDefaultPanel: async (id: string) => {
+      await setDefaultPanelMut({ id: id as Id<"productosPaneles"> });
     },
 
     guardarProductoMicro: async (p: { id?: string; marca: string; modelo: string; panelesPorUnidad: number; aliases?: string[] }) => {

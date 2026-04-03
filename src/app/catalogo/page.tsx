@@ -469,6 +469,7 @@ function TabProductos({
 
   const handleSavePanel = async (p: { id?: string; marca: string; modelo: string; potencia: number; aliases?: string[] }) => { await ctx.guardarProductoPanel(p); setAddingPanel(false); setEditingPanel(null); };
   const handleDeletePanel = async (id: string) => { await ctx.eliminarProductoPanel(id); };
+  const handleSetDefaultPanel = async (id: string) => { await ctx.setDefaultPanel(id); };
   const handleSaveMicro = async (m: { id?: string; marca: string; modelo: string; panelesPorUnidad: number; aliases?: string[] }) => { await ctx.guardarProductoMicro(m); setAddingMicro(false); setEditingMicro(null); };
   const handleDeleteMicro = async (id: string) => { await ctx.eliminarProductoMicro(id); };
 
@@ -552,7 +553,7 @@ function TabProductos({
 
           {!addingPanel && !editingPanel && panelesFiltrados.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 overflow-hidden">
-              <div className="hidden sm:grid grid-cols-[1fr_80px_120px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[1fr_80px_120px_72px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
                 <span>Panel</span>
                 <span className="text-right">Potencia</span>
                 <span className="text-right">Mejor precio</span>
@@ -560,13 +561,21 @@ function TabProductos({
               </div>
               {panelesFiltrados.map((p, i) => {
                 const best = mejorOferta(p.id, ofertas);
+                const isDefault = !!(p as unknown as { esDefault?: boolean }).esDefault;
                 return (
                   <div
                     key={p.id}
-                    className={`flex sm:grid sm:grid-cols-[1fr_80px_120px_36px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""}`}
+                    className={`flex sm:grid sm:grid-cols-[1fr_80px_120px_72px] gap-3 items-start sm:items-center px-5 py-4 hover:bg-zinc-800/30 transition-colors ${i > 0 ? "border-t border-zinc-800/60" : ""} ${isDefault ? "bg-amber-400/5" : ""}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-100 truncate">{p.marca} — {p.modelo}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-zinc-100 truncate">{p.marca} — {p.modelo}</p>
+                        {isDefault && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/15 border border-amber-400/25 text-amber-400 font-semibold shrink-0">
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-zinc-500">
                           {ofertasPorProducto(p.id, ofertas).length} oferta{ofertasPorProducto(p.id, ofertas).length !== 1 ? "s" : ""}
@@ -594,6 +603,13 @@ function TabProductos({
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0 sm:justify-end">
+                      <button
+                        onClick={() => handleSetDefaultPanel(p.id)}
+                        className={`p-1.5 rounded-lg transition-colors ${isDefault ? "text-amber-400" : "text-zinc-700 hover:text-amber-400 hover:bg-amber-400/10"}`}
+                        title={isDefault ? "Panel default" : "Marcar como default"}
+                      >
+                        <svg className="w-4 h-4" fill={isDefault ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                      </button>
                       <button onClick={() => { setEditingPanel(p); setAddingPanel(false); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" title="Editar"><IconEdit /></button>
                       <button onClick={() => handleDeletePanel(p.id)} className="p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar"><IconTrash /></button>
                     </div>

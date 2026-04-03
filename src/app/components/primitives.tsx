@@ -20,7 +20,7 @@ export function SectionCard({
   title,
   badge,
   children,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
 }: {
   num: string;
   title: string;
@@ -192,13 +192,20 @@ export function LineItemTable({
   );
 }
 
-export function PartidaRow({ label, value }: { label: string; value: number }) {
+export function PartidaRow({ label, value, tag }: { label: string; value: number; tag?: string }) {
   const conIva = value * 1.16;
   const isZero = value === 0;
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-zinc-800 last:border-0">
-      <span className={`text-xs font-medium tracking-wide uppercase ${isZero ? "text-zinc-600" : "text-zinc-400"}`}>{label}</span>
-      <div className="text-right">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`text-xs font-medium tracking-wide uppercase shrink-0 ${isZero ? "text-zinc-600" : "text-zinc-400"}`}>{label}</span>
+        {tag && (
+          <span className="text-[10px] text-zinc-500 bg-zinc-800 border border-zinc-700/50 px-1.5 py-0.5 rounded-md font-mono truncate">
+            {tag}
+          </span>
+        )}
+      </div>
+      <div className="text-right shrink-0">
         <span className={`text-sm font-semibold font-mono ${isZero ? "text-zinc-700" : "text-zinc-100"}`}>
           {isZero ? "—" : `$${fmt(conIva)}`}
         </span>

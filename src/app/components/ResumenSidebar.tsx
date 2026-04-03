@@ -57,30 +57,6 @@ export default function ResumenSidebar({
         <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Resumen</h3>
       </div>
 
-      {/* Equipment info */}
-      {(panelSeleccionado || microSeleccionado) && (
-        <div className="px-4 py-2.5 border-b border-zinc-800/60 space-y-2">
-          {panelSeleccionado && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-zinc-500">Paneles</span>
-              <span className="text-[11px] text-zinc-300 font-medium">
-                {cantidadNum > 0 ? <span className="font-mono">{cantidadNum}×</span> : ""}{" "}
-                {panelSeleccionado.marca} {panelSeleccionado.potencia}W
-              </span>
-            </div>
-          )}
-          {microSeleccionado && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-zinc-500">Inversores</span>
-              <span className="text-[11px] text-zinc-300 font-medium">
-                {cantidadMicros > 0 ? <span className="font-mono">{cantidadMicros}×</span> : ""}{" "}
-                {microSeleccionado.marca} {microSeleccionado.modelo}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Inverter underutilization alert */}
       {infrautilizado && (
         <div className="px-4 py-2.5 border-b border-amber-400/15 bg-amber-400/5">
@@ -121,11 +97,18 @@ export default function ResumenSidebar({
         </div>
       )}
 
-      {/* Partidas — always show all, $0 when no panels */}
       {/* Partidas — all show as dash until panels are assigned */}
       <div className="px-4 py-2">
-        <PartidaRow label="Paneles" value={cantidadNum > 0 ? partidaPanelesMXN : 0} />
-        <PartidaRow label="Inversores" value={cantidadNum > 0 ? partidaInversoresMXN : 0} />
+        <PartidaRow
+          label="Paneles"
+          value={cantidadNum > 0 ? partidaPanelesMXN : 0}
+          tag={panelSeleccionado ? `${cantidadNum > 0 ? cantidadNum + "×" : ""}${panelSeleccionado.marca} ${panelSeleccionado.potencia}W` : undefined}
+        />
+        <PartidaRow
+          label="Inversores"
+          value={cantidadNum > 0 ? partidaInversoresMXN : 0}
+          tag={microSeleccionado ? `${cantidadMicros > 0 ? cantidadMicros + "×" : ""}${microSeleccionado.marca} ${microSeleccionado.modelo}` : undefined}
+        />
         <PartidaRow label="Estructura" value={cantidadNum > 0 ? partidaEstructuraMXN : 0} />
         <PartidaRow label="Tornillería" value={cantidadNum > 0 ? partidaTornilleriaMXN : 0} />
         <PartidaRow label="Generales" value={cantidadNum > 0 ? partidaGeneralesMXN : 0} />

@@ -1,6 +1,7 @@
 "use client";
 
 import type { CatalogoPanel } from "../lib/types";
+import type { PanelRecommendations } from "../lib/auto-select-panel";
 import { SectionCard, Field, NumInput, TcCustomRow, SaveToCatalogBanner, fmt } from "./primitives";
 
 const fmtUSD = (n: number) =>
@@ -15,6 +16,10 @@ export interface SectionPanelesProps {
   panelSeleccionado: CatalogoPanel | null;
   onOpenPicker: () => void;
   onClearSeleccion: () => void;
+  onSelectPanel: (panelId: string) => void;
+
+  // Recommendations
+  recommendations: PanelRecommendations | null;
 
   // Field values
   cantidad: string;
@@ -57,6 +62,8 @@ export default function SectionPaneles({
   panelSeleccionado,
   onOpenPicker,
   onClearSeleccion,
+  onSelectPanel,
+  recommendations,
   cantidad,
   potencia,
   precioPorWatt,
@@ -100,6 +107,81 @@ export default function SectionPaneles({
           Del catalogo
         </button>
       </div>
+
+      {/* Recommendation tags */}
+      {recommendations && (
+        <div className="flex flex-wrap gap-1.5 -mt-0.5 mb-1">
+          {recommendations.mejorUnitario && (
+            <button
+              onClick={() => onSelectPanel(recommendations.mejorUnitario!.id)}
+              className={`group flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-all text-left ${
+                panelSeleccionado?.id === recommendations.mejorUnitario.id
+                  ? "border-emerald-400/50 bg-emerald-400/10"
+                  : "border-zinc-700/60 bg-zinc-800/40 hover:border-emerald-400/30 hover:bg-emerald-400/5"
+              }`}
+            >
+              <span className="text-[10px] leading-none">
+                {panelSeleccionado?.id === recommendations.mejorUnitario.id ? "\u2713" : "\u26A1"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] text-emerald-400 font-semibold leading-tight">Mejor $/W</p>
+                <p className="text-[10px] text-zinc-500 leading-tight truncate">
+                  {recommendations.mejorUnitario.marca} {recommendations.mejorUnitario.potencia}W
+                  <span className="text-zinc-600"> · </span>
+                  <span className="font-mono text-emerald-400/70">${fmtUSD3(recommendations.mejorUnitario.precioWatt)}/W</span>
+                </p>
+              </div>
+            </button>
+          )}
+
+          {recommendations.mejorCostoBeneficio &&
+            recommendations.mejorCostoBeneficio.id !== recommendations.mejorUnitario?.id && (
+            <button
+              onClick={() => onSelectPanel(recommendations.mejorCostoBeneficio!.id)}
+              className={`group flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-all text-left ${
+                panelSeleccionado?.id === recommendations.mejorCostoBeneficio.id
+                  ? "border-amber-400/50 bg-amber-400/10"
+                  : "border-zinc-700/60 bg-zinc-800/40 hover:border-amber-400/30 hover:bg-amber-400/5"
+              }`}
+            >
+              <span className="text-[10px] leading-none">
+                {panelSeleccionado?.id === recommendations.mejorCostoBeneficio.id ? "\u2713" : "\u2B50"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] text-amber-400 font-semibold leading-tight">Mejor costo-beneficio</p>
+                <p className="text-[10px] text-zinc-500 leading-tight truncate">
+                  {recommendations.mejorCostoBeneficio.marca} {recommendations.mejorCostoBeneficio.potencia}W
+                  <span className="text-zinc-600"> · </span>
+                  <span className="font-mono text-amber-400/70">{recommendations.mejorCostoBeneficio.detail}</span>
+                </p>
+              </div>
+            </button>
+          )}
+
+          {recommendations.mejorPallet && (
+            <button
+              onClick={() => onSelectPanel(recommendations.mejorPallet!.id)}
+              className={`group flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-all text-left ${
+                panelSeleccionado?.id === recommendations.mejorPallet.id
+                  ? "border-cyan-400/50 bg-cyan-400/10"
+                  : "border-zinc-700/60 bg-zinc-800/40 hover:border-cyan-400/30 hover:bg-cyan-400/5"
+              }`}
+            >
+              <span className="text-[10px] leading-none">
+                {panelSeleccionado?.id === recommendations.mejorPallet.id ? "\u2713" : "\uD83D\uDCE6"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] text-cyan-400 font-semibold leading-tight">Mejor $/W pallet</p>
+                <p className="text-[10px] text-zinc-500 leading-tight truncate">
+                  {recommendations.mejorPallet.marca} {recommendations.mejorPallet.potencia}W
+                  <span className="text-zinc-600"> · </span>
+                  <span className="font-mono text-cyan-400/70">{recommendations.mejorPallet.detail}</span>
+                </p>
+              </div>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Chip item seleccionado */}
       {panelSeleccionado && (

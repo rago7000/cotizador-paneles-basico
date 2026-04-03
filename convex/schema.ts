@@ -17,6 +17,7 @@ export default defineSchema({
     modelo: v.string(),
     potencia: v.number(),
     aliases: v.optional(v.array(v.string())),
+    esDefault: v.optional(v.boolean()),
   }),
 
   // ── Productos: Microinversores ──

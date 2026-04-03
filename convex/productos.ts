@@ -33,6 +33,19 @@ export const savePanel = mutation({
   },
 });
 
+export const setDefaultPanel = mutation({
+  args: { id: v.id("productosPaneles") },
+  handler: async (ctx, { id }) => {
+    // Clear previous default
+    const all = await ctx.db.query("productosPaneles").collect();
+    for (const p of all) {
+      if (p.esDefault) await ctx.db.patch(p._id, { esDefault: undefined });
+    }
+    // Set new default
+    await ctx.db.patch(id, { esDefault: true });
+  },
+});
+
 export const removePanel = mutation({
   args: { id: v.id("productosPaneles") },
   handler: async (ctx, { id }) => {

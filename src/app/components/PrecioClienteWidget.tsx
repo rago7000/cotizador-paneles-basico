@@ -68,6 +68,101 @@ export interface PrecioClienteWidgetProps {
   onCargarVariante: (v: CotizacionCliente) => void;
 }
 
+/* ── Conversion helpers ───────────────────────────────────────────── */
+/** Utility % → Margin % (e.g. 25% util → 20% margin) */
+const utilToMargin = (u: number) => (u / (100 + u)) * 100;
+/** Margin % → Utility % (e.g. 20% margin → 25% util) */
+const marginToUtil = (m: number) => (m >= 100 ? 9999 : (m / (100 - m)) * 100);
+
+/* ── Strategy presets ────────────────────────────────────────────── */
+// Equipment (panels, inverters) = commodity, thinner margin
+// Structure/hardware/labor = higher margin opportunity
+
+interface StrategyPreset {
+  id: string;
+  label: string;
+  desc: string;
+  icon: string;
+  color: string;           // tailwind accent
+  global: number;
+  panelesPct: number;
+  inversoresPct: number;
+  estructuraPct: number;
+  tornilleriaPct: number;
+  generalesPct: number;
+}
+
+const PRESETS: StrategyPreset[] = [
+  {
+    id: "negocio",
+    label: "Negocio",
+    desc: "Maximiza utilidad",
+    icon: "\uD83D\uDCB0",
+    color: "amber",
+    global: 35,
+    panelesPct: 22,
+    inversoresPct: 22,
+    estructuraPct: 45,
+    tornilleriaPct: 55,
+    generalesPct: 45,
+  },
+  {
+    id: "equilibrado",
+    label: "Equilibrado",
+    desc: "Competitivo y rentable",
+    icon: "\u2696\uFE0F",
+    color: "emerald",
+    global: 25,
+    panelesPct: 15,
+    inversoresPct: 15,
+    estructuraPct: 32,
+    tornilleriaPct: 40,
+    generalesPct: 30,
+  },
+  {
+    id: "cliente",
+    label: "Cliente",
+    desc: "Mejor precio posible",
+    icon: "\uD83E\uDD1D",
+    color: "cyan",
+    global: 15,
+    panelesPct: 10,
+    inversoresPct: 10,
+    estructuraPct: 20,
+    tornilleriaPct: 25,
+    generalesPct: 20,
+  },
+];
+
+function applyPreset(current: UtilidadConfig, preset: StrategyPreset): UtilidadConfig {
+  return {
+    ...current,
+    globalPct: preset.global,
+    panelesPct: preset.panelesPct,
+    inversoresPct: preset.inversoresPct,
+    estructuraPct: preset.estructuraPct,
+    tornilleriaPct: preset.tornilleriaPct,
+    generalesPct: preset.generalesPct,
+  };
+}
+
+/** Check if current utilidad matches a preset (for active indicator) */
+function activePreset(u: UtilidadConfig): string | null {
+  for (const p of PRESETS) {
+    if (u.tipo === "global" && u.globalPct === p.global) return p.id;
+    if (
+      u.tipo === "por_partida" &&
+      u.panelesPct === p.panelesPct &&
+      u.inversoresPct === p.inversoresPct &&
+      u.estructuraPct === p.estructuraPct &&
+      u.tornilleriaPct === p.tornilleriaPct &&
+      u.generalesPct === p.generalesPct
+    )
+      return p.id;
+  }
+  return null;
+}
+
 export default function PrecioClienteWidget({
   mostrarPrecioCliente,
   onSetMostrarPrecioCliente,
@@ -122,6 +217,41 @@ export default function PrecioClienteWidget({
 
       {mostrarPrecioCliente && (
         <div>
+          {/* Strategy presets */}
+          {(() => {
+            const current = activePreset(utilidad);
+            return (
+              <div className="px-4 py-3 border-b border-zinc-800">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-wide font-semibold mb-2">Estrategia</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {PRESETS.map((p) => {
+                    const isActive = current === p.id;
+                    const borderColor = isActive
+                      ? p.color === "amber" ? "border-amber-400/60" : p.color === "emerald" ? "border-emerald-400/60" : "border-cyan-400/60"
+                      : "border-zinc-700";
+                    const bgColor = isActive
+                      ? p.color === "amber" ? "bg-amber-400/10" : p.color === "emerald" ? "bg-emerald-400/10" : "bg-cyan-400/10"
+                      : "bg-zinc-800/50 hover:bg-zinc-800";
+                    const textColor = isActive
+                      ? p.color === "amber" ? "text-amber-400" : p.color === "emerald" ? "text-emerald-400" : "text-cyan-400"
+                      : "text-zinc-400";
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => onSetUtilidad(applyPreset(utilidad, p))}
+                        className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg border transition-all ${borderColor} ${bgColor}`}
+                      >
+                        <span className="text-sm leading-none">{p.icon}</span>
+                        <span className={`text-[11px] font-semibold ${textColor}`}>{p.label}</span>
+                        <span className="text-[9px] text-zinc-600 leading-tight">{p.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Tipo de utilidad */}
           <div className="px-4 py-3 border-b border-zinc-800 space-y-3">
             <div className="flex gap-2">
@@ -148,20 +278,42 @@ export default function PrecioClienteWidget({
             </div>
 
             {utilidad.tipo === "global" ? (
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-zinc-500 w-20">Utilidad</label>
-                <input
-                  type="number"
-                  value={utilidad.globalPct}
-                  onChange={(e) =>
-                    onSetUtilidad({ ...utilidad, globalPct: Number(e.target.value) || 0 })
-                  }
-                  className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
-                />
-                <span className="text-xs text-zinc-500">%</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-500 w-20">Utilidad</label>
+                  <input
+                    type="number"
+                    value={utilidad.globalPct}
+                    onChange={(e) =>
+                      onSetUtilidad({ ...utilidad, globalPct: Number(e.target.value) || 0 })
+                    }
+                    className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                  />
+                  <span className="text-xs text-zinc-500">%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-500 w-20">Margen</label>
+                  <input
+                    type="number"
+                    value={+utilToMargin(utilidad.globalPct).toFixed(2)}
+                    onChange={(e) => {
+                      const m = Number(e.target.value) || 0;
+                      onSetUtilidad({ ...utilidad, globalPct: +marginToUtil(m).toFixed(2) });
+                    }}
+                    className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-amber-400"
+                  />
+                  <span className="text-xs text-zinc-500">%</span>
+                </div>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
+                {/* Header labels */}
+                <div className="flex items-center gap-2">
+                  <span className="w-20" />
+                  <span className="w-20 text-[10px] text-zinc-600 text-center">Utilidad</span>
+                  <span className="w-4" />
+                  <span className="w-20 text-[10px] text-zinc-600 text-center">Margen</span>
+                </div>
                 {(
                   [
                     ["panelesPct", "Paneles", partidaPanelesMXN],
@@ -181,6 +333,16 @@ export default function PrecioClienteWidget({
                           onSetUtilidad({ ...utilidad, [key]: Number(e.target.value) || 0 })
                         }
                         className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-emerald-400"
+                      />
+                      <span className="text-xs text-zinc-500">%</span>
+                      <input
+                        type="number"
+                        value={+utilToMargin(utilidad[key]).toFixed(2)}
+                        onChange={(e) => {
+                          const m = Number(e.target.value) || 0;
+                          onSetUtilidad({ ...utilidad, [key]: +marginToUtil(m).toFixed(2) });
+                        }}
+                        className="w-20 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 text-right font-mono outline-none focus:border-amber-400"
                       />
                       <span className="text-xs text-zinc-500">%</span>
                     </div>
@@ -313,6 +475,9 @@ export default function PrecioClienteWidget({
                 <p className="text-[10px] text-zinc-600 uppercase">Utilidad neta</p>
                 <p className="text-[10px] text-zinc-600">
                   {utilidadNetaPct.toFixed(1)}% sobre costo
+                </p>
+                <p className="text-[10px] text-amber-400/60">
+                  {utilToMargin(utilidadNetaPct).toFixed(1)}% margen
                 </p>
               </div>
               <span className="text-lg font-bold text-amber-400 font-mono">

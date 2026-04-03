@@ -27,8 +27,8 @@ import { uid, UTILIDAD_DEFAULT } from "./lib/cotizacion-state";
 import { fmt } from "./components/primitives";
 import { generateArrangements } from "./lib/structure/generate-arrangements";
 import { syncGeneralesFromElectrical } from "./lib/sync-generales";
-import { autoSelectPanel } from "./lib/auto-select-panel";
-import type { CatalogoPanelConPrecio } from "./lib/auto-select-panel";
+import { autoSelectPanel, analyzePanelRecommendations } from "./lib/auto-select-panel";
+import type { CatalogoPanelConPrecio, OfertaSimple } from "./lib/auto-select-panel";
 
 // ── Extracted components ─────────────────────────────────────────────────────
 import ReciboCFEBanner from "./components/ReciboCFEBanner";
@@ -386,10 +386,21 @@ export default function Home() {
     }
   }, [catalogoMicros, precioMicroinversor]);
 
-  // ── Auto-select panel (Step 5) ────────────────────────────────────────────
+  // ── Auto-select panel (Step 5) — prefers catalog default, falls back to cheapest ──
   const autoSelectedPanel = useRef(false);
   useEffect(() => {
     if (autoSelectedPanel.current || catalogoPaneles.length === 0 || precioPorWatt) return;
+    // 1. Try catalog default (esDefault flag set by user)
+    const defaultPanel = convexPaneles.find((p) => p.esDefault);
+    if (defaultPanel) {
+      const match = catalogoPaneles.find((cp) => cp.id === `v2_${defaultPanel._id}`);
+      if (match) {
+        setMany({ potencia: String(match.potencia), precioPorWatt: String(match.precioPorWatt), panelSeleccionado: match });
+        autoSelectedPanel.current = true;
+        return;
+      }
+    }
+    // 2. Fallback: cheapest $/W
     const panelConPrecio: CatalogoPanelConPrecio[] = catalogoPaneles.map((p) => ({
       id: p.id, marca: p.marca, modelo: p.modelo, potencia: p.potencia,
       precioWatt: p.precioPorWatt, precio: p.precioPorWatt * p.potencia,
@@ -402,7 +413,7 @@ export default function Home() {
         autoSelectedPanel.current = true;
       }
     }
-  }, [catalogoPaneles, precioPorWatt]);
+  }, [catalogoPaneles, convexPaneles, precioPorWatt]);
 
   // ── Apply proposal cascade (Step 6) ──────────────────────────────────────
   const handleApplyProposal = (cantidadPaneles: number) => {
@@ -588,6 +599,34 @@ export default function Home() {
     }
   };
 
+  // ── Panel recommendations ────────────────────────────────────────────────
+  const panelRecommendations = useMemo(() => {
+    if (catalogoPaneles.length === 0) return null;
+    const panelConPrecio: CatalogoPanelConPrecio[] = catalogoPaneles.map((p) => ({
+      id: p.id, marca: p.marca, modelo: p.modelo, potencia: p.potencia,
+      precioWatt: p.precioPorWatt, precio: p.precioPorWatt * p.potencia,
+    }));
+    const ofertasSimple: OfertaSimple[] = convexOfertas.map((o) => ({
+      productoId: o.productoId,
+      precio: o.precio,
+      precioTiers: o.precioTiers,
+    }));
+    const microP = Number(precioMicroinversor) || 180;
+    return analyzePanelRecommendations(panelConPrecio, ofertasSimple, microP, panelesPorMicro);
+  }, [catalogoPaneles, convexOfertas, precioMicroinversor, panelesPorMicro]);
+
+  const handleSelectPanelById = (panelId: string) => {
+    const match = catalogoPaneles.find((p) => p.id === panelId);
+    if (match) {
+      setMany({
+        potencia: String(match.potencia),
+        precioPorWatt: String(match.precioPorWatt),
+        panelSeleccionado: match,
+        sugerirGuardarPanel: false,
+      });
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   if (catalogoLoading) {
     return (
@@ -700,6 +739,8 @@ export default function Home() {
               catalogoPaneles={catalogoPaneles} panelSeleccionado={panelSeleccionado}
               onOpenPicker={() => set("pickerPanel", true)}
               onClearSeleccion={() => { set("panelSeleccionado", null); set("sugerirGuardarPanel", true); }}
+              onSelectPanel={handleSelectPanelById}
+              recommendations={panelRecommendations}
               cantidad={cantidad} potencia={potencia} precioPorWatt={precioPorWatt}
               fletePaneles={fletePaneles} garantiaPaneles={garantiaPaneles}
               tcCustomPaneles={tcCustomPaneles}
