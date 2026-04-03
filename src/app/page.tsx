@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -546,6 +546,17 @@ export default function Home() {
       nombreVariante: v.nombre,
     });
   };
+  // ── Variant PDF state ──
+  const [variantePDF, setVariantePDF] = useState<{ variante: CotizacionCliente; tipo: "cliente" | "costos" } | null>(null);
+  const handleVerPDFVariante = (v: CotizacionCliente, tipo: "cliente" | "costos") => {
+    // Toggle off if same variant+tipo already showing
+    if (variantePDF && variantePDF.variante.id === v.id && variantePDF.tipo === tipo) {
+      setVariantePDF(null);
+    } else {
+      setVariantePDF({ variante: v, tipo });
+    }
+  };
+
   const handleEliminar = async (nombre: string) => { await convexEliminarCotizacion(nombre); };
 
   const updateAluminio = (i: number, f: keyof AluminioItem, v: string) => updateLineItem("aluminio", i, f, v);
@@ -921,7 +932,78 @@ export default function Home() {
               onGuardarVariante={handleGuardarVariante}
               onEliminarVariante={handleEliminarVariante}
               onCargarVariante={handleCargarVariante}
+              onVerPDFVariante={handleVerPDFVariante}
             />
+
+            {/* Variant PDF Viewer */}
+            {variantePDF && tc && (() => {
+              const v = variantePDF.variante;
+              if (variantePDF.tipo === "cliente") {
+                return (
+                  <div className="rounded-2xl border border-emerald-400/20 bg-zinc-900 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+                      <span className="text-xs text-emerald-400 font-semibold">PDF Cliente — {v.nombre}</span>
+                      <button onClick={() => setVariantePDF(null)} className="text-zinc-600 hover:text-zinc-300 text-xs">Cerrar</button>
+                    </div>
+                    <PDFViewerClienteWrapper
+                      nombreCotizacion={`${nombreCotizacion} — ${v.nombre}`}
+                      clienteNombre={reciboCFE?.nombre || ""}
+                      cantidadPaneles={v.costos.cantidadPaneles}
+                      potenciaW={v.costos.potenciaW}
+                      kWp={v.costos.cantidadPaneles * v.costos.potenciaW / 1000}
+                      generacionMensualKwh={v.costos.cantidadPaneles * v.costos.potenciaW / 1000 * 132}
+                      partidas={{
+                        paneles: v.precios.paneles,
+                        inversores: v.precios.inversores,
+                        estructura: v.precios.estructura,
+                        tornilleria: v.precios.tornilleria,
+                        generales: v.precios.generales,
+                        montoFijo: v.precios.montoFijo,
+                      }}
+                      subtotal={v.precios.subtotal}
+                      iva={v.precios.iva}
+                      total={v.precios.total}
+                      porPanel={v.precios.porPanel}
+                      porWatt={v.precios.porWatt}
+                      vigenciaDias={15}
+                      notas=""
+                    />
+                  </div>
+                );
+              } else {
+                // PDF Costos — use the cost snapshot from the variant
+                return (
+                  <div className="rounded-2xl border border-zinc-700 bg-zinc-900 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+                      <span className="text-xs text-zinc-400 font-semibold">PDF Costos — {v.nombre}</span>
+                      <button onClick={() => setVariantePDF(null)} className="text-zinc-600 hover:text-zinc-300 text-xs">Cerrar</button>
+                    </div>
+                    <PDFViewerWrapper
+                      nombreCotizacion={`${nombreCotizacion} — ${v.nombre} (Costos)`}
+                      cantidad={v.costos.cantidadPaneles}
+                      potencia={v.costos.potenciaW}
+                      precioPorWatt={Number(precioPorWatt) || 0}
+                      fletePaneles={Number(fletePaneles) || 0}
+                      garantiaPaneles={Number(garantiaPaneles) || 0}
+                      precioMicroinversor={Number(precioMicroinversor) || 0}
+                      precioCable={Number(precioCable) || 0}
+                      precioECU={Number(precioECU) || 0}
+                      incluyeECU={incluyeECU}
+                      precioHerramienta={Number(precioHerramienta) || 0}
+                      incluyeHerramienta={incluyeHerramienta}
+                      precioEndCap={Number(precioEndCap) || 0}
+                      incluyeEndCap={incluyeEndCap}
+                      fleteMicros={Number(fleteMicros) || 0}
+                      aluminio={aluminio}
+                      fleteAluminio={Number(fleteAluminio) || 0}
+                      tornilleria={tornilleria}
+                      generales={generales}
+                      tc={tc}
+                    />
+                  </div>
+                );
+              }
+            })()}
 
             {/* PDF Buttons */}
             <div className="space-y-2">

@@ -66,6 +66,7 @@ export interface PrecioClienteWidgetProps {
   onGuardarVariante: () => void;
   onEliminarVariante: (id: string) => void;
   onCargarVariante: (v: CotizacionCliente) => void;
+  onVerPDFVariante: (v: CotizacionCliente, tipo: "cliente" | "costos") => void;
 }
 
 /* ── Conversion helpers ───────────────────────────────────────────── */
@@ -198,6 +199,7 @@ export default function PrecioClienteWidget({
   onGuardarVariante,
   onEliminarVariante,
   onCargarVariante,
+  onVerPDFVariante,
 }: PrecioClienteWidgetProps) {
   if (subtotalMXN <= 0) return null;
 
@@ -579,6 +581,20 @@ export default function PrecioClienteWidget({
                             ${fmt(v.precios.utilidadNeta)}
                           </p>
                         </div>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <button
+                          onClick={() => onVerPDFVariante(v, "cliente")}
+                          className="flex-1 text-[10px] py-1 rounded-md border border-emerald-400/25 text-emerald-400/80 hover:bg-emerald-400/10 hover:text-emerald-400 transition-colors text-center"
+                        >
+                          PDF Cliente
+                        </button>
+                        <button
+                          onClick={() => onVerPDFVariante(v, "costos")}
+                          className="flex-1 text-[10px] py-1 rounded-md border border-zinc-700 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors text-center"
+                        >
+                          PDF Costos
+                        </button>
                       </div>
                     </div>
                   ))}
