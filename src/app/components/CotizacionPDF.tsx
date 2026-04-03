@@ -136,7 +136,7 @@ export default function CotizacionPDF(props: Props) {
   return (
     <Document>
       <Page size="LETTER" style={s.page}>
-        <Text style={s.title}>Cotizacion de Paneles Solares</Text>
+        <Text style={s.title}>Cotización de Paneles Solares</Text>
         {nombreCotizacion && <Text style={s.nombreCot}>{nombreCotizacion}</Text>}
         <Text style={s.subtitle}>Fecha: {new Date().toLocaleDateString("es-MX")}</Text>
 

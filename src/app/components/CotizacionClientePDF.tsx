@@ -93,7 +93,7 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
     { concepto: "Sistema de microinversores", monto: partidas.inversores },
     { concepto: "Estructura de montaje", monto: partidas.estructura },
     { concepto: "Tornilleria y accesorios", monto: partidas.tornilleria },
-    { concepto: "Gastos generales e instalacion", monto: partidas.generales },
+    { concepto: "Gastos generales e instalación", monto: partidas.generales },
   ].filter((r) => r.monto > 0);
 
   if (partidas.montoFijo > 0) {
@@ -105,7 +105,7 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
       <Page size="LETTER" style={s.page}>
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.title}>Cotizacion — Sistema Solar Fotovoltaico</Text>
+          <Text style={s.title}>Cotización — Sistema Solar Fotovoltaico</Text>
           {nombreCotizacion && <Text style={s.subtitle}>{nombreCotizacion}</Text>}
           <Text style={s.subtitle}>{fecha}</Text>
         </View>
@@ -120,7 +120,7 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
 
         {/* Descripcion del sistema */}
         <View style={s.sistemaBox}>
-          <Text style={s.sistemaTitle}>Descripcion del sistema</Text>
+          <Text style={s.sistemaTitle}>Descripción del sistema</Text>
           <View style={s.sistemaRow}>
             <Text style={s.sistemaLabel}>Paneles solares</Text>
             <Text style={s.sistemaValue}>{cantidadPaneles} unidades de {potenciaW}W</Text>
@@ -130,11 +130,11 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
             <Text style={s.sistemaValue}>{kWp.toFixed(2)} kWp</Text>
           </View>
           <View style={s.sistemaRow}>
-            <Text style={s.sistemaLabel}>Generacion estimada mensual</Text>
+            <Text style={s.sistemaLabel}>Generación estimada mensual</Text>
             <Text style={s.sistemaValue}>{Math.round(generacionMensualKwh).toLocaleString("es-MX")} kWh</Text>
           </View>
           <View style={s.sistemaRow}>
-            <Text style={s.sistemaLabel}>Generacion estimada anual</Text>
+            <Text style={s.sistemaLabel}>Generación estimada anual</Text>
             <Text style={s.sistemaValue}>{Math.round(generacionAnualKwh).toLocaleString("es-MX")} kWh</Text>
           </View>
         </View>
@@ -203,15 +203,15 @@ export default function CotizacionClientePDF(props: CotizacionClientePDFProps) {
         <View style={s.footer}>
           <Text style={s.footerTitle}>Condiciones</Text>
           <Text style={s.footerText}>- Precios en pesos mexicanos (MXN), IVA incluido</Text>
-          <Text style={s.footerText}>- Incluye suministro e instalacion del sistema completo</Text>
-          <Text style={s.footerText}>- Garantia de paneles: 25 anios de produccion</Text>
-          <Text style={s.footerText}>- Garantia de microinversores: 25 anios</Text>
-          <Text style={s.footerText}>- Garantia de instalacion: 5 anios</Text>
-          <Text style={s.footerText}>- Tiempo estimado de instalacion: 1-3 dias habiles</Text>
+          <Text style={s.footerText}>- Incluye suministro e instalación del sistema completo</Text>
+          <Text style={s.footerText}>- Garantía de paneles: 25 años de producción</Text>
+          <Text style={s.footerText}>- Garantía de microinversores: 25 años</Text>
+          <Text style={s.footerText}>- Garantía de instalación: 5 años</Text>
+          <Text style={s.footerText}>- Tiempo estimado de instalación: 1-3 días hábiles</Text>
         </View>
 
         <Text style={s.vigencia}>
-          Esta cotizacion tiene una vigencia de {vigenciaDias} dias a partir de la fecha de emision.
+          Esta cotización tiene una vigencia de {vigenciaDias} días a partir de la fecha de emisión.
         </Text>
       </Page>
     </Document>
