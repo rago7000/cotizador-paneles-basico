@@ -14,6 +14,8 @@ interface LineItem {
 const CENTRO_RE = /centro de carga/i;
 const PASTILLA_RE = /pastilla/i;
 const CABLE_RUDO_RE = /cable de uso rudo/i;
+const PANELES_ADICIONALES_RE = /instalaci[oó]n\s*-\s*paneles\s+adicionales/i;
+const VUELTAS_RE = /instalaci[oó]n\s*-\s*vueltas/i;
 function isAutoManaged(nombre: string): boolean {
   return (
     CENTRO_RE.test(nombre) ||
@@ -97,6 +99,17 @@ export function syncGeneralesFromElectrical(
     unidad: "mL",
   };
 
+  // Auto-adjust labor items based on panel count
+  const adjustedManual = manualItems.map((it) => {
+    if (PANELES_ADICIONALES_RE.test(it.nombre)) {
+      return { ...it, cantidad: String(Math.max(0, cantidadPaneles - 8)) };
+    }
+    if (VUELTAS_RE.test(it.nombre)) {
+      return { ...it, cantidad: String(Math.max(1, Math.ceil(cantidadPaneles / 8))) };
+    }
+    return it;
+  });
+
   // Reassemble: auto-managed in order, then manual items preserved as-is
-  return [centroItem, ...pastillaItems, cableItem, ...manualItems];
+  return [centroItem, ...pastillaItems, cableItem, ...adjustedManual];
 }
