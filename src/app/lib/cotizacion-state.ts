@@ -157,12 +157,12 @@ const generalesDefault: LineItem[] = [
 
 export const UTILIDAD_DEFAULT: UtilidadConfig = {
   tipo: "global",
-  globalPct: 25,
-  panelesPct: 25,
-  inversoresPct: 25,
-  estructuraPct: 25,
-  tornilleriaPct: 25,
-  generalesPct: 25,
+  globalPct: 80,
+  panelesPct: 80,
+  inversoresPct: 80,
+  estructuraPct: 80,
+  tornilleriaPct: 80,
+  generalesPct: 80,
   montoFijo: 0,
 };
 
