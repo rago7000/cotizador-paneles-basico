@@ -20,6 +20,8 @@ export interface TipoCambioData {
   tipoCambioAlt?: number;
   fechaAlt?: string;
   etiquetaAlt?: string;
+  // Últimos ~10 datos históricos (más reciente primero)
+  historico?: { fecha: string; valor: number }[];
 }
 
 export interface CotizacionData {

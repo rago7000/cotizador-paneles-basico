@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { TipoCambioData } from "../lib/types";
 
 interface TipoCambioWidgetProps {
@@ -191,6 +192,11 @@ export default function TipoCambioWidget({
               {" — "}{tcUsarManana && tc.fechaAlt ? tc.fechaAlt : tc.fecha}
             </p>
           )}
+
+          {/* Histórico FIX */}
+          {tc?.historico && tc.historico.length > 0 && (
+            <HistoricoToggle historico={tc.historico} />
+          )}
         </>
       ) : tcError ? (
         <p className="text-xs text-red-400">{tcError}</p>
@@ -198,6 +204,62 @@ export default function TipoCambioWidget({
         <div className="flex items-center gap-2 text-xs text-zinc-600">
           <div className="h-3 w-3 rounded-full border-2 border-zinc-600 border-t-transparent animate-spin" />
           Cargando tipo de cambio…
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Subcomponente: mini-tabla histórico FIX ──────────────────────────────
+
+function HistoricoToggle({ historico }: { historico: { fecha: string; valor: number }[] }) {
+  const [open, setOpen] = useState(false);
+
+  // Calcular min/max para resaltar
+  const valores = historico.map((h) => h.valor);
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        Últimos {historico.length} datos FIX
+      </button>
+
+      {open && (
+        <div className="mt-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 overflow-hidden">
+          {historico.map((h, i) => {
+            const isMin = h.valor === min && min !== max;
+            const isMax = h.valor === max && min !== max;
+            return (
+              <div
+                key={i}
+                className={`flex items-center justify-between px-2.5 py-1 text-[11px] font-mono ${
+                  i === 0 ? "bg-zinc-800/40" : i % 2 === 0 ? "bg-zinc-800/20" : ""
+                }`}
+              >
+                <span className="text-zinc-500">{h.fecha}</span>
+                <span className={
+                  isMin ? "text-red-400" : isMax ? "text-emerald-400" : "text-zinc-300"
+                }>
+                  ${h.valor.toFixed(4)}
+                  {isMin && <span className="text-[9px] ml-1 text-red-500">min</span>}
+                  {isMax && <span className="text-[9px] ml-1 text-emerald-500">max</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

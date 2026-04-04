@@ -15,10 +15,13 @@ import { NextResponse } from "next/server";
 //   - Ejemplo: el FIX determinado el lunes se publica en el DOF del martes
 //     y aplica para pagos del martes.
 //
-// ¿Cómo funciona la API de Banxico?
-//   - Al pedir "ult/2" regresa los 2 datos más recientes:
-//     [0] = FIX más antiguo (ya publicado en DOF → vigente HOY para pagos)
-//     [1] = FIX más reciente (determinado hoy → se publicará mañana en DOF)
+// ¿Cómo consultamos la API de Banxico?
+//   - Usamos rango de fechas (últimos 10 días → hoy) para obtener los datos
+//     más recientes incluso si hay días inhábiles (fines de semana, festivos).
+//   - El endpoint "ult/N" dejó de funcionar correctamente (retorna 400).
+//   - Del rango obtenido, tomamos los últimos 2 datos válidos:
+//     [-2] = FIX ya publicado en DOF → vigente para pagos de hoy
+//     [-1] = FIX más reciente determinado → se publicará en DOF siguiente día hábil
 //
 // Zona horaria:
 //   - Todas las fechas se calculan en "America/Mexico_City" para evitar
@@ -29,21 +32,26 @@ import { NextResponse } from "next/server";
 const BANXICO_TOKEN = process.env.BANXICO_TOKEN;
 const TIMEZONE = "America/Mexico_City";
 
-/** Fecha actual en zona horaria de México como "YYYY-MM-DD" */
-function fechaHoyMexico(): string {
-  const now = new Date();
-  // Intl.DateTimeFormat con timeZone nos da la fecha local de México
+/** Fecha en zona horaria de México como "YYYY-MM-DD" */
+function fechaMexico(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(now);
+  }).formatToParts(date);
 
   const y = parts.find((p) => p.type === "year")!.value;
   const m = parts.find((p) => p.type === "month")!.value;
   const d = parts.find((p) => p.type === "day")!.value;
   return `${y}-${m}-${d}`;
+}
+
+/** Resta N días a una fecha */
+function restarDias(fecha: Date, dias: number): Date {
+  const d = new Date(fecha);
+  d.setDate(d.getDate() - dias);
+  return d;
 }
 
 /** Fecha legible para el frontend: "dd/mm/yyyy" */
@@ -65,16 +73,18 @@ function parseBanxicoValue(raw: string): number | null {
 async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
   if (!BANXICO_TOKEN) return null;
 
-  const fechaSolicitada = fechaHoyMexico();
+  const now = new Date();
+  const hoy = fechaMexico(now);
+  // Pedir rango de 30 días para tener ~10+ datos hábiles (cubre festivos largos)
+  const desde = fechaMexico(restarDias(now, 30));
 
-  // Pedimos los últimos 2 datos: el vigente hoy (publicado en DOF) y el
-  // determinado hoy (se publicará mañana en DOF).
   const url =
-    "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/ult/2?mediaType=json";
+    `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/${desde}/${hoy}?mediaType=json`;
+
+  console.log("[tipo-cambio] Consultando Banxico FIX rango %s → %s", desde, hoy);
 
   const res = await fetch(url, {
     headers: { "Bmx-Token": BANXICO_TOKEN },
-    // Evitar cache viejo en edge/CDN
     next: { revalidate: 300 },
   });
 
@@ -86,11 +96,11 @@ async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
   const data = await res.json();
   const datos = data?.bmx?.series?.[0]?.datos;
   if (!datos || datos.length === 0) {
-    console.warn("[tipo-cambio] Banxico no devolvió datos");
+    console.warn("[tipo-cambio] Banxico no devolvió datos para rango %s → %s", desde, hoy);
     return null;
   }
 
-  // Filtrar entradas válidas (a veces Banxico devuelve "N/E")
+  // Filtrar entradas válidas (Banxico puede devolver "N/E" en días inhábiles)
   const valid = datos
     .map((d: { fecha: string; dato: string }) => ({
       fecha: d.fecha, // formato "dd/mm/yyyy"
@@ -99,33 +109,50 @@ async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
     .filter((d: { valor: number | null }) => d.valor !== null);
 
   if (valid.length === 0) {
-    console.warn("[tipo-cambio] Banxico: todos los datos son N/E");
+    console.warn("[tipo-cambio] Banxico: todos los datos son N/E en rango %s → %s", desde, hoy);
     return null;
   }
 
-  // Banxico devuelve cronológicamente: [más antiguo, más reciente]
-  // [0] = FIX ya publicado en DOF → vigente para pagos de hoy
-  // [1] = FIX determinado hoy → se publica mañana en DOF
-  const vigente = valid[0];
-  const determinadoHoy = valid.length > 1 ? valid[1] : null;
+  // Banxico devuelve cronológicamente. Tomamos los últimos 2:
+  //   penúltimo = FIX ya publicado en DOF → vigente para pagos de hoy
+  //   último    = FIX más reciente determinado → se publica en próximo DOF
+  const ultimo = valid[valid.length - 1];
+  const penultimo = valid.length > 1 ? valid[valid.length - 2] : null;
+
+  // El vigente para HOY es el penúltimo (ya publicado en DOF).
+  // Si solo hay 1 dato, ese es el vigente.
+  const vigente = penultimo || ultimo;
+  const determinadoReciente = penultimo ? ultimo : null;
 
   const result: BanxicoResult = {
     tipoCambio: vigente.valor,
     fecha: vigente.fecha,
     fuente: "Banxico FIX (SF43718)",
-    etiqueta: "FIX vigente — publicado en DOF para pagos de hoy",
-    fechaSolicitada,
+    etiqueta: "FIX vigente — publicado en DOF",
+    fechaSolicitada: hoy,
     fechaResuelta: vigente.fecha,
     timezone: TIMEZONE,
     fallbackUsed: false,
   };
 
-  // Si hay un segundo dato (el FIX determinado hoy), lo incluimos
-  if (determinadoHoy && determinadoHoy.valor !== vigente.valor) {
-    result.tipoCambioAlt = determinadoHoy.valor;
-    result.fechaAlt = determinadoHoy.fecha;
-    result.etiquetaAlt = "FIX determinado hoy — se publica mañana en DOF";
+  // Si hay dato más reciente (determinado pero aún no publicado en DOF)
+  if (determinadoReciente && determinadoReciente.valor !== vigente.valor) {
+    result.tipoCambioAlt = determinadoReciente.valor;
+    result.fechaAlt = determinadoReciente.fecha;
+    result.etiquetaAlt = "FIX más reciente — próximo DOF";
   }
+
+  // Histórico: últimos 10 datos válidos (más reciente primero)
+  result.historico = valid
+    .slice(-10)
+    .reverse()
+    .map((d: { fecha: string; valor: number }) => ({ fecha: d.fecha, valor: d.valor }));
+
+  console.log("[tipo-cambio] Banxico OK: vigente=%s (%s), reciente=%s (%s), historico=%d datos",
+    vigente.valor, vigente.fecha,
+    determinadoReciente?.valor ?? "—", determinadoReciente?.fecha ?? "—",
+    result.historico?.length ?? 0,
+  );
 
   return result;
 }
@@ -133,7 +160,7 @@ async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
 // ── Fuente de respaldo: ExchangeRate API (mercado) ────────────────────────
 
 async function fetchExchangeRateAPI(): Promise<BanxicoResult> {
-  const fechaSolicitada = fechaHoyMexico();
+  const fechaSolicitada = fechaMexico();
 
   const res = await fetch("https://open.er-api.com/v6/latest/USD", {
     next: { revalidate: 600 },
@@ -184,6 +211,8 @@ interface BanxicoResult {
   tipoCambioAlt?: number;
   fechaAlt?: string;
   etiquetaAlt?: string;
+  // Últimos ~10 datos históricos (más reciente primero)
+  historico?: { fecha: string; valor: number }[];
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
@@ -218,7 +247,7 @@ export async function GET() {
             ? error.message
             : "Error al obtener tipo de cambio",
         timezone: TIMEZONE,
-        fechaSolicitada: fechaHoyMexico(),
+        fechaSolicitada: fechaMexico(),
       },
       { status: 500 }
     );
