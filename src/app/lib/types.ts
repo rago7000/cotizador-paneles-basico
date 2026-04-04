@@ -10,10 +10,15 @@ export interface TipoCambioData {
   tipoCambio: number;
   fecha: string;
   fuente: string;
-  // Segundo dato (si hay): el otro día disponible
+  etiqueta?: string;
+  // Metadata de la consulta
+  fechaSolicitada?: string;  // Fecha que se intentó consultar (hora México)
+  fechaResuelta?: string;    // Fecha real del dato devuelto
+  timezone?: string;         // "America/Mexico_City"
+  fallbackUsed?: boolean;    // true si se usó API de respaldo
+  // Segundo dato (FIX determinado hoy, publicado mañana en DOF)
   tipoCambioAlt?: number;
   fechaAlt?: string;
-  etiqueta?: string;    // "hoy" | "mañana"
   etiquetaAlt?: string;
 }
 
