@@ -113,33 +113,62 @@ async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
     return null;
   }
 
-  // Banxico devuelve cronológicamente. Tomamos los últimos 2:
-  //   penúltimo = FIX ya publicado en DOF → vigente para pagos de hoy
-  //   último    = FIX más reciente determinado → se publica en próximo DOF
+  // ── Determinar vigente vs próximo basado en si hay dato del día actual ──
+  //
+  // Convertir fecha local "YYYY-MM-DD" a formato Banxico "dd/mm/yyyy" para comparar
+  const [ay, am, ad] = hoy.split("-");
+  const hoyBanxicoFmt = `${ad}/${am}/${ay}`;
+
   const ultimo = valid[valid.length - 1];
   const penultimo = valid.length > 1 ? valid[valid.length - 2] : null;
+  const existeDatoHoy = valid.some((d: { fecha: string }) => d.fecha === hoyBanxicoFmt);
 
-  // El vigente para HOY es el penúltimo (ya publicado en DOF).
-  // Si solo hay 1 dato, ese es el vigente.
-  const vigente = penultimo || ultimo;
-  const determinadoReciente = penultimo ? ultimo : null;
+  // Logs de diagnóstico
+  console.log("[tipo-cambio] ── Diagnóstico ──");
+  console.log("[tipo-cambio]   fecha local actual (México): %s (%s)", hoy, hoyBanxicoFmt);
+  console.log("[tipo-cambio]   último dato válido:      %s → $%s", ultimo.fecha, ultimo.valor);
+  console.log("[tipo-cambio]   penúltimo dato válido:   %s → $%s", penultimo?.fecha ?? "—", penultimo?.valor ?? "—");
+  console.log("[tipo-cambio]   ¿existe dato del día actual?: %s", existeDatoHoy ? "SÍ" : "NO");
+
+  let vigente: { fecha: string; valor: number };
+  let determinadoReciente: { fecha: string; valor: number } | null = null;
+
+  if (existeDatoHoy && penultimo) {
+    // Hay dato de hoy → Banxico determinó FIX hoy
+    // penúltimo = FIX ya publicado en DOF → vigente para pagos de hoy
+    // último = FIX determinado hoy → se publicará mañana en DOF
+    vigente = penultimo;
+    determinadoReciente = ultimo;
+  } else {
+    // NO hay dato de hoy (fin de semana, festivo, o aún no se publica)
+    // último = FIX más reciente disponible → es el vigente
+    // no asumimos que hay dato para mañana
+    vigente = ultimo;
+    determinadoReciente = null;
+  }
+
+  console.log("[tipo-cambio]   → vigente elegido:       %s → $%s", vigente.fecha, vigente.valor);
+  console.log("[tipo-cambio]   → próximo DOF elegido:   %s → $%s",
+    determinadoReciente?.fecha ?? "—", determinadoReciente?.valor ?? "—");
 
   const result: BanxicoResult = {
     tipoCambio: vigente.valor,
     fecha: vigente.fecha,
     fuente: "Banxico FIX (SF43718)",
-    etiqueta: "FIX vigente — publicado en DOF",
+    etiqueta: existeDatoHoy
+      ? "FIX vigente — publicado en DOF para pagos de hoy"
+      : "FIX vigente — último disponible",
     fechaSolicitada: hoy,
     fechaResuelta: vigente.fecha,
     timezone: TIMEZONE,
     fallbackUsed: false,
   };
 
-  // Si hay dato más reciente (determinado pero aún no publicado en DOF)
+  // Solo incluir dato alterno si realmente hay uno determinado hoy
   if (determinadoReciente && determinadoReciente.valor !== vigente.valor) {
     result.tipoCambioAlt = determinadoReciente.valor;
     result.fechaAlt = determinadoReciente.fecha;
-    result.etiquetaAlt = "FIX más reciente — próximo DOF";
+    result.etiquetaAlt = "FIX determinado hoy — se publica mañana en DOF";
   }
 
   // Histórico: últimos 10 datos válidos (más reciente primero)
@@ -148,9 +177,8 @@ async function fetchBanxicoFIX(): Promise<BanxicoResult | null> {
     .reverse()
     .map((d: { fecha: string; valor: number }) => ({ fecha: d.fecha, valor: d.valor }));
 
-  console.log("[tipo-cambio] Banxico OK: vigente=%s (%s), reciente=%s (%s), historico=%d datos",
+  console.log("[tipo-cambio] Banxico OK: vigente=%s (%s), historico=%d datos",
     vigente.valor, vigente.fecha,
-    determinadoReciente?.valor ?? "—", determinadoReciente?.fecha ?? "—",
     result.historico?.length ?? 0,
   );
 
