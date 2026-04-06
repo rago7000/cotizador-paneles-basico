@@ -79,6 +79,31 @@ export interface CotizacionData {
   minisplitTemporada?: "anual" | "temporada";
   // Utilidad / Precio al cliente
   utilidad?: UtilidadConfig;
+
+  // ── Cliente / Contacto ──
+  clienteTelefono?: string;
+  clienteEmail?: string;
+  clienteUbicacion?: string;
+  clienteNotas?: string;
+
+  // ── Pipeline / Estado comercial ──
+  etapa?: "prospecto" | "cotizado" | "negociacion" | "cerrado_ganado" | "cerrado_perdido" | "instalado";
+  etapaNotas?: string;
+  fechaCierre?: string;
+  fechaInstalacion?: string;
+  probabilidadCierre?: number;
+
+  // ── Origen / Canal de captación ──
+  origen?: "referido" | "facebook" | "instagram" | "google" | "tiktok" | "sitio_web" | "volanteo" | "feria" | "otro";
+  origenDetalle?: string;
+
+  // ── Timestamps ──
+  creadoEn?: string;
+  actualizadoEn?: string;
+  vistoPorUltimaVez?: string;
+
+  // ── Tags ──
+  tags?: string[];
 }
 
 export interface CotizacionGuardada {

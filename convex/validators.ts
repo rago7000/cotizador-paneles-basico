@@ -106,4 +106,50 @@ export const cotizacionFieldsV = {
 
   // ── Utilidad ──
   utilidad: v.optional(utilidadV),
+
+  // ── Cliente / Contacto ──
+  clienteTelefono: v.optional(v.string()),
+  clienteEmail: v.optional(v.string()),
+  clienteUbicacion: v.optional(v.string()), // Ciudad, estado o dirección libre
+  clienteNotas: v.optional(v.string()),     // Notas libres sobre el cliente
+
+  // ── Pipeline / Estado comercial ──
+  etapa: v.optional(
+    v.union(
+      v.literal("prospecto"),      // Recién captado, aún sin cotización formal
+      v.literal("cotizado"),       // Cotización entregada al cliente
+      v.literal("negociacion"),    // Cliente interesado, ajustando precio/condiciones
+      v.literal("cerrado_ganado"), // Venta cerrada, proceder a instalación
+      v.literal("cerrado_perdido"), // Cliente no compró
+      v.literal("instalado"),      // Sistema instalado y funcionando
+    )
+  ),
+  etapaNotas: v.optional(v.string()),       // Razón de pérdida, condición de cierre, etc.
+  fechaCierre: v.optional(v.string()),       // Fecha en que se cerró (ganado o perdido)
+  fechaInstalacion: v.optional(v.string()),  // Fecha de instalación real
+  probabilidadCierre: v.optional(v.number()), // 0-100, estimación subjetiva
+
+  // ── Origen / Canal de captación ──
+  origen: v.optional(
+    v.union(
+      v.literal("referido"),
+      v.literal("facebook"),
+      v.literal("instagram"),
+      v.literal("google"),
+      v.literal("tiktok"),
+      v.literal("sitio_web"),
+      v.literal("volanteo"),
+      v.literal("feria"),
+      v.literal("otro"),
+    )
+  ),
+  origenDetalle: v.optional(v.string()), // "Referido por Juan Pérez", "Campaña Feb 2026"
+
+  // ── Timestamps automáticos ──
+  creadoEn: v.optional(v.string()),        // ISO — primera vez que se guardó
+  actualizadoEn: v.optional(v.string()),   // ISO — última modificación
+  vistoPorUltimaVez: v.optional(v.string()), // ISO — última vez que se abrió en el cotizador
+
+  // ── Tags libres (para agrupación y búsqueda) ──
+  tags: v.optional(v.array(v.string())),   // ["residencial", "hermosillo", "urgente"]
 };

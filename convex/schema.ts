@@ -70,7 +70,8 @@ export default defineSchema({
     ...cotizacionFieldsV,
     // Legacy JSON blob — kept as optional during migration, will be removed
     data: v.optional(v.string()),
-  }).index("by_nombre", ["nombre"]),
+  }).index("by_nombre", ["nombre"])
+    .index("by_etapa", ["etapa"]),
 
   // ── Cotizaciones Cliente (customer pricing variants) ──
   cotizacionesCliente: defineTable({

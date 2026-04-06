@@ -128,6 +128,26 @@ export interface CotizacionState {
   mostrarVariantes: boolean;
   mostrarPDFCliente: boolean;
   mostrarComparador: boolean;
+
+  // ── Cliente / Contacto ──
+  clienteTelefono: string;
+  clienteEmail: string;
+  clienteUbicacion: string;
+  clienteNotas: string;
+
+  // ── Pipeline ──
+  etapa: "prospecto" | "cotizado" | "negociacion" | "cerrado_ganado" | "cerrado_perdido" | "instalado";
+  etapaNotas: string;
+  fechaCierre: string;
+  fechaInstalacion: string;
+  probabilidadCierre: number;
+
+  // ── Origen ──
+  origen: "referido" | "facebook" | "instagram" | "google" | "tiktok" | "sitio_web" | "volanteo" | "feria" | "otro" | "";
+  origenDetalle: string;
+
+  // ── Tags ──
+  tags: string[];
 }
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
@@ -239,6 +259,22 @@ export const INITIAL_STATE: CotizacionState = {
   mostrarVariantes: false,
   mostrarPDFCliente: false,
   mostrarComparador: false,
+  // Cliente / Contacto
+  clienteTelefono: "",
+  clienteEmail: "",
+  clienteUbicacion: "",
+  clienteNotas: "",
+  // Pipeline
+  etapa: "prospecto",
+  etapaNotas: "",
+  fechaCierre: "",
+  fechaInstalacion: "",
+  probabilidadCierre: 0,
+  // Origen
+  origen: "",
+  origenDetalle: "",
+  // Tags
+  tags: [],
 };
 
 // ── Actions ──────────────────────────────────────────────────────────────────
@@ -319,6 +355,22 @@ export function cotizacionReducer(
         // Utilidad
         mostrarPrecioCliente: !!d.utilidad,
         utilidad: d.utilidad ?? UTILIDAD_DEFAULT,
+        // Cliente / Contacto
+        clienteTelefono: d.clienteTelefono ?? "",
+        clienteEmail: d.clienteEmail ?? "",
+        clienteUbicacion: d.clienteUbicacion ?? "",
+        clienteNotas: d.clienteNotas ?? "",
+        // Pipeline
+        etapa: d.etapa ?? "prospecto",
+        etapaNotas: d.etapaNotas ?? "",
+        fechaCierre: d.fechaCierre ?? "",
+        fechaInstalacion: d.fechaInstalacion ?? "",
+        probabilidadCierre: d.probabilidadCierre ?? 0,
+        // Origen
+        origen: d.origen ?? "",
+        origenDetalle: d.origenDetalle ?? "",
+        // Tags
+        tags: d.tags ?? [],
         // Reset UI flags on load
         reciboDetalle: false,
         mostrarGuardadas: false,
@@ -405,5 +457,21 @@ export function stateToFormData(state: CotizacionState): CotizacionData {
     minisplits: state.minisplits.length > 0 ? state.minisplits : undefined,
     minisplitTemporada: state.minisplits.length > 0 ? state.minisplitTemporada : undefined,
     utilidad: state.mostrarPrecioCliente ? state.utilidad : undefined,
+    // Cliente / Contacto (solo si hay datos)
+    clienteTelefono: state.clienteTelefono || undefined,
+    clienteEmail: state.clienteEmail || undefined,
+    clienteUbicacion: state.clienteUbicacion || undefined,
+    clienteNotas: state.clienteNotas || undefined,
+    // Pipeline
+    etapa: state.etapa || undefined,
+    etapaNotas: state.etapaNotas || undefined,
+    fechaCierre: state.fechaCierre || undefined,
+    fechaInstalacion: state.fechaInstalacion || undefined,
+    probabilidadCierre: state.probabilidadCierre > 0 ? state.probabilidadCierre : undefined,
+    // Origen
+    origen: state.origen || undefined,
+    origenDetalle: state.origenDetalle || undefined,
+    // Tags
+    tags: state.tags.length > 0 ? state.tags : undefined,
   };
 }

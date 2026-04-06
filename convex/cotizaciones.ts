@@ -28,15 +28,27 @@ export const getByNombre = query({
 export const save = mutation({
   args: cotizacionFieldsV,
   handler: async (ctx, args) => {
+    const now = new Date().toISOString();
     const existing = await ctx.db
       .query("cotizaciones")
       .withIndex("by_nombre", (q) => q.eq("nombre", args.nombre))
       .first();
     if (existing) {
-      await ctx.db.replace(existing._id, args);
+      // Preservar creadoEn original, actualizar actualizadoEn
+      await ctx.db.replace(existing._id, {
+        ...args,
+        creadoEn: existing.creadoEn ?? args.creadoEn ?? now,
+        actualizadoEn: now,
+      });
       return existing._id;
     }
-    return await ctx.db.insert("cotizaciones", args);
+    // Nuevo documento: establecer ambos timestamps
+    return await ctx.db.insert("cotizaciones", {
+      ...args,
+      creadoEn: args.creadoEn ?? now,
+      actualizadoEn: now,
+      etapa: args.etapa ?? "prospecto",
+    });
   },
 });
 

@@ -32,6 +32,7 @@ import type { CatalogoPanelConPrecio, OfertaSimple } from "./lib/auto-select-pan
 
 // ── Extracted components ─────────────────────────────────────────────────────
 import ReciboCFEBanner from "./components/ReciboCFEBanner";
+import PanelCliente from "./components/PanelCliente";
 import SectionPaneles from "./components/SectionPaneles";
 import SectionMicroinversores from "./components/SectionMicroinversores";
 import SectionEstructura from "./components/SectionEstructura";
@@ -115,6 +116,9 @@ export default function Home() {
     minisplits, minisplitTemporada,
     mostrarPrecioCliente, utilidad,
     nombreVariante, mostrarVariantes, mostrarPDFCliente, mostrarComparador,
+    clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas,
+    etapa, etapaNotas, fechaCierre, fechaInstalacion, probabilidadCierre,
+    origen, origenDetalle, tags,
   } = s;
 
   const [collapseAllCounter, setCollapseAllCounter] = useState(0);
@@ -932,6 +936,24 @@ export default function Home() {
               historicoFiltrado={historicoFiltrado}
               clienteHistorial={clienteHistorial}
               onCargarCotizacion={handleCargar}
+            />
+
+            {/* Cliente / Pipeline / Origen */}
+            <PanelCliente
+              nombreCliente={reciboCFE?.nombre || nombreCotizacion}
+              clienteTelefono={clienteTelefono}
+              clienteEmail={clienteEmail}
+              clienteUbicacion={clienteUbicacion}
+              clienteNotas={clienteNotas}
+              etapa={etapa}
+              etapaNotas={etapaNotas}
+              fechaCierre={fechaCierre}
+              fechaInstalacion={fechaInstalacion}
+              probabilidadCierre={probabilidadCierre}
+              origen={origen}
+              origenDetalle={origenDetalle}
+              tags={tags}
+              onChange={(field, value) => set(field as keyof typeof s, value)}
             />
 
             {/* 1. Paneles */}
