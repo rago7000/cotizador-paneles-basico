@@ -1880,6 +1880,8 @@ function TabOfertas({
   const [filterProv, setFilterProv] = useState("");
   const [filterTipo, setFilterTipo] = useState<"" | TipoOferta>("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [sortCol, setSortCol] = useState<"producto" | "proveedor" | "precio" | "fecha" | "tend">("fecha");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const provMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -1913,8 +1915,36 @@ function TabOfertas({
       const prov = provMap.get(o.proveedorId) || "";
       return `${prod} ${prov} ${o.notas || ""}`.toLowerCase().includes(bq);
     });
-    return list.sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [ofertas, filterProv, filterTipo, bq, prodMap, provMap]);
+
+    const dir = sortDir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sortCol) {
+        case "producto": {
+          const pa = (prodMap.get(a.productoId) || "").toLowerCase();
+          const pb = (prodMap.get(b.productoId) || "").toLowerCase();
+          return pa < pb ? -dir : pa > pb ? dir : 0;
+        }
+        case "proveedor": {
+          const pa = (provMap.get(a.proveedorId) || "").toLowerCase();
+          const pb = (provMap.get(b.proveedorId) || "").toLowerCase();
+          return pa < pb ? -dir : pa > pb ? dir : 0;
+        }
+        case "precio":
+          return (a.precio - b.precio) * dir;
+        case "fecha":
+          return a.fecha.localeCompare(b.fecha) * dir;
+        case "tend": {
+          const ta = tendenciaOferta(a.productoId, a.proveedorId, ofertas);
+          const tb = tendenciaOferta(b.productoId, b.proveedorId, ofertas);
+          const tVal = (t: string) => t === "up" ? 1 : t === "down" ? -1 : 0;
+          return (tVal(ta) - tVal(tb)) * dir;
+        }
+        default:
+          return 0;
+      }
+    });
+    return list;
+  }, [ofertas, filterProv, filterTipo, bq, prodMap, provMap, sortCol, sortDir]);
 
   const handleSave = async (o: { id?: string; proveedorId: string; productoId: string; productoTabla?: string; tipo: string; precio: number; precioTiers?: { etiqueta: string; precio: number }[]; precioCable?: number; fecha: string; notas: string; archivoOrigenId?: string }) => {
     await ctx.guardarOferta(o);
@@ -1964,11 +1994,30 @@ function TabOfertas({
       {!adding && !editing && filtered.length > 0 && (
         <div className="rounded-2xl border border-zinc-800 overflow-hidden">
           <div className="hidden sm:grid grid-cols-[1fr_1fr_100px_90px_70px_36px] gap-3 px-5 py-2.5 bg-zinc-800/60 text-xs font-medium text-zinc-500 uppercase tracking-wide">
-            <span>Producto</span>
-            <span>Proveedor</span>
-            <span className="text-right">Precio</span>
-            <span className="text-right">Fecha</span>
-            <span className="text-center">Tend.</span>
+            {(["producto", "proveedor", "precio", "fecha", "tend"] as const).map((col) => {
+              const align = col === "precio" || col === "fecha" ? "text-right" : col === "tend" ? "text-center" : "text-left";
+              const label = col === "tend" ? "Tend." : col.charAt(0).toUpperCase() + col.slice(1);
+              const active = sortCol === col;
+              return (
+                <button
+                  key={col}
+                  className={`flex items-center gap-1 ${align === "text-right" ? "justify-end" : align === "text-center" ? "justify-center" : ""} hover:text-zinc-300 transition-colors ${active ? "text-amber-400" : ""}`}
+                  onClick={() => {
+                    if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc");
+                    else { setSortCol(col); setSortDir(col === "fecha" || col === "precio" ? "desc" : "asc"); }
+                  }}
+                >
+                  {label}
+                  {active && (
+                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {sortDir === "asc"
+                        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />}
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
             <span />
           </div>
           {filtered.map((o, i) => {
