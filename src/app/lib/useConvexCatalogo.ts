@@ -103,6 +103,7 @@ export function useConvexCatalogo() {
     ...addId(o),
     proveedorId: o.proveedorId as string,
     archivoOrigenId: o.archivoOrigenId as string | undefined,
+    creadoEn: o.creadoEn || new Date(o._creationTime).toISOString(),
   })) as Oferta[];
   const archivos = rawArchivos.map((a) => ({
     ...addId(a),
