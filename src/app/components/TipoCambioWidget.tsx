@@ -49,7 +49,7 @@ export default function TipoCambioWidget({
             </span>
           </div>
 
-          {/* Hoy / Mañana toggle — only when live mode and alt rate exists */}
+          {/* Actual / Anterior toggle — only when live mode and alt rate exists */}
           {!tcFrozen && !tcManual && tc?.tipoCambioAlt && (
             <div className="flex rounded-lg border border-zinc-700 overflow-hidden mb-2">
               <button
@@ -60,7 +60,7 @@ export default function TipoCambioWidget({
                     : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                Hoy <span className="font-mono text-[10px] ml-1">${tc.tipoCambio.toFixed(4)}</span>
+                Actual <span className="font-mono text-[10px] ml-1">${tc.tipoCambio.toFixed(4)}</span>
               </button>
               <button
                 onClick={() => onSetUsarManana(true)}
@@ -70,7 +70,7 @@ export default function TipoCambioWidget({
                     : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                Mañana <span className="font-mono text-[10px] ml-1">${tc.tipoCambioAlt.toFixed(4)}</span>
+                Anterior <span className="font-mono text-[10px] ml-1">${tc.tipoCambioAlt.toFixed(4)}</span>
               </button>
             </div>
           )}
@@ -113,7 +113,7 @@ export default function TipoCambioWidget({
                 }
               }}
               disabled={!tcLive && !tcFrozen && !tcManual}
-              title={tcFrozen ? "Descongelar — volver al DOF en vivo" : "Congelar este TC en la cotización"}
+              title={tcFrozen ? "Descongelar — volver al FIX en vivo" : "Congelar este TC en la cotización"}
               className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
                 tcFrozen
                   ? "bg-blue-400/20 text-blue-300 border border-blue-400/40 hover:bg-blue-400/10"
@@ -188,7 +188,7 @@ export default function TipoCambioWidget({
           )}
           {!tcFrozen && !tcManual && tc && (
             <p className="text-xs text-zinc-600 mt-1">
-              {tcUsarManana && tc.tipoCambioAlt ? tc.etiquetaAlt || "DOF mañana" : tc.etiqueta || tc.fuente}
+              {tcUsarManana && tc.tipoCambioAlt ? tc.etiquetaAlt || "FIX anterior" : tc.etiqueta || tc.fuente}
               {" — "}{tcUsarManana && tc.fechaAlt ? tc.fechaAlt : tc.fecha}
             </p>
           )}
