@@ -1316,13 +1316,17 @@ function ImportadorPDF({
         }
       }
 
-      // Dedup: check if an offer already exists with same proveedor + producto + precio
-      const existingOffer = ofertas.find((o) =>
+      // Dedup: solo dentro del MISMO archivo (evitar duplicados si el PDF lista
+      // el mismo producto 2 veces). NO comparar contra ofertas anteriores de otros
+      // archivos — cada importación es un registro independiente que confirma el
+      // precio vigente en esa fecha, aunque el precio sea el mismo.
+      const existingInSameFile = ofertas.find((o) =>
         o.proveedorId === provId &&
         o.productoId === prodId &&
+        o.archivoOrigenId === archivoId &&
         Math.abs(o.precio - it.precio) < 0.001
       );
-      if (existingOffer) {
+      if (existingInSameFile) {
         skipped++;
         continue;
       }
