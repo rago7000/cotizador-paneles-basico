@@ -1252,7 +1252,25 @@ export default function Home() {
       />
 
       {/* AI Chat — contextual to current cotización */}
-      <ChatCotizacion cotizacion={getFormData() as unknown as Record<string, unknown>} />
+      <ChatCotizacion cotizacion={{
+        ...getFormData() as unknown as Record<string, unknown>,
+        // Enrich with panel/micro details so AI understands the system
+        _panelSeleccionado: panelSeleccionado ? {
+          marca: panelSeleccionado.marca,
+          modelo: panelSeleccionado.modelo,
+          potencia: panelSeleccionado.potencia,
+          precioPorWatt: panelSeleccionado.precioPorWatt,
+        } : null,
+        _microSeleccionado: microSeleccionado ? {
+          marca: microSeleccionado.marca,
+          modelo: microSeleccionado.modelo,
+          panelesPorUnidad: microSeleccionado.panelesPorUnidad,
+          precio: microSeleccionado.precio,
+          precioCable: microSeleccionado.precioCable,
+        } : null,
+        _cantidadMicros: Math.ceil(Number(cantidad) / (microSeleccionado?.panelesPorUnidad ?? 4)),
+        _potenciaTotal: Number(cantidad) * Number(potencia),
+      }} />
     </div>
   );
 }

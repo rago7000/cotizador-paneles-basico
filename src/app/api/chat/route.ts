@@ -15,9 +15,21 @@ ${JSON.stringify(cotizacion, null, 2)}
 
 ## Campos clave que entiendes:
 - nombre: nombre del cliente/proyecto
-- cantidad/potencia: paneles × watts por panel = sistema total
+- cantidad: número de PANELES (NO de microinversores)
+- potencia: watts por panel individual
+- _potenciaTotal: cantidad × potencia = watts totales del sistema
 - precioPorWatt: costo USD/W de paneles (proveedor)
-- precioMicroinversor: costo USD del micro
+- _panelSeleccionado: datos del panel elegido (marca, modelo, potencia, precio)
+- precioMicroinversor: costo USD de CADA microinversor
+- _microSeleccionado: datos del micro elegido, INCLUYENDO panelesPorUnidad
+- _cantidadMicros: número real de microinversores = ceil(cantidad / panelesPorUnidad)
+
+⚠️ REGLA CRÍTICA: UN microinversor maneja VARIOS paneles (campo panelesPorUnidad).
+  Ejemplo: si panelesPorUnidad=4 y hay 20 paneles → son 5 micros, NO 20.
+  SIEMPRE usa _cantidadMicros para el número de microinversores, NUNCA asumas 1:1.
+
+- precioCable: costo USD del cable troncal por microinversor
+- precioECU: costo del gateway de monitoreo (1 por sistema)
 - aluminio/tornilleria/generales: partidas de estructura e instalación (MXN)
 - utilidad: markup al cliente (globalPct = porcentaje de utilidad)
 - reciboCFE: consumo eléctrico del cliente (kWh, $, historial bimestral)
