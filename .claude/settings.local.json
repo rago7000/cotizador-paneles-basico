@@ -39,7 +39,9 @@
       "Bash(xargs grep:*)",
       "Bash(node -e \":*)",
       "Bash(node -e \"const p=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const d=JSON.parse\\(p\\).dependencies; Object.keys\\(d\\).filter\\(k=>k.includes\\(''''ai''''\\)||k.includes\\(''''anthropic''''\\)||k.includes\\(''''openai''''\\)\\).forEach\\(k=>console.log\\(k,d[k]\\)\\)\")",
-      "Bash(node -e \"const p=require\\(''./package.json''\\); const d=p.dependencies||{}; Object.keys\\(d\\).forEach\\(k=>{if\\(k.includes\\(''ai''\\)||k.includes\\(''anthropic''\\)||k.includes\\(''openai''\\)\\)console.log\\(k,d[k]\\)}\\)\")"
+      "Bash(node -e \"const p=require\\(''./package.json''\\); const d=p.dependencies||{}; Object.keys\\(d\\).forEach\\(k=>{if\\(k.includes\\(''ai''\\)||k.includes\\(''anthropic''\\)||k.includes\\(''openai''\\)\\)console.log\\(k,d[k]\\)}\\)\")",
+      "Bash(python3 -c \":*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

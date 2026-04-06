@@ -108,26 +108,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 500 });
   }
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "No se pudo leer el formulario" }, { status: 400 });
+  let base64: string;
+  let isImage = false;
+  let mime = "application/pdf";
+  let pageLabel = "";
+
+  // Accept either FormData (file upload) or JSON (page base64 from pdf-paginas)
+  const ct = req.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    const body = await req.json();
+    if (!body.base64) {
+      return NextResponse.json({ error: "No se recibió base64" }, { status: 400 });
+    }
+    base64 = body.base64;
+    mime = body.mime || "application/pdf";
+    isImage = mime.startsWith("image/");
+    if (body.pageLabel) pageLabel = body.pageLabel;
+  } else {
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json({ error: "No se pudo leer el formulario" }, { status: 400 });
+    }
+
+    const file = formData.get("pdf") as File | null;
+    if (!file) {
+      return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
+    }
+
+    const buffer = await file.arrayBuffer();
+    base64 = Buffer.from(buffer).toString("base64");
+    mime = file.type || "application/pdf";
+    isImage = mime.startsWith("image/");
   }
-
-  const file = formData.get("pdf") as File | null;
-  if (!file) {
-    return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
-  }
-
-  const buffer = await file.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString("base64");
-
-  // Detect file type for Claude API
-  const mime = file.type || "application/pdf";
-  const isImage = mime.startsWith("image/");
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const promptExtra = pageLabel
+    ? `\n\nNOTA: Esto es la ${pageLabel} de un documento más grande. Extrae TODOS los productos que encuentres en esta sección.`
+    : "";
 
   try {
     // Build content block: document for PDFs, image for images
@@ -159,7 +179,7 @@ export async function POST(req: NextRequest) {
             fileBlock,
             {
               type: "text",
-              text: PROMPT,
+              text: PROMPT + promptExtra,
             },
           ],
         },

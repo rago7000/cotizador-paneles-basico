@@ -1031,7 +1031,7 @@ function ImportadorPDF({
   onCancel: () => void;
   ctx: CatalogoCtx;
 }) {
-  const [step, setStep] = useState<"upload" | "loading" | "review" | "done">("upload");
+  const [step, setStep] = useState<"upload" | "loading" | "pages" | "processing" | "review" | "done">("upload");
   const [importMode, setImportMode] = useState<"file" | "text" | "json">("file");
   const [textoImport, setTextoImport] = useState("");
   const jsonFileRef = useRef<HTMLInputElement>(null);
@@ -1053,12 +1053,93 @@ function ImportadorPDF({
   const fileRef = useRef<HTMLInputElement>(null);
   const optionalFileRef = useRef<HTMLInputElement>(null);
 
+  // ── Page-by-page state for large PDFs ──
+  type PageInfo = { page: number; sizeKB: number; base64: string; selected: boolean; status: "pending" | "processing" | "done" | "error"; itemCount: number; error?: string };
+  const [pdfPages, setPdfPages] = useState<PageInfo[]>([]);
+  const [processingPage, setProcessingPage] = useState(0);
+  const [processingTotal, setProcessingTotal] = useState(0);
+
+  // Parse AI response into ImportItem[]
+  const parseAIResponse = (data: Record<string, unknown>): ImportItem[] => {
+    return ((data.items || []) as Record<string, unknown>[]).map((it) => {
+      const tiers: ImportTier[] = Array.isArray(it.precioTiers)
+        ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({ etiqueta: String(t.etiqueta || ""), precio: Number(t.precio) || 0 })).filter((t) => t.precio > 0)
+        : [];
+      return {
+        selected: true,
+        tipo: String(it.tipo || "otro"),
+        marca: String(it.marca || ""),
+        modelo: String(it.modelo || ""),
+        descripcion: String(it.descripcion || ""),
+        potencia: Number(it.potencia) || 0,
+        panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
+        precio: Number(it.precio) || 0,
+        precioTiers: tiers,
+        moneda: String(it.moneda || "USD"),
+        unidad: String(it.unidad || "por_unidad"),
+        notas: String(it.notas || ""),
+      };
+    });
+  };
+
+  // Capture metadata from AI response (proveedor, fecha, condiciones)
+  const captureMetadata = (data: Record<string, unknown>) => {
+    if (data.fechaDocumento) setFechaDocumento(data.fechaDocumento as string);
+    if (data.condiciones) setCondiciones((prev) => prev ? prev + "\n\n" + (data.condiciones as string) : (data.condiciones as string));
+    if (data.resumenCondiciones) setResumenCondiciones((prev) => prev || (data.resumenCondiciones as string));
+    if (data.proveedor && !proveedorId && !nuevoProvNombre) {
+      const norm = normalizeName(data.proveedor as string);
+      const match = proveedores.find((p) => normalizeName(p.nombre) === norm);
+      if (match) setProveedorId(match.id);
+      else setNuevoProvNombre(data.proveedor as string);
+    }
+  };
+
   const handleFile = async (file: File) => {
     setFileName(file.name);
-    setOptionalPdf(file); // Store for upload to Convex storage on save
-    setStep("loading");
+    setOptionalPdf(file);
     setError("");
 
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    // For PDFs, check page count first
+    if (isPdf) {
+      setStep("loading");
+      try {
+        const formData = new FormData();
+        formData.append("pdf", file);
+        const res = await fetch("/api/pdf-paginas", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.error) { setError(data.error); setStep("upload"); return; }
+
+        // Small PDF (≤3 pages): process directly as before
+        if (data.totalPages <= 3) {
+          await processFullFile(file);
+          return;
+        }
+
+        // Large PDF: show page selector
+        setPdfPages(data.pages.map((p: { page: number; sizeKB: number; base64: string }) => ({
+          ...p,
+          selected: true,
+          status: "pending" as const,
+          itemCount: 0,
+        })));
+        setStep("pages");
+      } catch {
+        setError("Error al analizar el PDF");
+        setStep("upload");
+      }
+      return;
+    }
+
+    // Non-PDF (images): process directly
+    setStep("loading");
+    await processFullFile(file);
+  };
+
+  // Process a full file (small PDF or image) in one shot
+  const processFullFile = async (file: File) => {
     const formData = new FormData();
     formData.append("pdf", file);
 
@@ -1067,45 +1148,75 @@ function ImportadorPDF({
       const data = await res.json();
       if (data.error) { setError(data.error); setStep("upload"); return; }
 
-      const extracted: ImportItem[] = (data.items || []).map((it: Record<string, unknown>) => {
-        const tiers: ImportTier[] = Array.isArray(it.precioTiers)
-          ? (it.precioTiers as Record<string, unknown>[]).map((t) => ({ etiqueta: String(t.etiqueta || ""), precio: Number(t.precio) || 0 })).filter((t) => t.precio > 0)
-          : [];
-        return {
-          selected: true,
-          tipo: String(it.tipo || "otro"),
-          marca: String(it.marca || ""),
-          modelo: String(it.modelo || ""),
-          descripcion: String(it.descripcion || ""),
-          potencia: Number(it.potencia) || 0,
-          panelesPorUnidad: Number(it.panelesPorUnidad) || 0,
-          precio: Number(it.precio) || 0,
-          precioTiers: tiers,
-          moneda: String(it.moneda || "USD"),
-          unidad: String(it.unidad || "por_unidad"),
-          notas: String(it.notas || ""),
-        };
-      });
-
+      const extracted = parseAIResponse(data);
       if (extracted.length === 0) { setError("No se encontraron productos en el PDF"); setStep("upload"); return; }
 
       setItems(extracted);
-      // Capture metadata from PDF
-      if (data.fechaDocumento) setFechaDocumento(data.fechaDocumento);
-      if (data.condiciones) setCondiciones(data.condiciones);
-      if (data.resumenCondiciones) setResumenCondiciones(data.resumenCondiciones);
-      // Auto-set proveedor with fuzzy matching (normalized)
-      if (data.proveedor) {
-        const norm = normalizeName(data.proveedor);
-        const match = proveedores.find((p) => normalizeName(p.nombre) === norm);
-        if (match) setProveedorId(match.id);
-        else setNuevoProvNombre(data.proveedor);
-      }
+      captureMetadata(data);
       setStep("review");
     } catch {
       setError("Error al procesar el PDF");
       setStep("upload");
     }
+  };
+
+  // Process selected pages sequentially
+  const processPages = async () => {
+    const selected = pdfPages.filter((p) => p.selected);
+    if (selected.length === 0) return;
+
+    setStep("processing");
+    setProcessingTotal(selected.length);
+    setItems([]);
+    setCondiciones("");
+    setResumenCondiciones("");
+
+    let allItems: ImportItem[] = [];
+    let pageIdx = 0;
+
+    for (const pg of pdfPages) {
+      if (!pg.selected) continue;
+      pageIdx++;
+      setProcessingPage(pageIdx);
+
+      // Update page status to processing
+      setPdfPages((prev) => prev.map((p) => p.page === pg.page ? { ...p, status: "processing" } : p));
+
+      try {
+        const res = await fetch("/api/leer-catalogo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            base64: pg.base64,
+            mime: "application/pdf",
+            pageLabel: `página ${pg.page} de ${pdfPages.length}`,
+          }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          setPdfPages((prev) => prev.map((p) => p.page === pg.page ? { ...p, status: "error", error: data.error } : p));
+          continue;
+        }
+
+        const extracted = parseAIResponse(data);
+        allItems = [...allItems, ...extracted];
+        captureMetadata(data);
+
+        setPdfPages((prev) => prev.map((p) => p.page === pg.page ? { ...p, status: "done", itemCount: extracted.length } : p));
+      } catch {
+        setPdfPages((prev) => prev.map((p) => p.page === pg.page ? { ...p, status: "error", error: "Error de conexión" } : p));
+      }
+    }
+
+    if (allItems.length === 0) {
+      setError("No se encontraron productos en las páginas seleccionadas");
+      setStep("pages");
+      return;
+    }
+
+    setItems(allItems);
+    setStep("review");
   };
 
   const handleTexto = async () => {
@@ -1529,6 +1640,150 @@ function ImportadorPDF({
         <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm text-zinc-400">Analizando <span className="text-zinc-200 font-medium">{fileName}</span>…</p>
         <p className="text-[10px] text-zinc-600">Esto puede tomar unos segundos</p>
+      </div>
+    );
+  }
+
+  // ── Page selector step (large PDFs) ──
+  if (step === "pages") {
+    const selectedPages = pdfPages.filter((p) => p.selected);
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 overflow-hidden">
+        <div className="px-5 py-3 border-b border-zinc-800">
+          <h3 className="text-sm font-semibold text-emerald-400">Documento de {pdfPages.length} páginas</h3>
+          <p className="text-[10px] text-zinc-500 mt-0.5">{fileName} — Selecciona las páginas que contienen productos y precios</p>
+        </div>
+
+        {error && <p className="mx-5 mt-3 text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
+
+        <div className="px-5 py-4">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2">
+            {pdfPages.map((pg) => (
+              <button
+                key={pg.page}
+                onClick={() => setPdfPages((prev) => prev.map((p) => p.page === pg.page ? { ...p, selected: !p.selected } : p))}
+                className={`relative flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 transition-all ${
+                  pg.selected
+                    ? "border-emerald-400/60 bg-emerald-400/5 text-emerald-300"
+                    : "border-zinc-700/50 bg-zinc-800/30 text-zinc-600 hover:border-zinc-600"
+                }`}
+              >
+                <svg className="w-5 h-5 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-xs font-semibold">Pág. {pg.page}</span>
+                <span className="text-[9px] opacity-60">{pg.sizeKB} KB</span>
+                {pg.selected && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-zinc-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-zinc-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setPdfPages((prev) => prev.map((p) => ({ ...p, selected: true })))}
+              className="text-[10px] text-zinc-500 hover:text-emerald-400 transition-colors"
+            >
+              Todas
+            </button>
+            <button
+              onClick={() => setPdfPages((prev) => prev.map((p) => ({ ...p, selected: false })))}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Ninguna
+            </button>
+            <span className="text-[10px] text-zinc-600">
+              {selectedPages.length} de {pdfPages.length} seleccionadas
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onCancel} className={btnSecondary}>Cancelar</button>
+            <button
+              onClick={processPages}
+              disabled={selectedPages.length === 0}
+              className={`flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors ${btnDisabled}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Procesar {selectedPages.length} página{selectedPages.length !== 1 ? "s" : ""}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Processing pages step ──
+  if (step === "processing") {
+    const done = pdfPages.filter((p) => p.status === "done").length;
+    const errors = pdfPages.filter((p) => p.status === "error").length;
+    const totalItems = pdfPages.reduce((s, p) => s + p.itemCount, 0);
+    const progressPct = processingTotal > 0 ? (processingPage / processingTotal) * 100 : 0;
+
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 overflow-hidden">
+        <div className="px-5 py-3 border-b border-zinc-800">
+          <h3 className="text-sm font-semibold text-emerald-400">Procesando documento</h3>
+          <p className="text-[10px] text-zinc-500 mt-0.5">
+            Página {processingPage} de {processingTotal} — {totalItems} productos encontrados
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="px-5 pt-4 pb-2">
+          <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-400 transition-all duration-500 ease-out"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Page status list */}
+        <div className="px-5 py-3 space-y-1.5 max-h-64 overflow-y-auto">
+          {pdfPages.filter((p) => p.selected).map((pg) => (
+            <div key={pg.page} className="flex items-center gap-3 text-xs">
+              <div className="w-14 text-zinc-500">Pág. {pg.page}</div>
+              {pg.status === "pending" && <span className="text-zinc-600">En espera</span>}
+              {pg.status === "processing" && (
+                <span className="flex items-center gap-1.5 text-amber-400">
+                  <div className="w-3 h-3 border-[1.5px] border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  Analizando…
+                </span>
+              )}
+              {pg.status === "done" && (
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  {pg.itemCount} producto{pg.itemCount !== 1 ? "s" : ""}
+                </span>
+              )}
+              {pg.status === "error" && (
+                <span className="flex items-center gap-1.5 text-red-400">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  {pg.error || "Error"}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Summary when all done */}
+        {done + errors === processingTotal && processingTotal > 0 && (
+          <div className="px-5 py-3 border-t border-zinc-800 text-center">
+            <p className="text-xs text-zinc-400">
+              {done} página{done !== 1 ? "s" : ""} procesada{done !== 1 ? "s" : ""} · {totalItems} productos
+              {errors > 0 && <span className="text-red-400 ml-1">· {errors} con error</span>}
+            </p>
+          </div>
+        )}
       </div>
     );
   }
