@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import AppNav from "../components/AppNav";
@@ -2180,6 +2180,10 @@ function TabOfertas({
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [sortCol, setSortCol] = useState<"producto" | "proveedor" | "precio" | "fecha" | "tend">("fecha");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const dedupMut = useMutation(api.ofertas.dedup);
+  const cleanOrphansMut = useMutation(api.ofertas.cleanOrphanProducts);
+  const [dedupResult, setDedupResult] = useState<string | null>(null);
+  const [dedupRunning, setDedupRunning] = useState(false);
 
   const provMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -2272,6 +2276,30 @@ function TabOfertas({
         <div className="flex-1" />
         {!adding && !editing && !importing && (
           <>
+            <button
+              onClick={async () => {
+                setDedupRunning(true);
+                setDedupResult(null);
+                try {
+                  const r1 = await dedupMut();
+                  const r2 = await cleanOrphansMut();
+                  setDedupResult(`${r1.removed} ofertas duplicadas eliminadas (quedan ${r1.remaining}). ${r2.removed} productos huérfanos eliminados.`);
+                } catch (e) {
+                  setDedupResult(`Error: ${e instanceof Error ? e.message : "desconocido"}`);
+                } finally {
+                  setDedupRunning(false);
+                }
+              }}
+              disabled={dedupRunning}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-700 text-[10px] text-zinc-500 hover:text-red-400 hover:border-red-400/30 transition-colors disabled:opacity-40"
+              title="Eliminar ofertas duplicadas"
+            >
+              {dedupRunning ? (
+                <><div className="w-3 h-3 border-[1.5px] border-zinc-500 border-t-transparent rounded-full animate-spin" /> Limpiando…</>
+              ) : (
+                <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Dedup</>
+              )}
+            </button>
             <button onClick={() => setImporting(true)} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               Importar precios
@@ -2280,6 +2308,13 @@ function TabOfertas({
           </>
         )}
       </div>
+
+      {dedupResult && (
+        <div className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-2.5">
+          <p className="text-xs text-zinc-300">{dedupResult}</p>
+          <button onClick={() => setDedupResult(null)} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors ml-3">✕</button>
+        </div>
+      )}
 
       {importing && <ImportadorPDF proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} onDone={() => { setImporting(false); }} onCancel={() => setImporting(false)} ctx={ctx} />}
       {adding && <OfertaForm proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} onSave={handleSave} onCancel={() => setAdding(false)} />}
