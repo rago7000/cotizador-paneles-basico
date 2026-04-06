@@ -193,10 +193,12 @@ export default function TipoCambioWidget({
             </p>
           )}
 
-          {/* Histórico FIX */}
-          {tc?.historico && tc.historico.length > 0 && (
+          {/* Histórico DOF */}
+          {tc?.historico && tc.historico.length > 0 ? (
             <HistoricoToggle historico={tc.historico} />
-          )}
+          ) : tc && !tc.fallbackUsed ? (
+            <p className="text-[10px] text-zinc-600 mt-2">No hay histórico disponible</p>
+          ) : null}
         </>
       ) : tcError ? (
         <p className="text-xs text-red-400">{tcError}</p>
@@ -234,7 +236,7 @@ function HistoricoToggle({ historico }: { historico: { fecha: string; valor: num
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        Últimos {historico.length} datos FIX
+        {open ? "Ocultar histórico DOF" : "Ver histórico DOF"}
       </button>
 
       {open && (
