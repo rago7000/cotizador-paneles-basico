@@ -1031,7 +1031,9 @@ function ImportadorPDF({
   onCancel: () => void;
   ctx: CatalogoCtx;
 }) {
-  const [step, setStep] = useState<"upload" | "loading" | "pages" | "processing" | "review" | "done">("upload");
+  const [step, setStep] = useState<"upload" | "loading" | "pages" | "processing" | "review" | "saving" | "done">("upload");
+  const [savingProgress, setSavingProgress] = useState(0);
+  const [savingTotal, setSavingTotal] = useState(0);
   const [importMode, setImportMode] = useState<"file" | "text" | "json">("file");
   const [textoImport, setTextoImport] = useState("");
   const jsonFileRef = useRef<HTMLInputElement>(null);
@@ -1343,6 +1345,11 @@ function ImportadorPDF({
   };
 
   const handleSave = async () => {
+    const selected = items.filter((it) => it.selected && it.precio > 0);
+    setSavingTotal(selected.length);
+    setSavingProgress(0);
+    setStep("saving");
+
     // Resolve proveedor — fuzzy match existing by normalized name
     let provId = proveedorId;
     if (!provId && nuevoProvNombre.trim()) {
@@ -1380,7 +1387,7 @@ function ImportadorPDF({
 
     let count = 0;
     let skipped = 0;
-    const selected = items.filter((it) => it.selected && it.precio > 0);
+    let progress = 0;
 
     for (const it of selected) {
       // Map legacy "ecu" type to "monitoreo"
@@ -1439,6 +1446,8 @@ function ImportadorPDF({
       );
       if (existingInSameFile) {
         skipped++;
+        progress++;
+        setSavingProgress(progress);
         continue;
       }
 
@@ -1454,6 +1463,8 @@ function ImportadorPDF({
         archivoOrigenId: archivoId,
       });
       count++;
+      progress++;
+      setSavingProgress(progress);
     }
 
     setSavedCount(count);
@@ -1784,6 +1795,38 @@ function ImportadorPDF({
             </p>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Saving step ──
+  if (step === "saving") {
+    const pct = savingTotal > 0 ? (savingProgress / savingTotal) * 100 : 0;
+    return (
+      <div className="rounded-2xl border border-emerald-400/30 bg-zinc-900 p-8 flex flex-col items-center gap-4">
+        <div className="relative w-16 h-16">
+          <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="28" fill="none" stroke="#27272a" strokeWidth="4" />
+            <circle
+              cx="32" cy="32" r="28" fill="none" stroke="#34d399" strokeWidth="4"
+              strokeDasharray={`${2 * Math.PI * 28}`}
+              strokeDashoffset={`${2 * Math.PI * 28 * (1 - pct / 100)}`}
+              strokeLinecap="round"
+              className="transition-all duration-300 ease-out"
+            />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-emerald-400 font-mono">
+            {Math.round(pct)}%
+          </span>
+        </div>
+        <div className="text-center">
+          <p className="text-sm text-zinc-300">
+            Guardando ofertas…
+          </p>
+          <p className="text-xs text-zinc-500 mt-1 font-mono">
+            {savingProgress} de {savingTotal}
+          </p>
+        </div>
       </div>
     );
   }
