@@ -1253,23 +1253,114 @@ export default function Home() {
 
       {/* AI Chat — contextual to current cotización */}
       <ChatCotizacion cotizacion={{
-        ...getFormData() as unknown as Record<string, unknown>,
-        // Enrich with panel/micro details so AI understands the system
-        _panelSeleccionado: panelSeleccionado ? {
-          marca: panelSeleccionado.marca,
-          modelo: panelSeleccionado.modelo,
-          potencia: panelSeleccionado.potencia,
-          precioPorWatt: panelSeleccionado.precioPorWatt,
-        } : null,
-        _microSeleccionado: microSeleccionado ? {
-          marca: microSeleccionado.marca,
-          modelo: microSeleccionado.modelo,
-          panelesPorUnidad: microSeleccionado.panelesPorUnidad,
-          precio: microSeleccionado.precio,
-          precioCable: microSeleccionado.precioCable,
-        } : null,
-        _cantidadMicros: Math.ceil(Number(cantidad) / (microSeleccionado?.panelesPorUnidad ?? 4)),
-        _potenciaTotal: Number(cantidad) * Number(potencia),
+        // ── Identificación ──
+        proyecto: nombreCotizacion || "(sin nombre)",
+        etapa: etapa || "prospecto",
+        cliente: {
+          telefono: clienteTelefono || undefined,
+          email: clienteEmail || undefined,
+          ubicacion: clienteUbicacion || undefined,
+          notas: clienteNotas || undefined,
+        },
+        origen: origen || undefined,
+
+        // ── Sistema fotovoltaico ──
+        panel: panelSeleccionado
+          ? { marca: panelSeleccionado.marca, modelo: panelSeleccionado.modelo, potenciaW: panelSeleccionado.potencia, precioPorWattUSD: panelSeleccionado.precioPorWatt }
+          : { potenciaW: potenciaNum, precioPorWattUSD: precioNum },
+        cantidadPaneles: cantidadNum,
+        potenciaTotalW: cantidadNum * potenciaNum,
+        potenciaTotalkWp: kWpSistema,
+
+        microinversor: microSeleccionado
+          ? { marca: microSeleccionado.marca, modelo: microSeleccionado.modelo, panelesPorUnidad: microSeleccionado.panelesPorUnidad, precioUnitarioUSD: microSeleccionado.precio, precioCableUSD: microSeleccionado.precioCable }
+          : { panelesPorUnidad: 4, precioUnitarioUSD: precioMicroNum, precioCableUSD: precioCableNum },
+        cantidadMicros,
+        relacionPanelMicro: `${panelesPorMicro}:1 (${panelesPorMicro} paneles por micro → ${cantidadNum} paneles = ${cantidadMicros} micros)`,
+
+        accesorios: {
+          ecuMonitoreo: incluyeECU ? { precioUSD: precioECUNum, cantidad: 1 } : "no incluido",
+          herramienta: incluyeHerramienta ? { precioUSD: precioHerramientaNum } : "no incluida",
+          endCaps: incluyeEndCap ? { precioUnitarioUSD: precioEndCapNum, cantidad: cantidadMicros } : "no incluidos",
+        },
+
+        // ── Costos desglosados (al instalador) ──
+        costos: {
+          tipoCambio: { panelesUSDaMXN: tcPaneles, microsUSDaMXN: tcMicros },
+          paneles: {
+            unitarioUSD: costoPanel,
+            totalUSD: costoPanelesUSD,
+            fleteUSD: fletePanelesNum,
+            garantiaUSD: garantiaPanelesNum,
+            totalConFleteUSD: totalPanelesUSD,
+            totalMXN: partidaPanelesMXN,
+          },
+          inversores: {
+            microsUSD: costoMicrosUSD,
+            cablesUSD: costoCablesUSD,
+            ecuUSD: costoECUUSD,
+            herramientaUSD: costoHerramientaUSD,
+            endCapsUSD: costoEndCapUSD,
+            fleteUSD: fleteMicrosNum,
+            totalUSD: totalInversoresUSD,
+            totalMXN: partidaInversoresMXN,
+          },
+          estructuraMXN: partidaEstructuraMXN,
+          tornilleriaMXN: partidaTornilleriaMXN,
+          generalesMXN: partidaGeneralesMXN,
+          subtotalMXN,
+          ivaMXN,
+          totalMXN,
+          costoPorPanelMXN: costoPorPanel,
+        },
+
+        // ── Precio al cliente (con utilidad) ──
+        precioCliente: mostrarPrecioCliente ? {
+          markupTipo: utilidad.tipo,
+          markupPorcentaje: utilidad.tipo === "global" ? utilidad.globalPct : { paneles: pctPaneles, inversores: pctInversores, estructura: pctEstructura, tornilleria: pctTornilleria, generales: pctGenerales },
+          montoFijoMXN: utilidad.montoFijo,
+          subtotalMXN: clienteSubtotalMXN,
+          ivaMXN: clienteIvaMXN,
+          totalMXN: clienteTotalMXN,
+          porPanelMXN: clientePorPanel,
+          porWattMXN: clientePorWatt,
+          utilidadNetaMXN,
+          utilidadNetaPct: Math.round(utilidadNetaPct * 10) / 10,
+        } : "no configurado",
+
+        // ── Consumo eléctrico (recibo CFE) ──
+        reciboCFE: reciboCFE ? {
+          titular: reciboCFE.nombre,
+          tarifa: reciboCFE.tarifa,
+          consumoActualKwh: reciboCFE.consumoKwh,
+          consumoMensualPromedioKwh: consumoMensualCalc,
+          totalFacturadoMXN: reciboCFE.totalFacturado,
+          costoPorKwh: Math.round(costoCFEporKwh * 100) / 100,
+          historicoBimestral: reciboCFE.historico?.map((h: { periodo: string; kwh: number; importe: number }) => `${h.periodo}: ${h.kwh} kWh ($${h.importe})`),
+        } : "sin recibo",
+
+        // ── Minisplits (cargas adicionales planeadas) ──
+        minisplits: minisplits.length > 0 ? {
+          equipos: minisplits.map((m) => `${m.cantidad}x ${m.toneladas} ton ${m.tipo} (${m.horasDia}h/día)`),
+          temporada: minisplitTemporada,
+          consumoAdicionalKwhMes: minisplitKwhMesProm,
+        } : "sin minisplits",
+
+        // ── ROI ──
+        roi: reciboCFE && ahorroMensualMXN > 0 ? {
+          generacionMensualKwh: Math.round(generacionMensualKwh),
+          ahorroMensualMXN: Math.round(ahorroMensualMXN),
+          ahorroAnualMXN: Math.round(ahorroAnualMXN),
+          paybackMeses: Math.round(roiMeses),
+          paybackAnios: Math.round(roiAnios * 10) / 10,
+        } : "sin datos de recibo para calcular",
+
+        // ── Recomendaciones de sizing ──
+        sizing: reciboCFE ? {
+          panelesRecomendadoPromedio: panelesPromedio,
+          panelesActual: cantidadNum,
+          cobertura: consumoMensualCalc > 0 ? `${Math.round(generacionMensualKwh / consumoMensualCalc * 100)}%` : "N/A",
+        } : "sin datos de recibo",
       }} />
     </div>
   );
