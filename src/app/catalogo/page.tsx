@@ -2367,7 +2367,14 @@ function TabOfertas({
                       </p>
                     )}
                   </div>
-                  <p className="hidden sm:block text-xs text-zinc-500 text-right">{fmtDateTime(o.fecha)}</p>
+                  <div className="hidden sm:block text-right">
+                    <p className="text-xs text-zinc-500">{fmtDateTime(o.fecha)}</p>
+                    {o.creadoEn && (
+                      <p className="text-[9px] text-zinc-600" title="Fecha de captura">
+                        cap. {fmtDateTime(o.creadoEn)}
+                      </p>
+                    )}
+                  </div>
                   <div className="hidden sm:flex justify-center"><IconTrend dir={trend} /></div>
                   <div className="flex gap-1 shrink-0 sm:justify-end" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => { setEditing(o); setAdding(false); }} className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-700 transition-colors" title="Editar"><IconEdit /></button>

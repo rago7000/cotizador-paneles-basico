@@ -48,7 +48,8 @@ export default defineSchema({
       v.array(v.object({ etiqueta: v.string(), precio: v.number() }))
     ),
     precioCable: v.optional(v.number()),
-    fecha: v.string(), // ISO date
+    fecha: v.string(), // ISO date — fecha de la lista de precios
+    creadoEn: v.optional(v.string()), // ISO date — cuándo se capturó/importó al sistema
     notas: v.string(),
     archivoOrigenId: v.optional(v.id("archivosProveedor")),
   }).index("by_productoId", ["productoId"])

@@ -60,6 +60,7 @@ export interface Oferta {
   precioTiers?: { etiqueta: string; precio: number }[];
   precioCable?: number;
   fecha: string;
+  creadoEn?: string;
   notas: string;
   archivoOrigenId?: string;
 }
