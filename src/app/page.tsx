@@ -1361,6 +1361,34 @@ export default function Home() {
           panelesActual: cantidadNum,
           cobertura: consumoMensualCalc > 0 ? `${Math.round(generacionMensualKwh / consumoMensualCalc * 100)}%` : "N/A",
         } : "sin datos de recibo",
+
+        // ── Diseño eléctrico (breakers, cables, circuitos) ──
+        electrico: electricalResult ? {
+          perfilEquipo: electricalResult.perfil.nombre,
+          tipoEquipo: electricalResult.perfil.tipo,
+          amperajePorUnidad: electricalResult.perfil.amperajeACPorUnidad,
+          maxPorCircuito: electricalResult.perfil.maxUnidadesPorCircuito,
+          toleranciaNEC: `${(electricalResult.perfil.toleranciaBreaker * 100)}%`,
+          totalCircuitos: electricalResult.totalCircuitos,
+          circuitos: electricalResult.circuitos.map((c) => ({
+            numero: c.circuitoNumero,
+            equipos: c.unidadesEnCircuito,
+            amperajeA: Math.round(c.amperajeCircuito * 10) / 10,
+            amperajeConToleranciaA: Math.round(c.amperajeConTolerancia * 10) / 10,
+            breakerA: c.breakerSeleccionado,
+            cable: c.tipoCable,
+          })),
+          breakerResumen: electricalResult.breakerResumen.map((b) => `${b.cantidad}x pastilla ${b.amperaje}A`),
+          cables: electricalResult.cableACResumen.map((c) => `${c.circuitos} circuito(s): ${c.tipo}`),
+          tierraFisica: electricalResult.tierraFisica ? `${electricalResult.tierraFisica.calibreAWG} AWG` : undefined,
+          warnings: electricalResult.warnings.length > 0 ? electricalResult.warnings : undefined,
+          stringConfig: electricalResult.stringConfig?.map((sc) => ({
+            mppt: sc.mpptNumero,
+            strings: sc.stringsEnMPPT,
+            panelesPorString: sc.panelesPorString,
+          })),
+          desconectorDC: electricalResult.desconectorDC,
+        } : "sin cálculo eléctrico",
       }} />
     </div>
   );

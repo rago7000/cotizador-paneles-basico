@@ -27,7 +27,12 @@ export function calculateElectrical(
     return emptyResult(input, warnings, `Perfil de equipo no encontrado: ${input.equipmentProfileId}`);
   }
 
-  const { cantidadEquipos } = input;
+  // For microinverters: recalculate quantity from panels using the profile's
+  // panelesPorUnidad (authoritative), not the catalog value which may differ.
+  let cantidadEquipos = input.cantidadEquipos;
+  if (perfil.tipo === "microinversor" && perfil.panelesPorUnidad && input.cantidadPaneles && input.cantidadPaneles > 0) {
+    cantidadEquipos = Math.ceil(input.cantidadPaneles / perfil.panelesPorUnidad);
+  }
 
   if (cantidadEquipos <= 0) {
     return emptyResult(input, warnings, "Cantidad de equipos debe ser mayor a 0", perfil);

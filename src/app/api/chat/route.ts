@@ -53,6 +53,20 @@ La estructura tiene secciones claras:
 
 **minisplits** → aires acondicionados planeados que aumentarán consumo
 
+**electrico** → diseño eléctrico calculado automáticamente
+  - perfilEquipo: nombre del equipo (DS3D, QS1, Solis, etc.)
+  - amperajePorUnidad: amperaje AC de cada micro/inversor
+  - maxPorCircuito: máximo de equipos por pastilla/circuito
+  - toleranciaNEC: factor de seguridad (125% según NEC)
+  - circuitos[]: cada circuito con equipos, amperaje, breaker seleccionado, cable
+  - breakerResumen: lista de pastillas necesarias (ej: "2x pastilla 30A")
+  - cables: tipo y calibre de cable por circuito
+  - tierraFisica: calibre de tierra requerido
+  - warnings: alertas si algo excede capacidad
+
+⚠️ REGLA ELÉCTRICA: Para breakers, el amperaje = (equipos × amperaje_por_unidad) × tolerancia_NEC.
+  Se elige el breaker más pequeño que cubra. SIEMPRE consulta la sección "electrico" para datos de breakers.
+
 ## QUÉ PUEDES HACER
 
 1. Analizar costos — desglosar partidas, identificar dónde está el peso del costo
