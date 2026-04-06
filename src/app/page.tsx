@@ -33,6 +33,7 @@ import type { CatalogoPanelConPrecio, OfertaSimple } from "./lib/auto-select-pan
 // ── Extracted components ─────────────────────────────────────────────────────
 import ReciboCFEBanner from "./components/ReciboCFEBanner";
 import PanelCliente from "./components/PanelCliente";
+import ChatCotizacion from "./components/ChatCotizacion";
 import SectionPaneles from "./components/SectionPaneles";
 import SectionMicroinversores from "./components/SectionMicroinversores";
 import SectionEstructura from "./components/SectionEstructura";
@@ -1249,6 +1250,9 @@ export default function Home() {
         onClose={() => set("mostrarGuardadas", false)}
         onCargar={handleCargar} onEliminar={handleEliminar}
       />
+
+      {/* AI Chat — contextual to current cotización */}
+      <ChatCotizacion cotizacion={getFormData() as unknown as Record<string, unknown>} />
     </div>
   );
 }

@@ -1,61 +1,75 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 
-export async function POST(req: Request) {
-  const { messages, cotizaciones } = await req.json();
+// ── System prompts ──────────────────────────────────────────────────────────
 
-  const systemPrompt = `Eres un analista de negocio experto para una empresa de instalación de paneles solares en México.
+function buildCotizacionPrompt(cotizacion: Record<string, unknown>) {
+  return `Eres un asistente experto en energía solar para una empresa instaladora de paneles solares en México.
+Estás integrado directamente en el cotizador. El usuario está trabajando en una cotización EN ESTE MOMENTO y tú puedes ver todos los datos en tiempo real.
+
+Siempre respondes en español. Sé conciso, directo y útil. Responde en 2-4 oraciones cuando sea posible. Usa bullets para listas.
+
+## La cotización actual que el usuario está editando:
+
+${JSON.stringify(cotizacion, null, 2)}
+
+## Campos clave que entiendes:
+- nombre: nombre del cliente/proyecto
+- cantidad/potencia: paneles × watts por panel = sistema total
+- precioPorWatt: costo USD/W de paneles (proveedor)
+- precioMicroinversor: costo USD del micro
+- aluminio/tornilleria/generales: partidas de estructura e instalación (MXN)
+- utilidad: markup al cliente (globalPct = porcentaje de utilidad)
+- reciboCFE: consumo eléctrico del cliente (kWh, $, historial bimestral)
+- tcSnapshot: tipo de cambio USD→MXN usado
+- etapa: estado en pipeline comercial
+- origen: canal de captación del cliente
+
+## Qué puedes hacer:
+1. **Analizar costos**: desglosar y calcular totales, comparar partidas
+2. **Optimizar precio**: sugerir ajustes de utilidad, precio competitivo por watt al cliente
+3. **Evaluar sizing**: ¿el sistema propuesto cubre el consumo del recibo CFE?
+4. **Calcular ROI**: payback period, ahorro mensual/anual estimado
+5. **Dar recomendaciones**: basadas en los datos reales que estás viendo
+6. **Responder dudas técnicas**: sobre paneles, micros, estructura, interconexión CFE
+
+Cuando hagas cálculos, muestra los números. Usa $MXN o $USD explícitamente.`;
+}
+
+function buildAnalisisPrompt(cotizaciones: Record<string, unknown>[]) {
+  return `Eres un analista de negocio experto para una empresa de instalación de paneles solares en México.
 Siempre respondes en español. Eres conciso, profesional y orientado a datos.
 
-## Datos disponibles
-Tienes acceso a ${cotizaciones?.length ?? 0} cotizaciones del sistema. Cada cotización tiene estos campos principales:
+Tienes acceso a ${cotizaciones.length} cotizaciones del sistema.
 
-- nombre: identificador único de la cotización
-- fecha: fecha de creación
-- cantidad: número de paneles
-- potencia: watts por panel
-- precioPorWatt: precio USD por watt del panel
-- precioMicroinversor: precio USD del microinversor
-- precioCable: precio cable trunk del micro
-- precioECU: precio del ECU (gateway de monitoreo)
-- fletePaneles, fleteMicros, fleteAluminio: costos de flete MXN
-- aluminio: array de partidas de estructura (nombre, cantidad, precioUnitario, unidad)
-- tornilleria: array de partidas de tornillería
-- generales: array de partidas generales (cableado, protecciones, etc.)
-- utilidad: objeto con tipo (global/por_partida) y porcentajes por categoría
-- tcCustomPaneles, tcCustomMicros: tipo de cambio personalizado
-- etapa: estado en pipeline (prospecto, cotizado, negociacion, cerrado_ganado, cerrado_perdido, instalado)
-- etapaNotas: notas sobre el estado
-- probabilidadCierre: 0-100
-- origen: canal de captación (referido, facebook, instagram, google, tiktok, sitio_web, volanteo, feria, otro)
-- origenDetalle: detalle del origen
-- clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas: datos de contacto
-- fechaCierre, fechaInstalacion: fechas clave
-- reciboCFE: datos del recibo de luz (consumo kWh, tarifa, historial)
-- tags: etiquetas libres
-- creadoEn, actualizadoEn: timestamps
+## Capacidades de análisis:
+- Pipeline: distribución por etapa, valor del pipeline
+- Márgenes y utilidad: porcentajes, comparación entre cotizaciones
+- Precios: tendencias de precio por watt, costos
+- Dimensionamiento: kW por proyecto, paneles promedio
+- Canales de captación: efectividad por origen
+- ROI: ahorro estimado, payback
+- Tendencias temporales: volumen por mes
 
-## Capacidades de análisis
-Puedes analizar:
-1. **Pipeline**: distribución por etapa, probabilidad ponderada de cierre, valor del pipeline
-2. **Márgenes y utilidad**: porcentajes de utilidad, comparación entre cotizaciones
-3. **Precios y costos**: tendencias de precio por watt, costos de microinversores, fletes
-4. **Dimensionamiento**: kW por proyecto, paneles promedio, relación consumo CFE vs sistema propuesto
-5. **Canales de captación**: efectividad por origen, conversión por canal
-6. **Clientes**: ubicación geográfica, patrones de consumo, segmentación
-7. **ROI**: ahorro estimado, payback period basado en consumo CFE vs generación solar
-8. **Tendencias temporales**: evolución de precios, volumen de cotizaciones por mes
+Cuando hagas cálculos, muestra los números. Usa formato $MXN o $USD.
+Si no hay datos suficientes, dilo claramente.
 
-Cuando hagas cálculos, muestra los números. Usa formato de moneda MXN o USD según corresponda.
-Si no hay datos suficientes para un análisis, dilo claramente.
+## Datos (JSON):
+${JSON.stringify(cotizaciones, null, 0)}`;
+}
 
-## Datos de cotizaciones (JSON):
-${JSON.stringify(cotizaciones ?? [], null, 0)}
-`;
+// ── Route handler ───────────────────────────────────────────────────────────
+
+export async function POST(req: Request) {
+  const { messages, cotizacion, cotizaciones, mode } = await req.json();
+
+  const system = mode === "cotizacion" && cotizacion
+    ? buildCotizacionPrompt(cotizacion)
+    : buildAnalisisPrompt(cotizaciones ?? []);
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-20250514"),
-    system: systemPrompt,
+    model: anthropic("claude-sonnet-4-20250514" as string),
+    system,
     messages,
   });
 
