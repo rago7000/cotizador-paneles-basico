@@ -506,6 +506,11 @@ function OCCard({
           <div className="text-xs text-zinc-500 mt-0.5">
             {oc.proveedorNombre} — {oc.lineas.length} items
             {oc.subtotalEst ? ` — Est. ${fmt(oc.subtotalEst)} ${oc.moneda}` : ""}
+            {oc.tcCompra && oc.subtotalEst ? (
+              <span className="text-zinc-600 ml-1">
+                (TC {oc.tcCompra} = {fmt(oc.subtotalEst * oc.tcCompra)} MXN)
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="text-xs text-zinc-600">
