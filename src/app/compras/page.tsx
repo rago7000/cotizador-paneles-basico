@@ -146,6 +146,7 @@ function ConsolidarTab() {
       productoTabla: item.productoTabla,
       cantidad: item.cantidadTotal,
       unidad: item.unidad,
+      precioUnitarioEst: item.precioUnitario,
       moneda: item.moneda,
       origenes: item.origenes,
     }));
@@ -251,8 +252,11 @@ function ConsolidarTab() {
                     <thead>
                       <tr className="border-b border-zinc-800/50">
                         <th className="text-left px-6 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Material</th>
-                        <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Qty total</th>
+                        <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Qty</th>
                         <th className="text-left px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Unidad</th>
+                        <th className="text-center px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Moneda</th>
+                        <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">P. unit.</th>
+                        <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Subtotal</th>
                         <th className="text-left px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Desglose</th>
                         <th className="text-left px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide min-w-[140px]">Proveedor</th>
                       </tr>
@@ -267,6 +271,17 @@ function ConsolidarTab() {
                             {item.cantidadTotal}
                           </td>
                           <td className="px-3 py-2.5 text-zinc-500">{item.unidad}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${item.moneda === "USD" ? "bg-sky-400/10 text-sky-400" : "bg-zinc-700 text-zinc-400"}`}>
+                              {item.moneda}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono text-zinc-400 whitespace-nowrap">
+                            {item.precioUnitario ? fmt(item.precioUnitario) : "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono text-zinc-300 whitespace-nowrap">
+                            {item.precioUnitario ? fmt(item.precioUnitario * item.cantidadTotal) : "—"}
+                          </td>
                           <td className="px-3 py-2.5">
                             <div className="flex flex-wrap gap-1">
                               {item.origenes.map((o, i) => (

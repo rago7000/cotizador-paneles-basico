@@ -13,7 +13,7 @@ interface OrigenDemanda {
 }
 
 interface ItemDemanda {
-  id: string; // unique key for grouping
+  id: string;
   seccion: Seccion;
   descripcion: string;
   marca?: string;
@@ -23,6 +23,7 @@ interface ItemDemanda {
   productoTabla?: string;
   unidad: string;
   moneda: string;
+  precioUnitario?: number;
   cantidadTotal: number;
   origenes: OrigenDemanda[];
 }
@@ -46,6 +47,11 @@ export const agregadoDemanda = query({
 
       const cantidadNum = Number(doc.cantidad) || 0;
       const potenciaNum = Number(doc.potencia) || 0;
+      const precioPorWatt = Number(doc.precioPorWatt) || 0;
+      const precioMicro = Number(doc.precioMicroinversor) || 0;
+      const precioCable = Number(doc.precioCable) || 0;
+      const precioECU = Number(doc.precioECU) || 0;
+      const precioHerramienta = Number(doc.precioHerramienta) || 0;
 
       // ── PANELES ──
       if (cantidadNum > 0 && potenciaNum > 0) {
@@ -59,12 +65,13 @@ export const agregadoDemanda = query({
           seguimientoKey: "pan-main",
           cantidad: cantidadNum,
         };
+        // Precio por panel = potencia × precioPorWatt
+        const precioPorPanel = potenciaNum * precioPorWatt;
 
         if (existing) {
           existing.cantidadTotal += cantidadNum;
           existing.origenes.push(origen);
         } else {
-          // Look up product details from catalog
           let marca: string | undefined;
           let modelo: string | undefined;
           if (doc.panelCatalogoId) {
@@ -74,10 +81,17 @@ export const agregadoDemanda = query({
               modelo = panel.modelo;
             }
           }
+          const desc = [
+            marca ?? "Panel",
+            modelo ?? "",
+            `${potenciaNum}W`,
+            precioPorWatt > 0 ? `($${precioPorWatt}/W)` : "",
+          ].filter(Boolean).join(" ");
+
           demandaMap.set(panelKey, {
             id: panelKey,
             seccion: "PANELES",
-            descripcion: marca && modelo ? `${marca} ${modelo} ${potenciaNum}W` : `Panel ${potenciaNum}W`,
+            descripcion: desc,
             marca,
             modelo,
             potencia: potenciaNum,
@@ -85,15 +99,28 @@ export const agregadoDemanda = query({
             productoTabla: doc.panelCatalogoId ? "productosPaneles" : undefined,
             unidad: "Pza",
             moneda: "USD",
+            precioUnitario: precioPorPanel > 0 ? precioPorPanel : undefined,
             cantidadTotal: cantidadNum,
             origenes: [origen],
           });
         }
       }
 
+      // ── FLETE PANELES ──
+      const fletePaneles = Number(doc.fletePaneles) || 0;
+      if (fletePaneles > 0) {
+        addLineItem(demandaMap, "pan-flete", "PANELES", "Flete paneles", "Envío", "USD", 1, nombre, "pan-flete", fletePaneles);
+      }
+
+      // ── GARANTÍA PANELES ──
+      const garantiaPaneles = Number(doc.garantiaPaneles) || 0;
+      if (garantiaPaneles > 0) {
+        addLineItem(demandaMap, "pan-garantia", "PANELES", "Garantía contra daños", "Seguro", "USD", 1, nombre, "pan-garantia", garantiaPaneles);
+      }
+
       // ── MICROINVERSORES ──
       const cantidadMicros = cantidadNum > 0 ? Math.ceil(cantidadNum / 4) : 0;
-      if (cantidadMicros > 0) {
+      if (cantidadMicros > 0 && precioMicro > 0) {
         const microKey = doc.microCatalogoId
           ? `micro-${doc.microCatalogoId}`
           : `micro-default`;
@@ -109,7 +136,6 @@ export const agregadoDemanda = query({
           existing.cantidadTotal += cantidadMicros;
           existing.origenes.push(origen);
         } else {
-          // Look up product details from catalog
           let marca: string | undefined;
           let modelo: string | undefined;
           if (doc.microCatalogoId) {
@@ -119,67 +145,89 @@ export const agregadoDemanda = query({
               modelo = micro.modelo;
             }
           }
+          const desc = [
+            marca ?? "Microinversor",
+            modelo ?? "",
+            `($${precioMicro}/ud)`,
+          ].filter(Boolean).join(" ");
+
           demandaMap.set(microKey, {
             id: microKey,
             seccion: "INVERSORES",
-            descripcion: marca && modelo ? `${marca} ${modelo}` : "Microinversor",
+            descripcion: desc,
             marca,
             modelo,
             productoId: doc.microCatalogoId ?? undefined,
             productoTabla: doc.microCatalogoId ? "productosMicros" : undefined,
             unidad: "Pza",
             moneda: "USD",
+            precioUnitario: precioMicro,
             cantidadTotal: cantidadMicros,
             origenes: [origen],
           });
         }
 
         // Cables troncales (1:1 with micros)
-        if (Number(doc.precioCable) > 0) {
-          addLineItem(demandaMap, "cable-troncal", "INVERSORES", "Cable troncal", "Pza", "USD", cantidadMicros, nombre, "inv-cables");
+        if (precioCable > 0) {
+          addLineItem(demandaMap, "inv-cables", "INVERSORES", `Cable troncal ($${precioCable}/ud)`, "Pza", "USD", cantidadMicros, nombre, "inv-cables", precioCable);
         }
       }
 
       // ── ECU ──
-      if (doc.incluyeECU && Number(doc.precioECU) > 0) {
-        addLineItem(demandaMap, "ecu-r", "INVERSORES", "ECU-R Monitoreo", "Pza", "USD", 1, nombre, "inv-ecu");
+      if (doc.incluyeECU && precioECU > 0) {
+        addLineItem(demandaMap, "inv-ecu", "INVERSORES", `ECU-R Monitoreo ($${precioECU})`, "Pza", "USD", 1, nombre, "inv-ecu", precioECU);
+      }
+
+      // ── HERRAMIENTA ──
+      if (doc.incluyeHerramienta && precioHerramienta > 0) {
+        addLineItem(demandaMap, "inv-herramienta", "INVERSORES", `Herramienta desconectora ($${precioHerramienta})`, "Pza", "USD", 1, nombre, "inv-herramienta", precioHerramienta);
+      }
+
+      // ── FLETE MICROS ──
+      const fleteMicros = Number(doc.fleteMicros) || 0;
+      if (fleteMicros > 0) {
+        addLineItem(demandaMap, "inv-flete", "INVERSORES", "Flete microinversores", "Envío", "USD", 1, nombre, "inv-flete", fleteMicros);
       }
 
       // ── ESTRUCTURA ──
       for (const item of doc.aluminio ?? []) {
         const qty = Number(item.cantidad) || 0;
+        const precio = Number(item.precioUnitario) || 0;
         if (qty > 0) {
           const key = `est-${item.nombre.toLowerCase().replace(/\s+/g, "-")}`;
-          addLineItem(demandaMap, key, "ESTRUCTURA", item.nombre, item.unidad, "MXN", qty, nombre, `est-${item.id}`);
+          addLineItem(demandaMap, key, "ESTRUCTURA", item.nombre, item.unidad, "MXN", qty, nombre, `est-${item.id}`, precio);
         }
+      }
+
+      // ── FLETE ESTRUCTURA ──
+      const fleteAluminio = Number(doc.fleteAluminio) || 0;
+      if (fleteAluminio > 0) {
+        addLineItem(demandaMap, "est-flete", "ESTRUCTURA", "Flete estructura", "Envío", "MXN", 1, nombre, "est-flete", fleteAluminio / 1.16);
       }
 
       // ── TORNILLERÍA ──
       for (const item of doc.tornilleria ?? []) {
         const qty = Number(item.cantidad) || 0;
+        const precio = Number(item.precioUnitario) || 0;
         if (qty > 0) {
           const key = `tor-${item.nombre.toLowerCase().replace(/\s+/g, "-")}`;
-          addLineItem(demandaMap, key, "TORNILLERIA", item.nombre, item.unidad, "MXN", qty, nombre, `tor-${item.id}`);
+          addLineItem(demandaMap, key, "TORNILLERIA", item.nombre, item.unidad, "MXN", qty, nombre, `tor-${item.id}`, precio);
         }
       }
 
       // ── GENERALES ──
       for (const item of doc.generales ?? []) {
         const qty = Number(item.cantidad) || 0;
+        const precio = Number(item.precioUnitario) || 0;
         if (qty > 0) {
           const key = `gen-${item.nombre.toLowerCase().replace(/\s+/g, "-")}`;
-          addLineItem(demandaMap, key, "GENERALES", item.nombre, item.unidad, "MXN", qty, nombre, `gen-${item.id}`);
+          addLineItem(demandaMap, key, "GENERALES", item.nombre, item.unidad, "MXN", qty, nombre, `gen-${item.id}`, precio);
         }
       }
     }
 
-    // Sort by section order, then by description
     const sectionOrder: Record<Seccion, number> = {
-      PANELES: 0,
-      INVERSORES: 1,
-      ESTRUCTURA: 2,
-      TORNILLERIA: 3,
-      GENERALES: 4,
+      PANELES: 0, INVERSORES: 1, ESTRUCTURA: 2, TORNILLERIA: 3, GENERALES: 4,
     };
 
     const items = Array.from(demandaMap.values()).sort((a, b) => {
@@ -204,6 +252,7 @@ function addLineItem(
   cantidad: number,
   cotizacionNombre: string,
   seguimientoKey: string,
+  precioUnitario?: number,
 ) {
   const origen: OrigenDemanda = { cotizacionNombre, seguimientoKey, cantidad };
   const existing = map.get(key);
@@ -218,6 +267,7 @@ function addLineItem(
       descripcion,
       unidad,
       moneda,
+      precioUnitario,
       cantidadTotal: cantidad,
       origenes: [origen],
     });

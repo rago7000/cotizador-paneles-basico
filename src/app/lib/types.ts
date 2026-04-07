@@ -373,6 +373,7 @@ export interface ItemDemanda {
   productoTabla?: string;
   unidad: string;
   moneda: string;
+  precioUnitario?: number;
   cantidadTotal: number;
   origenes: OrigenOC[];
 }
