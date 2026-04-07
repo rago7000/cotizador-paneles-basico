@@ -389,11 +389,14 @@ function OCCard({
     lineas: Array<{
       id: string;
       descripcion: string;
+      productoId?: string;
+      productoTabla?: string;
       cantidad: number;
       unidad: string;
       moneda: string;
       precioUnitarioEst?: number;
       origenes: Array<{ cotizacionNombre: string; seguimientoKey: string; cantidad: number }>;
+      notaBulk?: string;
     }>;
     estado: string;
     subtotalEst?: number;
