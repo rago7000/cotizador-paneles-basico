@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -98,6 +98,8 @@ export default function ComprasPage() {
 
 function ConsolidarTab() {
   const cotizaciones = useQuery(api.cotizaciones.listByEtapa, { etapa: "cerrado_ganado" }) ?? [];
+  const proveedores = useQuery(api.proveedores.list) ?? [];
+  const proveedorNames = useMemo(() => proveedores.map((p) => p.nombre), [proveedores]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proveedorPorItem, setProveedorPorItem] = useState<Map<string, string>>(new Map());
   const crearOCMut = useMutation(api.ordenesCompra.crear);
@@ -299,17 +301,15 @@ function ConsolidarTab() {
                             </div>
                           </td>
                           <td className="px-3 py-2.5">
-                            <input
-                              type="text"
+                            <ProveedorCombobox
                               value={proveedorPorItem.get(item.id) ?? ""}
-                              onChange={(e) => {
+                              options={proveedorNames}
+                              onChange={(val) => {
                                 const next = new Map(proveedorPorItem);
-                                if (e.target.value) next.set(item.id, e.target.value);
+                                if (val) next.set(item.id, val);
                                 else next.delete(item.id);
                                 setProveedorPorItem(next);
                               }}
-                              placeholder="Proveedor..."
-                              className={inputCls}
                             />
                           </td>
                         </tr>
@@ -678,6 +678,86 @@ function OCCard({
               )}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Proveedor Combobox ───────────────────────────────────────────────────────
+
+function ProveedorCombobox({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search) return options;
+    const lower = search.toLowerCase();
+    return options.filter((o) => o.toLowerCase().includes(lower));
+  }, [options, search]);
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        type="text"
+        value={value || search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          onChange(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder="Seleccionar proveedor..."
+        className={inputCls}
+      />
+      {open && (filtered.length > 0 || search) && (
+        <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl">
+          {filtered.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => {
+                onChange(name);
+                setSearch("");
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-zinc-700 ${
+                value === name ? "text-emerald-400 font-medium" : "text-zinc-300"
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+          {search && !options.includes(search) && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(search);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-amber-400 hover:bg-zinc-700 border-t border-zinc-700"
+            >
+              + Usar &quot;{search}&quot; como nuevo proveedor
+            </button>
+          )}
         </div>
       )}
     </div>
