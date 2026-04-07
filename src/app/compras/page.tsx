@@ -85,7 +85,7 @@ export default function ComprasPage() {
           </button>
         </div>
 
-        {tab === "consolidar" && <ConsolidarTab />}
+        {tab === "consolidar" && <ConsolidarTab onOCCreated={() => setTab("ordenes")} />}
         {tab === "ordenes" && <OrdenesTab />}
       </main>
     </div>
@@ -96,12 +96,13 @@ export default function ComprasPage() {
 // Tab: Consolidar
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ConsolidarTab() {
+function ConsolidarTab({ onOCCreated }: { onOCCreated: () => void }) {
   const cotizaciones = useQuery(api.cotizaciones.listByEtapa, { etapa: "cerrado_ganado" }) ?? [];
   const proveedores = useQuery(api.proveedores.list) ?? [];
   const proveedorNames = useMemo(() => proveedores.map((p) => p.nombre), [proveedores]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proveedorPorItem, setProveedorPorItem] = useState<Map<string, string>>(new Map());
+  const [creandoOC, setCreandoOC] = useState<string | null>(null); // proveedor name being created
   const crearOCMut = useMutation(api.ordenesCompra.crear);
 
   const selectedNames = useMemo(() => Array.from(selected), [selected]);
@@ -141,6 +142,7 @@ function ConsolidarTab() {
   }, [demandaResult, proveedorPorItem]);
 
   async function handleCrearOC(proveedorNombre: string, items: ItemDemanda[]) {
+    setCreandoOC(proveedorNombre);
     const lineas = items.map((item) => ({
       id: item.id,
       descripcion: item.descripcion,
@@ -153,11 +155,16 @@ function ConsolidarTab() {
       origenes: item.origenes,
     }));
 
-    await crearOCMut({
-      proveedorNombre,
-      lineas,
-      moneda: items[0]?.moneda ?? "MXN",
-    });
+    try {
+      await crearOCMut({
+        proveedorNombre,
+        lineas,
+        moneda: items[0]?.moneda ?? "MXN",
+      });
+      onOCCreated();
+    } finally {
+      setCreandoOC(null);
+    }
   }
 
   return (
@@ -335,9 +342,10 @@ function ConsolidarTab() {
                 </div>
                 <button
                   onClick={() => handleCrearOC(provName, items)}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors"
+                  disabled={creandoOC !== null}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Crear OC
+                  {creandoOC === provName ? "Creando..." : "Crear OC"}
                 </button>
               </div>
             ))}
