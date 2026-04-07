@@ -415,6 +415,9 @@ function OCCard({
   const [tcRecepcion, setTcRecepcion] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
+  const showCostoReal = oc.estado === "confirmada" || oc.estado === "enviada";
+  const totalEstimado = oc.lineas.reduce((a, l) => a + (l.precioUnitarioEst ?? 0) * l.cantidad, 0);
+
   async function handleRecibir() {
     const costosPorLinea = Array.from(costosReales.entries()).map(([lineaId, costoReal]) => ({
       lineaId,
@@ -472,65 +475,101 @@ function OCCard({
       {isExpanded && (
         <div className="border-t border-zinc-800">
           {/* Lines table */}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800/50">
-                <th className="text-left px-6 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Material</th>
-                <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Qty</th>
-                <th className="text-left px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Origenes</th>
-                {(oc.estado === "confirmada" || oc.estado === "enviada") && (
-                  <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide min-w-[120px]">
-                    Costo real
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {oc.lineas.map((linea) => (
-                <tr key={linea.id} className="border-b border-zinc-800/30">
-                  <td className="px-6 py-2.5">
-                    <span className="font-medium text-zinc-200">{linea.descripcion}</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-zinc-300">
-                    {linea.cantidad} {linea.unidad}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {linea.origenes.map((o, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400"
-                        >
-                          {o.cotizacionNombre.length > 12
-                            ? o.cotizacionNombre.slice(0, 12) + "..."
-                            : o.cotizacionNombre}
-                          : {o.cantidad}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  {(oc.estado === "confirmada" || oc.estado === "enviada") && (
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="number"
-                        value={costosReales.get(linea.id) ?? ""}
-                        onChange={(e) => {
-                          const next = new Map(costosReales);
-                          if (e.target.value) next.set(linea.id, Number(e.target.value));
-                          else next.delete(linea.id);
-                          setCostosReales(next);
-                        }}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        className={`${inputCls} text-right font-mono`}
-                      />
-                    </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800/50">
+                  <th className="text-left px-6 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Material</th>
+                  <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Cantidad</th>
+                  <th className="text-center px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Moneda</th>
+                  <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">P. unit. est.</th>
+                  <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Subtotal est.</th>
+                  <th className="text-left px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide">Desglose por cotizacion</th>
+                  {showCostoReal && (
+                    <th className="text-right px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-wide min-w-[120px]">
+                      Costo real
+                    </th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {oc.lineas.map((linea) => {
+                  const subtotalEst = (linea.precioUnitarioEst ?? 0) * linea.cantidad;
+                  return (
+                    <tr key={linea.id} className="border-b border-zinc-800/30">
+                      <td className="px-6 py-3">
+                        <span className="font-medium text-zinc-200">{linea.descripcion}</span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-zinc-100 font-semibold whitespace-nowrap">
+                        {linea.cantidad} <span className="text-zinc-500 font-normal">{linea.unidad}</span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${linea.moneda === "USD" ? "bg-sky-400/10 text-sky-400" : "bg-zinc-700 text-zinc-400"}`}>
+                          {linea.moneda}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-zinc-400 whitespace-nowrap">
+                        {linea.precioUnitarioEst ? fmt(linea.precioUnitarioEst) : <span className="text-zinc-600">—</span>}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-zinc-300 whitespace-nowrap">
+                        {subtotalEst > 0 ? fmt(subtotalEst) : <span className="text-zinc-600">—</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="space-y-0.5">
+                          {linea.origenes.map((o, i) => (
+                            <div key={i} className="flex items-center gap-1.5 text-xs">
+                              <span className="text-zinc-500 truncate max-w-[200px]" title={o.cotizacionNombre}>
+                                {o.cotizacionNombre}
+                              </span>
+                              <span className="font-mono font-semibold text-zinc-300">&times;{o.cantidad}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      {showCostoReal && (
+                        <td className="px-3 py-3">
+                          <input
+                            type="number"
+                            value={costosReales.get(linea.id) ?? ""}
+                            onChange={(e) => {
+                              const next = new Map(costosReales);
+                              if (e.target.value) next.set(linea.id, Number(e.target.value));
+                              else next.delete(linea.id);
+                              setCostosReales(next);
+                            }}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            className={`${inputCls} text-right font-mono`}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {/* Footer totals */}
+              <tfoot>
+                <tr className="border-t border-zinc-700 bg-zinc-800/40">
+                  <td className="px-6 py-3 text-xs font-semibold text-zinc-400 uppercase">Total</td>
+                  <td className="px-3 py-3 text-right font-mono font-bold text-zinc-100">
+                    {oc.lineas.reduce((a, l) => a + l.cantidad, 0)}
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="text-[10px] text-zinc-500">{oc.moneda}</span>
+                  </td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3 text-right font-mono font-bold text-zinc-100 whitespace-nowrap">
+                    {totalEstimado > 0 ? fmt(totalEstimado) : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-zinc-500">
+                    {oc.lineas.reduce((a, l) => a + l.origenes.length, 0)} origenes de {new Set(oc.lineas.flatMap(l => l.origenes.map(o => o.cotizacionNombre))).size} cotizaciones
+                  </td>
+                  {showCostoReal && <td className="px-3 py-3" />}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           {/* Actions bar */}
           <div className="px-6 py-4 border-t border-zinc-800/50 flex items-center justify-between gap-4">
