@@ -366,6 +366,9 @@ export interface ItemDemanda {
   id: string;
   seccion: string;
   descripcion: string;
+  marca?: string;
+  modelo?: string;
+  potencia?: number;
   productoId?: string;
   productoTabla?: string;
   unidad: string;

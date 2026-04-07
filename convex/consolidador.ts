@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,9 @@ interface ItemDemanda {
   id: string; // unique key for grouping
   seccion: Seccion;
   descripcion: string;
+  marca?: string;
+  modelo?: string;
+  potencia?: number;
   productoId?: string;
   productoTabla?: string;
   unidad: string;
@@ -60,10 +64,23 @@ export const agregadoDemanda = query({
           existing.cantidadTotal += cantidadNum;
           existing.origenes.push(origen);
         } else {
+          // Look up product details from catalog
+          let marca: string | undefined;
+          let modelo: string | undefined;
+          if (doc.panelCatalogoId) {
+            const panel = await ctx.db.get(doc.panelCatalogoId as Id<"productosPaneles">);
+            if (panel) {
+              marca = panel.marca;
+              modelo = panel.modelo;
+            }
+          }
           demandaMap.set(panelKey, {
             id: panelKey,
             seccion: "PANELES",
-            descripcion: `Panel ${potenciaNum}W`,
+            descripcion: marca && modelo ? `${marca} ${modelo} ${potenciaNum}W` : `Panel ${potenciaNum}W`,
+            marca,
+            modelo,
+            potencia: potenciaNum,
             productoId: doc.panelCatalogoId ?? undefined,
             productoTabla: doc.panelCatalogoId ? "productosPaneles" : undefined,
             unidad: "Pza",
@@ -92,10 +109,22 @@ export const agregadoDemanda = query({
           existing.cantidadTotal += cantidadMicros;
           existing.origenes.push(origen);
         } else {
+          // Look up product details from catalog
+          let marca: string | undefined;
+          let modelo: string | undefined;
+          if (doc.microCatalogoId) {
+            const micro = await ctx.db.get(doc.microCatalogoId as Id<"productosMicros">);
+            if (micro) {
+              marca = micro.marca;
+              modelo = micro.modelo;
+            }
+          }
           demandaMap.set(microKey, {
             id: microKey,
             seccion: "INVERSORES",
-            descripcion: "Microinversor",
+            descripcion: marca && modelo ? `${marca} ${modelo}` : "Microinversor",
+            marca,
+            modelo,
             productoId: doc.microCatalogoId ?? undefined,
             productoTabla: doc.microCatalogoId ? "productosMicros" : undefined,
             unidad: "Pza",

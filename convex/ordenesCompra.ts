@@ -175,6 +175,18 @@ export const marcarRecibida = mutation({
   },
 });
 
+export const eliminar = mutation({
+  args: { id: v.id("ordenesCompra") },
+  handler: async (ctx, { id }) => {
+    const oc = await ctx.db.get(id);
+    if (!oc) throw new Error("OC not found");
+    if (oc.estado !== "borrador" && oc.estado !== "cancelada") {
+      throw new Error("Solo se pueden eliminar OCs en borrador o canceladas");
+    }
+    await ctx.db.delete(id);
+  },
+});
+
 export const cancelar = mutation({
   args: { id: v.id("ordenesCompra") },
   handler: async (ctx, { id }) => {

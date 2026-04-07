@@ -410,6 +410,7 @@ function OCCard({
   const marcarConfirmadaMut = useMutation(api.ordenesCompra.marcarConfirmada);
   const marcarRecibidaMut = useMutation(api.ordenesCompra.marcarRecibida);
   const cancelarMut = useMutation(api.ordenesCompra.cancelar);
+  const eliminarMut = useMutation(api.ordenesCompra.eliminar);
 
   const [costosReales, setCostosReales] = useState<Map<string, number>>(new Map());
   const [tcRecepcion, setTcRecepcion] = useState<string>("");
@@ -498,7 +499,12 @@ function OCCard({
                   return (
                     <tr key={linea.id} className="border-b border-zinc-800/30">
                       <td className="px-6 py-3">
-                        <span className="font-medium text-zinc-200">{linea.descripcion}</span>
+                        <div className="font-medium text-zinc-200">{linea.descripcion}</div>
+                        {linea.productoId && (
+                          <div className="text-[10px] text-zinc-500 mt-0.5 font-mono">
+                            ID: {linea.productoId.slice(0, 12)}...
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-zinc-100 font-semibold whitespace-nowrap">
                         {linea.cantidad} <span className="text-zinc-500 font-normal">{linea.unidad}</span>
@@ -643,6 +649,14 @@ function OCCard({
                 <span className={`text-xs font-medium ${ei.color}`}>
                   {ei.label}
                 </span>
+              )}
+              {(oc.estado === "cancelada" || oc.estado === "borrador") && (
+                <button
+                  onClick={() => eliminarMut({ id: oc._id })}
+                  className="px-3 py-1.5 rounded-lg border border-red-800 text-xs font-medium text-red-400 hover:bg-red-400/10 transition-colors"
+                >
+                  Eliminar
+                </button>
               )}
             </div>
           </div>
