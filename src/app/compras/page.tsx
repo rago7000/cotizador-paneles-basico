@@ -697,16 +697,26 @@ function ProveedorCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   // Close on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Position dropdown relative to viewport
+  useEffect(() => {
+    if (open && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+  }, [open]);
 
   const filtered = useMemo(() => {
     if (!search) return options;
@@ -715,8 +725,9 @@ function ProveedorCombobox({
   }, [options, search]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapRef}>
       <input
+        ref={inputRef}
         type="text"
         value={value || search}
         onChange={(e) => {
@@ -729,7 +740,11 @@ function ProveedorCombobox({
         className={inputCls}
       />
       {open && (filtered.length > 0 || search) && (
-        <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl">
+        <div
+          className="fixed z-[9999] max-h-48 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl"
+          style={{ top: pos.top, left: pos.left, width: pos.width }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {filtered.map((name) => (
             <button
               key={name}
