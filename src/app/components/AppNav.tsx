@@ -39,6 +39,16 @@ export default function AppNav() {
         Comparativa
       </Link>
       <Link
+        href="/compras"
+        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          path === "/compras"
+            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+            : "text-emerald-500/70 hover:text-emerald-400 hover:bg-emerald-500/10"
+        }`}
+      >
+        Compras
+      </Link>
+      <Link
         href="/analisis"
         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
           path === "/analisis"

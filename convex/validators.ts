@@ -56,9 +56,45 @@ export const utilidadV = v.object({
  * All cotización structured fields.
  * Used as both the table columns (in schema.ts) and the save mutation args.
  */
+export const seguimientoItemEstadoV = v.union(
+  v.literal("pendiente"),
+  v.literal("pedido"),
+  v.literal("pagado"),
+  v.literal("recibido"),
+);
+
+export const ordenCompraEstadoV = v.union(
+  v.literal("borrador"),
+  v.literal("enviada"),
+  v.literal("confirmada"),
+  v.literal("parcial"),
+  v.literal("recibida"),
+  v.literal("cancelada"),
+);
+
+export const lineaOCV = v.object({
+  id: v.string(),
+  descripcion: v.string(),
+  productoId: v.optional(v.string()),
+  productoTabla: v.optional(v.string()),
+  cantidad: v.number(),
+  unidad: v.string(),
+  precioUnitarioEst: v.optional(v.number()),
+  moneda: v.string(),
+  origenes: v.array(
+    v.object({
+      cotizacionNombre: v.string(),
+      seguimientoKey: v.string(),
+      cantidad: v.number(),
+    }),
+  ),
+  notaBulk: v.optional(v.string()),
+});
+
 export const cotizacionFieldsV = {
   nombre: v.string(),
   fecha: v.string(),
+  cotizacionId: v.optional(v.string()),
 
   // ── Tipo de cambio ──
   tcCustomPaneles: v.optional(v.string()),
@@ -80,6 +116,8 @@ export const cotizacionFieldsV = {
   incluyeECU: v.optional(v.boolean()),
   precioHerramienta: v.optional(v.string()),
   incluyeHerramienta: v.optional(v.boolean()),
+  precioEndCap: v.optional(v.string()),
+  incluyeEndCap: v.optional(v.boolean()),
   fleteMicros: v.optional(v.string()),
 
   // ── Estructura / Aluminio ──

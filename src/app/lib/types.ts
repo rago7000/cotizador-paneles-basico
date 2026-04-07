@@ -285,3 +285,91 @@ export interface SeguimientoData {
   items: SeguimientoItem[];
   fechaActualizacion: string;
 }
+
+// ── Seguimiento v2 (one doc per concept) ────────────────────────────────────
+
+export type SeguimientoEstado = "pendiente" | "pedido" | "pagado" | "recibido";
+
+export interface SeguimientoItemV2 {
+  _id?: string;
+  cotizacionNombre: string;
+  key: string;
+
+  realMXN?: number;
+  incluyeIVA?: boolean;
+  tcCompra?: number;
+  montoOriginal?: number;
+  monedaOriginal?: string;
+
+  proveedorNombre?: string;
+
+  estado?: SeguimientoEstado;
+  fechaPedido?: string;
+  fechaPago?: string;
+  fechaRecibido?: string;
+
+  notas?: string;
+  facturaRef?: string;
+  ordenCompraId?: string;
+
+  actualizadoEn: string;
+}
+
+// ── Órdenes de Compra ───────────────────────────────────────────────────────
+
+export type OrdenCompraEstado =
+  | "borrador"
+  | "enviada"
+  | "confirmada"
+  | "parcial"
+  | "recibida"
+  | "cancelada";
+
+export interface OrigenOC {
+  cotizacionNombre: string;
+  seguimientoKey: string;
+  cantidad: number;
+}
+
+export interface LineaOC {
+  id: string;
+  descripcion: string;
+  productoId?: string;
+  productoTabla?: string;
+  cantidad: number;
+  unidad: string;
+  precioUnitarioEst?: number;
+  moneda: string;
+  origenes: OrigenOC[];
+  notaBulk?: string;
+}
+
+export interface OrdenCompra {
+  _id: string;
+  folio: string;
+  nombre?: string;
+  proveedorNombre: string;
+  lineas: LineaOC[];
+  estado: OrdenCompraEstado;
+  tcCompra?: number;
+  subtotalEst?: number;
+  moneda: string;
+  fechaCreacion: string;
+  fechaEnvio?: string;
+  fechaRecepcion?: string;
+  notas?: string;
+}
+
+// ── Consolidador ────────────────────────────────────────────────────────────
+
+export interface ItemDemanda {
+  id: string;
+  seccion: string;
+  descripcion: string;
+  productoId?: string;
+  productoTabla?: string;
+  unidad: string;
+  moneda: string;
+  cantidadTotal: number;
+  origenes: OrigenOC[];
+}

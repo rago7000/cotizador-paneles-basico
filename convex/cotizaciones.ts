@@ -11,6 +11,25 @@ export const list = query({
   },
 });
 
+export const listByEtapa = query({
+  args: {
+    etapa: v.union(
+      v.literal("prospecto"),
+      v.literal("cotizado"),
+      v.literal("negociacion"),
+      v.literal("cerrado_ganado"),
+      v.literal("cerrado_perdido"),
+      v.literal("instalado"),
+    ),
+  },
+  handler: async (ctx, { etapa }) => {
+    return await ctx.db
+      .query("cotizaciones")
+      .withIndex("by_etapa", (q) => q.eq("etapa", etapa))
+      .take(100);
+  },
+});
+
 export const getByNombre = query({
   args: { nombre: v.string() },
   handler: async (ctx, { nombre }) => {
@@ -35,7 +54,8 @@ export const save = mutation({
       .first();
     if (existing) {
       // Preservar creadoEn original, actualizar actualizadoEn
-      await ctx.db.replace(existing._id, {
+      // Usar patch en vez de replace para no borrar campos no incluidos en args
+      await ctx.db.patch(existing._id, {
         ...args,
         creadoEn: existing.creadoEn ?? args.creadoEn ?? now,
         actualizadoEn: now,
