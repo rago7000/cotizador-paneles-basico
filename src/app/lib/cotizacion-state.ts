@@ -173,7 +173,7 @@ const generalesDefault: LineItem[] = [
   { id: uid(), nombre: "Cable de uso rudo", cantidad: "20", precioUnitario: "37.97", unidad: "mL" },
   { id: uid(), nombre: "Instalacion - Precio base", cantidad: "1", precioUnitario: "3000.00", unidad: "Lote" },
   { id: uid(), nombre: "Instalacion - Paneles adicionales", cantidad: "0", precioUnitario: "150.00", unidad: "Pza" },
-  { id: uid(), nombre: "Instalacion - Vueltas gasolina", cantidad: "1", precioUnitario: "2500.00", unidad: "Pza" },
+  { id: uid(), nombre: "Instalacion - Vueltas gasolina", cantidad: "1", precioUnitario: "800.00", unidad: "Pza" },
 ];
 
 export const UTILIDAD_DEFAULT: UtilidadConfig = {
@@ -463,7 +463,7 @@ export function stateToFormData(state: CotizacionState): CotizacionData {
     clienteUbicacion: state.clienteUbicacion || undefined,
     clienteNotas: state.clienteNotas || undefined,
     // Pipeline
-    etapa: state.etapa || undefined,
+    etapa: state.etapa,  // always include — even "prospecto" default
     etapaNotas: state.etapaNotas || undefined,
     fechaCierre: state.fechaCierre || undefined,
     fechaInstalacion: state.fechaInstalacion || undefined,

@@ -295,6 +295,7 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
   return pickDefined({
     nombre,
     fecha: data.fecha,
+    cotizacionId: data.cotizacionId || undefined,
     // Tipo de cambio
     tcCustomPaneles: data.tcCustomPaneles || undefined,
     tcCustomMicros: data.tcCustomMicros || undefined,
@@ -313,6 +314,8 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
     incluyeECU: data.incluyeECU,   // preserve boolean false
     precioHerramienta: data.precioHerramienta || undefined,
     incluyeHerramienta: data.incluyeHerramienta, // preserve boolean false
+    precioEndCap: data.precioEndCap || undefined,
+    incluyeEndCap: data.incluyeEndCap,  // preserve boolean false
     fleteMicros: data.fleteMicros || undefined,
     // Estructura
     aluminio: data.aluminio?.length ? data.aluminio : undefined,
@@ -332,6 +335,22 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
     minisplitTemporada: data.minisplitTemporada || undefined,
     // Utilidad
     utilidad: data.utilidad ?? undefined,
+    // Cliente / Contacto
+    clienteTelefono: data.clienteTelefono || undefined,
+    clienteEmail: data.clienteEmail || undefined,
+    clienteUbicacion: data.clienteUbicacion || undefined,
+    clienteNotas: data.clienteNotas || undefined,
+    // Pipeline
+    etapa: data.etapa,  // always include — even "prospecto" default
+    etapaNotas: data.etapaNotas || undefined,
+    fechaCierre: data.fechaCierre || undefined,
+    fechaInstalacion: data.fechaInstalacion || undefined,
+    probabilidadCierre: data.probabilidadCierre != null && data.probabilidadCierre > 0 ? data.probabilidadCierre : undefined,
+    // Origen
+    origen: data.origen || undefined,
+    origenDetalle: data.origenDetalle || undefined,
+    // Tags
+    tags: data.tags?.length ? data.tags : undefined,
   });
 }
 
@@ -349,6 +368,7 @@ function docToCotizacionData(doc: any): CotizacionData | null {
   // Structured format
   return {
     nombre: doc.nombre ?? "",
+    cotizacionId: doc.cotizacionId,
     fecha: doc.fecha ?? "",
     tcCustomPaneles: doc.tcCustomPaneles ?? "",
     tcCustomMicros: doc.tcCustomMicros ?? "",
@@ -365,6 +385,8 @@ function docToCotizacionData(doc: any): CotizacionData | null {
     incluyeECU: doc.incluyeECU ?? true,
     precioHerramienta: doc.precioHerramienta ?? "",
     incluyeHerramienta: doc.incluyeHerramienta ?? false,
+    precioEndCap: doc.precioEndCap,
+    incluyeEndCap: doc.incluyeEndCap,
     fleteMicros: doc.fleteMicros ?? "",
     aluminio: (doc.aluminio as LineItem[]) ?? [],
     fleteAluminio: doc.fleteAluminio ?? "",
@@ -377,6 +399,25 @@ function docToCotizacionData(doc: any): CotizacionData | null {
     minisplits: doc.minisplits,
     minisplitTemporada: doc.minisplitTemporada as CotizacionData["minisplitTemporada"],
     utilidad: doc.utilidad as UtilidadConfig | undefined,
+    // Cliente / Contacto
+    clienteTelefono: doc.clienteTelefono,
+    clienteEmail: doc.clienteEmail,
+    clienteUbicacion: doc.clienteUbicacion,
+    clienteNotas: doc.clienteNotas,
+    // Pipeline
+    etapa: doc.etapa,
+    etapaNotas: doc.etapaNotas,
+    fechaCierre: doc.fechaCierre,
+    fechaInstalacion: doc.fechaInstalacion,
+    probabilidadCierre: doc.probabilidadCierre,
+    // Origen
+    origen: doc.origen,
+    origenDetalle: doc.origenDetalle,
+    // Timestamps (read-only from server)
+    creadoEn: doc.creadoEn,
+    actualizadoEn: doc.actualizadoEn,
+    // Tags
+    tags: doc.tags,
   };
 }
 
