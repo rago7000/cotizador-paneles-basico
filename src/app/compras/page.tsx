@@ -501,7 +501,8 @@ function OCCard({
           </div>
         </div>
         <div className="text-xs text-zinc-600">
-          {new Date(oc.fechaCreacion).toLocaleDateString("es-MX")}
+          {new Date(oc.fechaCreacion).toLocaleDateString("es-MX")}{" "}
+          <span className="text-zinc-600">{new Date(oc.fechaCreacion).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
         <svg
           className={`w-4 h-4 text-zinc-500 transition-transform ${isExpanded ? "rotate-180" : ""}`}
