@@ -454,11 +454,19 @@ function OCCard({
   const eliminarMut = useMutation(api.ordenesCompra.eliminar);
 
   const [costosReales, setCostosReales] = useState<Map<string, number>>(new Map());
-  const [tcRecepcion, setTcRecepcion] = useState<string>("");
+  const [tcRecepcion, setTcRecepcion] = useState<string>(oc.tcCompra ? String(oc.tcCompra) : "");
   const [saving, setSaving] = useState(false);
 
   const showCostoReal = oc.estado === "confirmada" || oc.estado === "enviada";
-  const totalEstimado = oc.lineas.reduce((a, l) => a + (l.precioUnitarioEst ?? 0) * l.cantidad, 0);
+  const totalEstimadoUSD = oc.lineas
+    .filter((l) => l.moneda === "USD")
+    .reduce((a, l) => a + (l.precioUnitarioEst ?? 0) * l.cantidad, 0);
+  const totalEstimadoMXN = oc.lineas
+    .filter((l) => l.moneda === "MXN")
+    .reduce((a, l) => a + (l.precioUnitarioEst ?? 0) * l.cantidad, 0);
+  const tcNum = Number(tcRecepcion) || 0;
+  const totalEstimado = totalEstimadoMXN + totalEstimadoUSD * (tcNum > 0 ? tcNum : 1);
+  const hasUSD = totalEstimadoUSD > 0;
 
   async function handleRecibir() {
     const costosPorLinea = Array.from(costosReales.entries()).map(([lineaId, costoReal]) => ({
@@ -598,17 +606,58 @@ function OCCard({
               </tbody>
               {/* Footer totals */}
               <tfoot>
-                <tr className="border-t border-zinc-700 bg-zinc-800/40">
-                  <td className="px-6 py-3 text-xs font-semibold text-zinc-400 uppercase">Total</td>
+                {hasUSD && (
+                  <tr className="border-t border-zinc-700 bg-zinc-800/40">
+                    <td className="px-6 py-2 text-xs text-zinc-500" colSpan={3}>Subtotal USD</td>
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-sky-400 whitespace-nowrap">
+                      {fmt(totalEstimadoUSD)} USD
+                    </td>
+                    <td className="px-3 py-2" colSpan={showCostoReal ? 2 : 1} />
+                  </tr>
+                )}
+                {totalEstimadoMXN > 0 && (
+                  <tr className="border-t border-zinc-700/50 bg-zinc-800/40">
+                    <td className="px-6 py-2 text-xs text-zinc-500" colSpan={3}>Subtotal MXN</td>
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-300 whitespace-nowrap">
+                      {fmt(totalEstimadoMXN)} MXN
+                    </td>
+                    <td className="px-3 py-2" colSpan={showCostoReal ? 2 : 1} />
+                  </tr>
+                )}
+                {hasUSD && (
+                  <tr className="border-t border-zinc-700/50 bg-zinc-800/40">
+                    <td className="px-6 py-2 text-xs text-zinc-500" colSpan={3}>
+                      <div className="flex items-center gap-2">
+                        <span>TC compra</span>
+                        <input
+                          type="number"
+                          value={tcRecepcion}
+                          onChange={(e) => setTcRecepcion(e.target.value)}
+                          placeholder="17.50"
+                          min="0"
+                          step="0.01"
+                          className="w-20 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-right text-zinc-100 font-mono placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-400/60"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 text-right font-mono text-zinc-400 whitespace-nowrap text-xs">
+                      {tcNum > 0 ? `${fmt(totalEstimadoUSD)} × ${tcNum} = ${fmt(totalEstimadoUSD * tcNum)}` : "Ingresa TC"}
+                    </td>
+                    <td className="px-3 py-2" colSpan={showCostoReal ? 2 : 1} />
+                  </tr>
+                )}
+                <tr className="border-t border-zinc-600 bg-zinc-800/60">
+                  <td className="px-6 py-3 text-xs font-bold text-zinc-300 uppercase">Total MXN</td>
                   <td className="px-3 py-3 text-right font-mono font-bold text-zinc-100">
-                    {oc.lineas.reduce((a, l) => a + l.cantidad, 0)}
-                  </td>
-                  <td className="px-3 py-3 text-center">
-                    <span className="text-[10px] text-zinc-500">{oc.moneda}</span>
+                    {oc.lineas.reduce((a, l) => a + l.cantidad, 0)} items
                   </td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3 text-right font-mono font-bold text-zinc-100 whitespace-nowrap">
-                    {totalEstimado > 0 ? fmt(totalEstimado) : "—"}
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3 text-right font-mono font-bold text-lg text-emerald-400 whitespace-nowrap">
+                    {tcNum > 0 || !hasUSD ? fmt(totalEstimado) : "—"}
                   </td>
                   <td className="px-3 py-3 text-xs text-zinc-500">
                     {oc.lineas.reduce((a, l) => a + l.origenes.length, 0)} origenes de {new Set(oc.lineas.flatMap(l => l.origenes.map(o => o.cotizacionNombre))).size} cotizaciones
@@ -620,22 +669,7 @@ function OCCard({
           </div>
 
           {/* Actions bar */}
-          <div className="px-6 py-4 border-t border-zinc-800/50 flex items-center justify-between gap-4">
-            {/* TC input for reception */}
-            {(oc.estado === "confirmada" || oc.estado === "enviada") && (
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-zinc-500">TC:</label>
-                <input
-                  type="number"
-                  value={tcRecepcion}
-                  onChange={(e) => setTcRecepcion(e.target.value)}
-                  placeholder="17.50"
-                  className={`${inputCls} w-24 text-right font-mono`}
-                />
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 ml-auto">
+          <div className="px-6 py-4 border-t border-zinc-800/50 flex items-center justify-end gap-2">
               {oc.estado === "borrador" && (
                 <>
                   <button
@@ -700,7 +734,6 @@ function OCCard({
                   Eliminar
                 </button>
               )}
-            </div>
           </div>
         </div>
       )}
