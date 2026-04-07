@@ -102,7 +102,8 @@ function ConsolidarTab({ onOCCreated }: { onOCCreated: () => void }) {
   const proveedorNames = useMemo(() => proveedores.map((p) => p.nombre), [proveedores]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proveedorPorItem, setProveedorPorItem] = useState<Map<string, string>>(new Map());
-  const [creandoOC, setCreandoOC] = useState<string | null>(null); // proveedor name being created
+  const [creandoOC, setCreandoOC] = useState<string | null>(null);
+  const [ocCreadaMsg, setOcCreadaMsg] = useState<string | null>(null); // folio of last created OC
   const crearOCMut = useMutation(api.ordenesCompra.crear);
 
   const selectedNames = useMemo(() => Array.from(selected), [selected]);
@@ -156,12 +157,13 @@ function ConsolidarTab({ onOCCreated }: { onOCCreated: () => void }) {
     }));
 
     try {
-      await crearOCMut({
+      const ocId = await crearOCMut({
         proveedorNombre,
         lineas,
         moneda: items[0]?.moneda ?? "MXN",
       });
-      onOCCreated();
+      void ocId;
+      setOcCreadaMsg(proveedorNombre);
     } finally {
       setCreandoOC(null);
     }
@@ -340,13 +342,26 @@ function ConsolidarTab({ onOCCreated }: { onOCCreated: () => void }) {
                   <span className="text-sm font-medium text-zinc-200">{provName}</span>
                   <span className="text-xs text-zinc-500 ml-2">{items.length} items</span>
                 </div>
-                <button
-                  onClick={() => handleCrearOC(provName, items)}
-                  disabled={creandoOC !== null}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {creandoOC === provName ? "Creando..." : "Crear OC"}
-                </button>
+                <div className="flex items-center gap-2">
+                  {ocCreadaMsg === provName && (
+                    <>
+                      <span className="text-xs text-emerald-400 font-medium">OC creada</span>
+                      <button
+                        onClick={onOCCreated}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition-colors"
+                      >
+                        Ver OC
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => handleCrearOC(provName, items)}
+                    disabled={creandoOC !== null}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creandoOC === provName ? "Creando..." : "Crear OC"}
+                  </button>
+                </div>
               </div>
             ))}
         </div>
