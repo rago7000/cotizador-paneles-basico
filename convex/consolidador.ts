@@ -75,11 +75,10 @@ export const agregadoDemanda = query({
           let marca: string | undefined;
           let modelo: string | undefined;
           if (doc.panelCatalogoId) {
-            const panel = await ctx.db.get(doc.panelCatalogoId as Id<"productosPaneles">);
-            if (panel) {
-              marca = panel.marca;
-              modelo = panel.modelo;
-            }
+            try {
+              const panel = await ctx.db.get(doc.panelCatalogoId as Id<"productosPaneles">);
+              if (panel) { marca = panel.marca; modelo = panel.modelo; }
+            } catch { /* ID format incompatible, skip lookup */ }
           }
           const desc = [
             marca ?? "Panel",
@@ -139,11 +138,10 @@ export const agregadoDemanda = query({
           let marca: string | undefined;
           let modelo: string | undefined;
           if (doc.microCatalogoId) {
-            const micro = await ctx.db.get(doc.microCatalogoId as Id<"productosMicros">);
-            if (micro) {
-              marca = micro.marca;
-              modelo = micro.modelo;
-            }
+            try {
+              const micro = await ctx.db.get(doc.microCatalogoId as Id<"productosMicros">);
+              if (micro) { marca = micro.marca; modelo = micro.modelo; }
+            } catch { /* ID format incompatible, skip lookup */ }
           }
           const desc = [
             marca ?? "Microinversor",
