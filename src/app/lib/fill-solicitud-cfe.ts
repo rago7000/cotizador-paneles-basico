@@ -94,76 +94,86 @@ export async function fillSolicitudCFE(
   const bajaTension = data.capacidadKW < 25;
   const emp = data.empresa;
 
+  // Coordinates from fine grid calibration (10pt grid + 50pt labels)
+  // Field values sit ~3pt below the label text baseline
+
   // ═══ HEADER ═══
-  txt(195, 722, hoy);
+  txt(200, 718, hoy);
 
   // ═══ I. DATOS DEL SOLICITANTE (cliente) ═══
-  txt(42, 685, data.nombreSolicitante);
+  // "Nombre, Denominación o Razón Social" label at y≈690
+  txt(42, 682, data.nombreSolicitante);
 
-  // Calle, Num ext, Num int, CP
-  txt(42, 667, data.calle || "");
-  txt(260, 667, data.numeroExterior || "");
-  txt(390, 667, data.numeroInterior || "");
-  txt(540, 667, data.codigoPostal || "");
+  // "Calle" label at y≈672, fields: Calle | Num ext (x≈250) | Num int (x≈395) | CP (x≈530)
+  txt(42, 664, data.calle || "");
+  txt(255, 664, data.numeroExterior || "");
+  txt(400, 664, data.numeroInterior || "");
+  txt(535, 664, data.codigoPostal || "");
 
-  // Colonia, Municipio, Estado
-  txt(42, 651, data.colonia || "");
-  txt(300, 651, data.municipio || "");
-  txt(510, 651, data.estado || "");
+  // "Colonia" label at y≈658, fields: Colonia | Deleg/Mun (x≈290) | Estado (x≈500)
+  txt(42, 650, data.colonia || "");
+  txt(295, 650, data.municipio || "");
+  txt(510, 650, data.estado || "");
 
-  // Teléfono, Email
-  txt(42, 635, data.telefono || "");
-  txt(300, 635, data.email || "");
+  // "Teléfono" label at y≈642, fields: Tel | Correo (x≈290)
+  txt(42, 634, data.telefono || "");
+  txt(295, 634, data.email || "");
 
-  // ═══ II. DATOS DE CONTACTO (empresa instaladora) ═══
-  txt(42, 596, emp.nombre);
-  txt(380, 596, emp.puesto || "");
+  // ═══ II. DATOS DE CONTACTO (empresa) ═══
+  // "Nombre" label at y≈600, fields: Nombre | Puesto (x≈350)
+  txt(42, 592, emp.nombre);
+  txt(360, 592, emp.puesto || "");
 
-  // Calle, Num ext, CP
-  txt(42, 572, emp.calle || "");
-  txt(260, 572, emp.numeroExterior || "");
-  txt(540, 572, emp.codigoPostal || "");
+  // "Calle" label at y≈573, fields: Calle | Num ext (x≈250) | Num int (x≈395) | CP (x≈530)
+  txt(42, 565, emp.calle || "");
+  txt(255, 565, emp.numeroExterior || "");
+  txt(535, 565, emp.codigoPostal || "");
 
-  // Colonia, Municipio, Estado
-  txt(42, 554, emp.colonia || "");
-  txt(300, 554, emp.municipio || "");
-  txt(510, 554, emp.estado || "");
+  // "Colonia" label at y≈555, fields: Colonia | Deleg/Mun (x≈290) | Estado (x≈500)
+  txt(42, 547, emp.colonia || "");
+  txt(295, 547, emp.municipio || "");
+  txt(510, 547, emp.estado || "");
 
-  // Teléfono, Email
-  txt(42, 536, emp.telefono || "");
-  txt(300, 536, emp.email || "");
+  // "Teléfono" label at y≈538, fields: Tel | Correo (x≈290)
+  txt(42, 530, emp.telefono || "");
+  txt(295, 530, emp.email || "");
 
   // ═══ III. MODALIDAD ═══
-  // Baja Tensión checkbox ~x=310, Media Tensión ~x=460
+  // Checkboxes at y≈498: Baja Tensión box at x≈290, Media Tensión box at x≈435
   if (bajaTension) {
-    check(305, 498);
+    check(292, 496);
   } else {
-    check(460, 498);
+    check(437, 496);
   }
 
   // ═══ IV. UTILIZACIÓN ═══
-  check(130, 473);
+  // "Consumo de Centros de Carga" checkbox at x≈125, y≈470
+  check(127, 468);
 
   // ═══ V. DATOS DEL SERVICIO ═══
-  txt(42, 438, data.rpu);
-  txt(340, 438, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
+  // RPU at y≈443, Nivel Tensión at x≈350
+  txt(42, 435, data.rpu);
+  txt(355, 435, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
 
   // ═══ VI. CENTRAL ELÉCTRICA ═══
-  txt(42, 400, data.fechaOperacion || "");
-  txt(275, 400, data.capacidadKW.toFixed(2));
-  txt(505, 400, data.generacionMensualKWh.toFixed(0));
+  // Labels at y≈405: Fecha | Capacidad (x≈280) | Cap Increm (x≈390) | Generación (x≈500)
+  txt(42, 393, data.fechaOperacion || "");
+  txt(290, 393, data.capacidadKW.toFixed(2));
+  txt(520, 393, data.generacionMensualKWh.toFixed(0));
 
   // ═══ VII. ESPECIFICACIONES TÉCNICAS ═══
-  check(70, 324);
+  // Solar checkbox at x≈80, y≈330
+  check(82, 328);
 
-  // No de unidades, combustible
-  txt(42, 298, String(data.cantidadPaneles), szSm);
-  txt(250, 298, "N/A (Solar)", szSm);
-  txt(460, 298, "N/A", szSm);
+  // No de unidades at y≈300, Combustible principal (x≈230), secundario (x≈440)
+  txt(42, 293, String(data.cantidadPaneles), szSm);
+  txt(235, 293, "N/A (Solar)", szSm);
+  txt(445, 293, "N/A", szSm);
 
   // ═══ FIRMA ═══
-  txt(170, 96, data.nombreSolicitante, szSm);
-  txt(170, 78, hoy, szSm);
+  // Nombre at y≈95, Fecha at y≈80
+  txt(175, 90, data.nombreSolicitante, szSm);
+  txt(175, 80, hoy, szSm);
 
   const filledBytes = await doc.save();
   return new Blob([filledBytes as unknown as ArrayBuffer], { type: "application/pdf" });
