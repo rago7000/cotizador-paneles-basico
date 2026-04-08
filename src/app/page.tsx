@@ -43,6 +43,7 @@ import SectionPaneles from "./components/SectionPaneles";
 import SectionMicroinversores from "./components/SectionMicroinversores";
 import SectionEstructura from "./components/SectionEstructura";
 import SectionLineItems from "./components/SectionLineItems";
+import ConfigEmpresaModal from "./components/ConfigEmpresaModal";
 import SectionGenerales from "./components/SectionGenerales";
 import TipoCambioWidget from "./components/TipoCambioWidget";
 import ResumenSidebar from "./components/ResumenSidebar";
@@ -55,7 +56,7 @@ import MisCotizacionesModal from "./components/MisCotizacionesModal";
 // PDF components imported lazily for new-window rendering
 const loadCotizacionPDF = () => import("./components/CotizacionPDF").then((m) => m.default);
 const loadCotizacionClientePDF = () => import("./components/CotizacionClientePDF").then((m) => m.default);
-const loadGenerateSolicitudCFE = () => import("./components/SolicitudCFEPDF").then((m) => m.generateSolicitudCFE);
+// Solicitud CFE uses inline dynamic import in the button handler
 
 type AluminioItem = LineItem;
 type GeneralItem = LineItem;
@@ -73,6 +74,9 @@ export default function Home() {
     guardarCotizacionCliente: convexGuardarCotizacionCliente,
     eliminarCotizacionCliente: convexEliminarCotizacionCliente,
   } = useConvexCotizaciones();
+
+  const configEmpresa = useQuery(api.configEmpresa.get);
+  const [showConfigEmpresa, setShowConfigEmpresa] = useState(false);
 
   const {
     paneles: convexPaneles,
@@ -966,40 +970,62 @@ export default function Home() {
                 </button>
               )}
               {reciboCFE && cantidadNum > 0 && potenciaNum > 0 && (
-                <button
-                  onClick={async () => {
-                    const generateSolicitudCFE = await loadGenerateSolicitudCFE();
-                    const kWp = cantidadNum * potenciaNum / 1000;
-                    // Parse address: "Calle #123, Colonia, Municipio, Estado, CP"
-                    const dir = reciboCFE.direccion || "";
-                    const parts = dir.split(",").map((s: string) => s.trim());
-                    const callePart = parts[0] || "";
-                    // Try to extract number from calle: "Av. Reforma #123" or "Calle 10 No. 456"
-                    const numMatch = callePart.match(/(?:#|No\.?\s*|Num\.?\s*)(\d+\w*)/i);
-                    const calle = numMatch ? callePart.slice(0, numMatch.index).trim() : callePart;
-                    const numExt = numMatch ? numMatch[1] : "";
-                    await generateSolicitudCFE({
-                      nombreSolicitante: reciboCFE.nombre || "",
-                      calle,
-                      numeroExterior: numExt,
-                      colonia: parts[1] || "",
-                      municipio: parts[2] || "",
-                      estado: parts[3] || clienteUbicacion || "",
-                      codigoPostal: (dir.match(/\b\d{5}\b/) || [])[0] || "",
-                      telefono: clienteTelefono || "",
-                      email: clienteEmail || "",
-                      rpu: reciboCFE.noServicio || "",
-                      tarifa: reciboCFE.tarifa || "",
-                      capacidadKW: kWp,
-                      generacionMensualKWh: kWp * 132,
-                      cantidadPaneles: cantidadNum,
-                    });
-                  }}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm font-medium text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  Solicitud CFE (interconexion)
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={async () => {
+                      const { generateSolicitudCFE } = await import("./components/SolicitudCFEPDF");
+                      const { EMPRESA_DEFAULT } = await import("./lib/fill-solicitud-cfe");
+                      const kWp = cantidadNum * potenciaNum / 1000;
+                      const dir = reciboCFE.direccion || "";
+                      const parts = dir.split(",").map((s: string) => s.trim());
+                      const callePart = parts[0] || "";
+                      const numMatch = callePart.match(/(?:#|No\.?\s*|Num\.?\s*)(\d+\w*)/i);
+                      const calle = numMatch ? callePart.slice(0, numMatch.index).trim() : callePart;
+                      const numExt = numMatch ? numMatch[1] : "";
+                      // Use configEmpresa from Convex, fallback to defaults
+                      const emp = configEmpresa ?? EMPRESA_DEFAULT;
+                      await generateSolicitudCFE({
+                        nombreSolicitante: reciboCFE.nombre || "",
+                        calle,
+                        numeroExterior: numExt,
+                        colonia: parts[1] || "",
+                        municipio: parts[2] || "",
+                        estado: parts[3] || clienteUbicacion || "",
+                        codigoPostal: (dir.match(/\b\d{5}\b/) || [])[0] || "",
+                        telefono: clienteTelefono || "",
+                        email: clienteEmail || "",
+                        rpu: reciboCFE.noServicio || "",
+                        tarifa: reciboCFE.tarifa || "",
+                        capacidadKW: kWp,
+                        generacionMensualKWh: kWp * 132,
+                        cantidadPaneles: cantidadNum,
+                        empresa: {
+                          nombre: emp.nombre,
+                          calle: emp.calle ?? undefined,
+                          numeroExterior: emp.numeroExterior ?? undefined,
+                          colonia: emp.colonia ?? undefined,
+                          codigoPostal: emp.codigoPostal ?? undefined,
+                          municipio: emp.municipio ?? undefined,
+                          estado: emp.estado ?? undefined,
+                          telefono: emp.telefono ?? undefined,
+                          email: emp.email ?? undefined,
+                          puesto: emp.puesto ?? undefined,
+                        },
+                      });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm font-medium text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Solicitud CFE (interconexion)
+                  </button>
+                  <button
+                    onClick={() => setShowConfigEmpresa(true)}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    Datos de empresa
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1016,6 +1042,8 @@ export default function Home() {
       </main>
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
+      <ConfigEmpresaModal open={showConfigEmpresa} onClose={() => setShowConfigEmpresa(false)} />
+
       <PickerPaneles
         open={pickerPanel} catalogoPaneles={catalogoPaneles}
         pickerPanelesFiltrados={pickerPanelesFiltrados}

@@ -1,7 +1,20 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
+export interface DatosEmpresa {
+  nombre: string;
+  calle?: string;
+  numeroExterior?: string;
+  colonia?: string;
+  codigoPostal?: string;
+  municipio?: string;
+  estado?: string;
+  telefono?: string;
+  email?: string;
+  puesto?: string;
+}
+
 export interface SolicitudCFEData {
-  // I. Datos del Solicitante
+  // I. Datos del Solicitante (cliente)
   nombreSolicitante: string;
   calle?: string;
   numeroExterior?: string;
@@ -12,6 +25,9 @@ export interface SolicitudCFEData {
   estado?: string;
   telefono?: string;
   email?: string;
+
+  // II. Datos de Contacto (empresa instaladora)
+  empresa: DatosEmpresa;
 
   // V. Datos del Servicio
   rpu: string;
@@ -24,9 +40,23 @@ export interface SolicitudCFEData {
   fechaOperacion?: string;
 }
 
+// Default empresa data
+export const EMPRESA_DEFAULT: DatosEmpresa = {
+  nombre: "Francisco Rafael Castillo Gonzalez",
+  calle: "Blvd. Rufino Tamayo",
+  numeroExterior: "304-A",
+  colonia: "Alpes Nte.",
+  codigoPostal: "25270",
+  municipio: "Saltillo",
+  estado: "Coahuila",
+  telefono: "8441744037",
+  email: "rafaelgonzalez.haus@gmail.com",
+  puesto: "Representante",
+};
+
 /**
  * Fills the official CFE interconnection request PDF with provided data.
- * Uses pdf-lib to write text at exact coordinates on the original form.
+ * Writes text at exact coordinates on the original form using pdf-lib.
  * Returns a Blob ready to open in a new tab.
  */
 export async function fillSolicitudCFE(
@@ -38,10 +68,9 @@ export async function fillSolicitudCFE(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const sz = 9; // font size for field values
+  const sz = 9;
   const szSm = 8;
 
-  // Helper: draw text at (x, y) — y is from BOTTOM of page (pdf-lib convention)
   function txt(x: number, y: number, text: string, size = sz) {
     if (!text) return;
     page.drawText(text, { x, y, size, font });
@@ -52,7 +81,6 @@ export async function fillSolicitudCFE(
     page.drawText(text, { x, y, size, font: fontBold });
   }
 
-  // Check mark for checkboxes
   function check(x: number, y: number) {
     txtBold(x + 2, y + 1, "X", 8);
   }
@@ -64,94 +92,91 @@ export async function fillSolicitudCFE(
   });
 
   const bajaTension = data.capacidadKW < 25;
+  const emp = data.empresa;
 
   // ═══ HEADER ═══
-  // Fecha: ~y=727, after "Fecha" label which ends ~x=190
-  txt(195, 727, hoy);
+  // Fecha (y≈727 label → value at y≈720)
+  txt(195, 720, hoy);
 
-  // ═══ I. DATOS DEL SOLICITANTE ═══
-  // Nombre (y≈693)
-  txt(42, 693, data.nombreSolicitante);
+  // ═══ I. DATOS DEL SOLICITANTE (cliente) ═══
+  // Nombre (label y≈700 → value y≈690)
+  txt(42, 688, data.nombreSolicitante);
 
-  // Domicilio line (y≈680) — not filled, use Calle line instead
+  // Calle (label y≈675 → value y≈663)
+  txt(42, 662, data.calle || "");
+  txt(250, 662, data.numeroExterior || "");
+  txt(400, 662, data.numeroInterior || "");
+  txt(530, 662, data.codigoPostal || "");
 
-  // Calle (y≈668), Número exterior (x≈248, y≈668), Número Interior (x≈380, y≈668), Código Postal (x≈510, y≈668)
-  txt(42, 668, data.calle || "");
-  txt(248, 668, data.numeroExterior || "");
-  txt(385, 668, data.numeroInterior || "");
-  txt(515, 668, data.codigoPostal || "");
+  // Colonia, Municipio, Estado (label y≈655 → value y≈647)
+  txt(42, 646, data.colonia || "");
+  txt(290, 646, data.municipio || "");
+  txt(500, 646, data.estado || "");
 
-  // Colonia (y≈652), Delegación/Municipio (x≈270, y≈652), Estado (x≈480, y≈652)
-  txt(42, 652, data.colonia || "");
-  txt(275, 652, data.municipio || "");
-  txt(485, 652, data.estado || "");
+  // Teléfono, Email (label y≈638 → value y≈630)
+  txt(42, 630, data.telefono || "");
+  txt(290, 630, data.email || "");
 
-  // Teléfono (y≈636), Correo (x≈270, y≈636)
-  txt(42, 636, data.telefono || "");
-  txt(275, 636, data.email || "");
+  // ═══ II. DATOS DE CONTACTO (empresa instaladora) ═══
+  // Nombre (y≈597 → value y≈593)
+  txt(42, 593, emp.nombre);
+  txt(370, 593, emp.puesto || "");
 
-  // ═══ II. DATOS DE CONTACTO (same data) ═══
-  // Nombre (y≈600)
-  txt(42, 600, data.nombreSolicitante);
+  // Calle (y≈572 → value y≈567)
+  txt(42, 567, emp.calle || "");
+  txt(250, 567, emp.numeroExterior || "");
+  // Num interior: skip
+  txt(530, 567, emp.codigoPostal || "");
 
-  // Calle (y≈575), Num ext (x≈248), Num int (x≈380), CP (x≈510)
-  txt(42, 575, data.calle || "");
-  txt(248, 575, data.numeroExterior || "");
-  txt(385, 575, data.numeroInterior || "");
-  txt(515, 575, data.codigoPostal || "");
+  // Colonia, Municipio, Estado (y≈553 → value y≈548)
+  txt(42, 548, emp.colonia || "");
+  txt(290, 548, emp.municipio || "");
+  txt(500, 548, emp.estado || "");
 
-  // Colonia (y≈555), Municipio (x≈270), Estado (x≈480)
-  txt(42, 555, data.colonia || "");
-  txt(275, 555, data.municipio || "");
-  txt(485, 555, data.estado || "");
-
-  // Teléfono (y≈537), Correo (x≈270)
-  txt(42, 537, data.telefono || "");
-  txt(275, 537, data.email || "");
+  // Teléfono, Email (y≈535 → value y≈530)
+  txt(42, 530, emp.telefono || "");
+  txt(290, 530, emp.email || "");
 
   // ═══ III. MODALIDAD ═══
-  // Baja Tensión checkbox: ~x=310, y≈497
-  // Media Tensión checkbox: ~x=470, y≈497
+  // Baja Tensión (x≈340, y≈498) / Media Tensión (x≈490, y≈498)
   if (bajaTension) {
-    check(310, 497);
+    check(340, 496);
   } else {
-    check(470, 497);
+    check(490, 496);
   }
 
   // ═══ IV. UTILIZACIÓN ═══
-  // "Consumo de Centros de Carga" checkbox: ~x=128, y≈472
-  check(128, 472);
+  // "Consumo de Centros de Carga" checkbox (x≈140, y≈472)
+  check(140, 470);
 
   // ═══ V. DATOS DEL SERVICIO ═══
-  // RPU (y≈438)
-  txt(42, 438, data.rpu);
-  // Nivel de tensión (x≈320, y≈438)
-  txt(325, 438, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
+  // RPU (y≈440 → value y≈434)
+  txt(42, 434, data.rpu);
+  // Nivel de tensión (x≈330)
+  txt(335, 434, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
 
   // ═══ VI. CENTRAL ELÉCTRICA ═══
-  // Fecha operación (y≈405)
-  txt(42, 405, data.fechaOperacion || "");
-  // Capacidad Bruta Instalada (x≈248, y≈405)
-  txt(260, 405, data.capacidadKW.toFixed(2));
-  // Generación Promedio Mensual (x≈470, y≈405)
-  txt(475, 405, data.generacionMensualKWh.toFixed(0));
+  // Fecha operación (y≈406 → value y≈398)
+  txt(42, 397, data.fechaOperacion || "");
+  // Capacidad Bruta Instalada (x≈260)
+  txt(268, 397, data.capacidadKW.toFixed(2));
+  // Generación Promedio Mensual (x≈490)
+  txt(498, 397, data.generacionMensualKWh.toFixed(0));
 
   // ═══ VII. ESPECIFICACIONES TÉCNICAS ═══
-  // Solar checkbox: ~x=68, y≈325
-  check(68, 325);
+  // Solar checkbox (x≈68, y≈325)
+  check(68, 321);
 
-  // No de unidades de generación (y≈300)
-  txt(42, 300, String(data.cantidadPaneles), szSm);
-  // Combustible principal (x≈230, y≈300)
-  txt(235, 300, "N/A (Solar)", szSm);
-  // Combustible secundario (x≈430, y≈300)
-  txt(435, 300, "N/A", szSm);
+  // No de unidades (y≈300 → value y≈296)
+  txt(42, 296, String(data.cantidadPaneles), szSm);
+  txt(245, 296, "N/A (Solar)", szSm);
+  txt(455, 296, "N/A", szSm);
 
   // ═══ FIRMA ═══
-  // Nombre (y≈97)
-  txt(165, 97, data.nombreSolicitante, szSm);
+  // Nombre solicitante (y≈97)
+  txt(165, 95, data.nombreSolicitante, szSm);
   // Fecha (y≈78)
-  txt(165, 78, hoy, szSm);
+  txt(165, 76, hoy, szSm);
 
   const filledBytes = await doc.save();
   return new Blob([filledBytes as unknown as ArrayBuffer], { type: "application/pdf" });

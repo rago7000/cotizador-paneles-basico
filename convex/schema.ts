@@ -298,6 +298,20 @@ export default defineSchema({
     siguiente: v.number(),
   }).index("by_anio", ["anio"]),
 
+  // ── Configuración de empresa (singleton) ──
+  configEmpresa: defineTable({
+    nombre: v.string(),
+    calle: v.optional(v.string()),
+    numeroExterior: v.optional(v.string()),
+    colonia: v.optional(v.string()),
+    codigoPostal: v.optional(v.string()),
+    municipio: v.optional(v.string()),
+    estado: v.optional(v.string()),
+    telefono: v.optional(v.string()),
+    email: v.optional(v.string()),
+    puesto: v.optional(v.string()),
+  }),
+
   // ── Catálogo legacy (v1 — for migration) ──
   catalogoPaneles: defineTable({
     marca: v.string(),
