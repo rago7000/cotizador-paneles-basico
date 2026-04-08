@@ -1,4 +1,13 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  CFE_FIELDS as F,
+  CFE_CALIBRATE,
+  drawTextAt,
+  drawCheckAt,
+  drawCalibrationOverlay,
+} from "./cfe-pdf-fields";
+
+// ─── Public types (unchanged API) ─────────────────────────────────────────────
 
 export interface DatosEmpresa {
   nombre: string;
@@ -54,10 +63,14 @@ export const EMPRESA_DEFAULT: DatosEmpresa = {
   puesto: "Representante",
 };
 
+// ─── PDF fill function (unchanged public API) ─────────────────────────────────
+
 /**
  * Fills the official CFE interconnection request PDF with provided data.
- * Writes text at exact coordinates on the original form using pdf-lib.
+ * Writes text at exact coordinates from cfe-pdf-fields.ts on the original form.
  * Returns a Blob ready to open in a new tab.
+ *
+ * 100% client-side. Zero API calls. Zero Convex queries.
  */
 export async function fillSolicitudCFE(
   pdfBytes: ArrayBuffer,
@@ -68,22 +81,12 @@ export async function fillSolicitudCFE(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const sz = 9;
-  const szSm = 8;
+  // Shorthand helpers
+  const txt = (coord: { x: number; y: number }, text: string, size = 9) =>
+    drawTextAt(page, coord, text, font, size);
 
-  function txt(x: number, y: number, text: string, size = sz) {
-    if (!text) return;
-    page.drawText(text, { x, y, size, font });
-  }
-
-  function txtBold(x: number, y: number, text: string, size = sz) {
-    if (!text) return;
-    page.drawText(text, { x, y, size, font: fontBold });
-  }
-
-  function check(x: number, y: number) {
-    txtBold(x + 2, y + 1, "X", 8);
-  }
+  const chk = (coord: { x: number; y: number }, checked: boolean) =>
+    drawCheckAt(page, coord, checked, fontBold);
 
   const hoy = new Date().toLocaleDateString("es-MX", {
     day: "2-digit",
@@ -94,86 +97,64 @@ export async function fillSolicitudCFE(
   const bajaTension = data.capacidadKW < 25;
   const emp = data.empresa;
 
-  // Coordinates from fine grid calibration (10pt grid + 50pt labels)
-  // Field values sit ~3pt below the label text baseline
-
   // ═══ HEADER ═══
-  txt(200, 718, hoy);
+  txt(F.fecha, hoy);
 
   // ═══ I. DATOS DEL SOLICITANTE (cliente) ═══
-  // "Nombre, Denominación o Razón Social" label at y≈690
-  txt(42, 682, data.nombreSolicitante);
+  txt(F.solicitante.nombre,          data.nombreSolicitante);
+  txt(F.solicitante.calle,           data.calle || "");
+  txt(F.solicitante.numeroExterior,  data.numeroExterior || "");
+  txt(F.solicitante.numeroInterior,  data.numeroInterior || "");
+  txt(F.solicitante.codigoPostal,    data.codigoPostal || "");
+  txt(F.solicitante.colonia,         data.colonia || "");
+  txt(F.solicitante.municipio,       data.municipio || "");
+  txt(F.solicitante.estado,          data.estado || "");
+  txt(F.solicitante.telefono,        data.telefono || "");
+  txt(F.solicitante.email,           data.email || "");
 
-  // "Calle" label at y≈672, fields: Calle | Num ext (x≈250) | Num int (x≈395) | CP (x≈530)
-  txt(42, 664, data.calle || "");
-  txt(255, 664, data.numeroExterior || "");
-  txt(400, 664, data.numeroInterior || "");
-  txt(535, 664, data.codigoPostal || "");
-
-  // "Colonia" label at y≈658, fields: Colonia | Deleg/Mun (x≈290) | Estado (x≈500)
-  txt(42, 650, data.colonia || "");
-  txt(295, 650, data.municipio || "");
-  txt(510, 650, data.estado || "");
-
-  // "Teléfono" label at y≈642, fields: Tel | Correo (x≈290)
-  txt(42, 634, data.telefono || "");
-  txt(295, 634, data.email || "");
-
-  // ═══ II. DATOS DE CONTACTO (empresa) ═══
-  // "Nombre" label at y≈600, fields: Nombre | Puesto (x≈350)
-  txt(42, 592, emp.nombre);
-  txt(360, 592, emp.puesto || "");
-
-  // "Calle" label at y≈573, fields: Calle | Num ext (x≈250) | Num int (x≈395) | CP (x≈530)
-  txt(42, 565, emp.calle || "");
-  txt(255, 565, emp.numeroExterior || "");
-  txt(535, 565, emp.codigoPostal || "");
-
-  // "Colonia" label at y≈555, fields: Colonia | Deleg/Mun (x≈290) | Estado (x≈500)
-  txt(42, 547, emp.colonia || "");
-  txt(295, 547, emp.municipio || "");
-  txt(510, 547, emp.estado || "");
-
-  // "Teléfono" label at y≈538, fields: Tel | Correo (x≈290)
-  txt(42, 530, emp.telefono || "");
-  txt(295, 530, emp.email || "");
+  // ═══ II. DATOS DE CONTACTO (empresa instaladora) ═══
+  txt(F.contacto.nombre,          emp.nombre);
+  txt(F.contacto.puesto,          emp.puesto || "");
+  txt(F.contacto.calle,           emp.calle || "");
+  txt(F.contacto.numeroExterior,  emp.numeroExterior || "");
+  txt(F.contacto.codigoPostal,    emp.codigoPostal || "");
+  txt(F.contacto.colonia,         emp.colonia || "");
+  txt(F.contacto.municipio,       emp.municipio || "");
+  txt(F.contacto.estado,          emp.estado || "");
+  txt(F.contacto.telefono,        emp.telefono || "");
+  txt(F.contacto.email,           emp.email || "");
 
   // ═══ III. MODALIDAD ═══
-  // Checkboxes at y≈498: Baja Tensión box at x≈290, Media Tensión box at x≈435
-  if (bajaTension) {
-    check(292, 496);
-  } else {
-    check(437, 496);
-  }
+  chk(F.solicitud.modalidadBajaTension,  bajaTension);
+  chk(F.solicitud.modalidadMediaTension, !bajaTension);
 
   // ═══ IV. UTILIZACIÓN ═══
-  // "Consumo de Centros de Carga" checkbox at x≈125, y≈470
-  check(127, 468);
+  chk(F.usoEnergia.consumoCentrosCarga, true);
 
   // ═══ V. DATOS DEL SERVICIO ═══
-  // RPU at y≈443, Nivel Tensión at x≈350
-  txt(42, 435, data.rpu);
-  txt(355, 435, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
+  txt(F.servicio.rpu, data.rpu);
+  txt(F.servicio.nivelTension,
+    bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
 
   // ═══ VI. CENTRAL ELÉCTRICA ═══
-  // Labels at y≈405: Fecha | Capacidad (x≈280) | Cap Increm (x≈390) | Generación (x≈500)
-  txt(42, 393, data.fechaOperacion || "");
-  txt(290, 393, data.capacidadKW.toFixed(2));
-  txt(520, 393, data.generacionMensualKWh.toFixed(0));
+  txt(F.central.fechaOperacion,       data.fechaOperacion || "");
+  txt(F.central.capacidadBrutaKw,     data.capacidadKW.toFixed(2));
+  txt(F.central.generacionMensualKwh, data.generacionMensualKWh.toFixed(0));
 
   // ═══ VII. ESPECIFICACIONES TÉCNICAS ═══
-  // Solar checkbox at x≈80, y≈330
-  check(82, 328);
-
-  // No de unidades at y≈300, Combustible principal (x≈230), secundario (x≈440)
-  txt(42, 293, String(data.cantidadPaneles), szSm);
-  txt(235, 293, "N/A (Solar)", szSm);
-  txt(445, 293, "N/A", szSm);
+  chk(F.cumplimiento.solar, true);
+  txt(F.cumplimiento.numeroUnidades,        String(data.cantidadPaneles), 8);
+  txt(F.cumplimiento.combustiblePrincipal,  "N/A (Solar)", 8);
+  txt(F.cumplimiento.combustibleSecundario, "N/A", 8);
 
   // ═══ FIRMA ═══
-  // Nombre at y≈95, Fecha at y≈80
-  txt(175, 90, data.nombreSolicitante, szSm);
-  txt(175, 80, hoy, szSm);
+  txt(F.firma.nombre, data.nombreSolicitante, 8);
+  txt(F.firma.fecha,  hoy, 8);
+
+  // ═══ CALIBRATION OVERLAY (dev only) ═══
+  if (CFE_CALIBRATE) {
+    drawCalibrationOverlay(page, font);
+  }
 
   const filledBytes = await doc.save();
   return new Blob([filledBytes as unknown as ArrayBuffer], { type: "application/pdf" });
