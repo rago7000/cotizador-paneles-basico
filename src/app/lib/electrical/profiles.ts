@@ -9,7 +9,7 @@ export const DS3D: EquipmentProfile = {
   marca: "APsystems",
   modelo: "DS3D",
 
-  potenciaW: 880,              // 2 × 440W max per channel
+  potenciaW: 1760,             // 4 × 440W max per channel
   voltajeACSalida: 240,
   amperajeACPorUnidad: 8.3,    // 8.3 A per micro
   fasesSalida: 1,
@@ -23,12 +23,12 @@ export const DS3D: EquipmentProfile = {
     { maxUnidades: 3, calibreAWG: 10, conductores: 3, tipoUsoRudo: "Uso rudo 3x10" },
   ],
 
-  panelesPorUnidad: 2,
+  panelesPorUnidad: 4,
   maxCadena: 4,                // max micros per trunk cable (APsystems spec)
 
   requiereTierraFisica: true,
   calibreTierra: 10,           // 10 AWG tierra física
-  notas: "Microinversor dual. Cada DS3D maneja 2 paneles. Cable troncal APsystems separado.",
+  notas: "Microinversor cuádruple. Cada DS3D maneja 4 paneles. Cable troncal APsystems separado.",
 };
 
 export const QS1: EquipmentProfile = {

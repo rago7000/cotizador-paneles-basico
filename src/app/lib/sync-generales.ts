@@ -16,11 +16,19 @@ const PASTILLA_RE = /pastilla/i;
 const CABLE_RUDO_RE = /cable de uso rudo/i;
 const PANELES_ADICIONALES_RE = /instalaci[oó]n\s*-\s*paneles\s+adicionales/i;
 const VUELTAS_RE = /instalaci[oó]n\s*-\s*vueltas/i;
+const PRECIO_BASE_RE = /instalaci[oó]n\s*-\s*precio\s+base/i;
 function isAutoManaged(nombre: string): boolean {
   return (
     CENTRO_RE.test(nombre) ||
     PASTILLA_RE.test(nombre) ||
     CABLE_RUDO_RE.test(nombre)
+  );
+}
+function isLaborAutoManaged(nombre: string): boolean {
+  return (
+    PANELES_ADICIONALES_RE.test(nombre) ||
+    VUELTAS_RE.test(nombre) ||
+    PRECIO_BASE_RE.test(nombre)
   );
 }
 
@@ -62,9 +70,10 @@ export function syncGeneralesFromElectrical(
   currentGenerales: LineItem[],
   cantidadPaneles: number,
 ): LineItem[] {
-  // Separate auto-managed from manual items
-  const manualItems = currentGenerales.filter((it) => !isAutoManaged(it.nombre));
+  // Separate auto-managed electrical items, auto-managed labor items, and fully manual items
+  const manualItems = currentGenerales.filter((it) => !isAutoManaged(it.nombre) && !isLaborAutoManaged(it.nombre));
   const existingAuto = currentGenerales.filter((it) => isAutoManaged(it.nombre));
+  const existingLabor = currentGenerales.filter((it) => isLaborAutoManaged(it.nombre));
 
   // --- Centro de carga ---
   const slots = Math.ceil(electrical.totalBreakers / 2);
@@ -99,17 +108,35 @@ export function syncGeneralesFromElectrical(
     unidad: "mL",
   };
 
-  // Auto-adjust labor items based on panel count
-  const adjustedManual = manualItems.map((it) => {
-    if (PANELES_ADICIONALES_RE.test(it.nombre)) {
-      return { ...it, cantidad: String(Math.max(0, cantidadPaneles - 8)) };
-    }
-    if (VUELTAS_RE.test(it.nombre)) {
-      return { ...it, cantidad: String(Math.max(1, Math.ceil(cantidadPaneles / 8))) };
-    }
-    return it;
-  });
+  // --- Labor: Precio base (cubre hasta 8 paneles) ---
+  const precioBaseItem: LineItem = {
+    id: findExistingId(existingLabor, PRECIO_BASE_RE) ?? uid(),
+    nombre: "Instalacion - Precio base",
+    cantidad: "1",
+    precioUnitario: findExistingPrecio(existingLabor, PRECIO_BASE_RE) ?? "3000.00",
+    unidad: "Lote",
+  };
 
-  // Reassemble: auto-managed in order, then manual items preserved as-is
-  return [centroItem, ...pastillaItems, cableItem, ...adjustedManual];
+  // --- Labor: Paneles adicionales (más allá de 8) ---
+  const panelesAdicionales = Math.max(0, cantidadPaneles - 8);
+  const panelesAdicionalesItem: LineItem = {
+    id: findExistingId(existingLabor, PANELES_ADICIONALES_RE) ?? uid(),
+    nombre: "Instalacion - Paneles adicionales",
+    cantidad: String(panelesAdicionales),
+    precioUnitario: findExistingPrecio(existingLabor, PANELES_ADICIONALES_RE) ?? "150.00",
+    unidad: "Pza",
+  };
+
+  // --- Labor: Vueltas gasolina (1 vuelta por cada 8 paneles, mínimo 1) ---
+  const vueltas = cantidadPaneles > 0 ? Math.max(1, Math.ceil(cantidadPaneles / 8)) : 1;
+  const vueltasItem: LineItem = {
+    id: findExistingId(existingLabor, VUELTAS_RE) ?? uid(),
+    nombre: "Instalacion - Vueltas gasolina",
+    cantidad: String(vueltas),
+    precioUnitario: findExistingPrecio(existingLabor, VUELTAS_RE) ?? "800.00",
+    unidad: "Pza",
+  };
+
+  // Reassemble: electrical auto-managed → manual items → labor items
+  return [centroItem, ...pastillaItems, cableItem, ...manualItems, precioBaseItem, panelesAdicionalesItem, vueltasItem];
 }

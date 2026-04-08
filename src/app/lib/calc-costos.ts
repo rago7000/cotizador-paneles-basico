@@ -49,6 +49,7 @@ export interface PartidasResult {
   totalPanelesUSD: number;
   totalInversoresUSD: number;
   costoPorPanel: number;
+  fleteAluminioSinIVA: number;
 }
 
 export function calcularPartidas(input: PartidasInput): PartidasResult {
@@ -86,6 +87,7 @@ export function calcularPartidas(input: PartidasInput): PartidasResult {
     partidaTornilleriaMXN, partidaGeneralesMXN,
     subtotalMXN, ivaMXN, totalMXN,
     totalPanelesUSD, totalInversoresUSD, costoPorPanel,
+    fleteAluminioSinIVA,
   };
 }
 

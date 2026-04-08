@@ -25,6 +25,12 @@ import {
   type Oferta,
   type ArchivoProveedor,
 } from "../lib/useConvexCatalogo";
+import ImportRunsList from "./ImportRunsList";
+import ImportUpload from "./ImportUpload";
+import StagingReview from "./StagingReview";
+import PublishDialog from "./PublishDialog";
+import PriceListView from "./PriceListView";
+import { normalizeModelString, type CanonicalProduct } from "../lib/import-utils";
 
 // ── Convex context type ─────────────────────────────────────────────────────
 
@@ -2454,12 +2460,88 @@ function TabOfertas({
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
-type Tab = "proveedores" | "productos" | "ofertas";
+type Tab = "proveedores" | "productos" | "ofertas" | "importaciones";
 
 export default function CatalogoPage() {
   const [tab, setTab] = useState<Tab>("ofertas");
   const ctx = useConvexCatalogo();
   const { proveedores, paneles, micros, generales, ofertas, isLoading } = ctx;
+
+  // ── Import runs (Phase 4) ───────────────────────────────────────────
+  const importRuns = useQuery(api.importRuns.list, {}) ?? [];
+  const [reviewingRunId, setReviewingRunId] = useState<Id<"importRuns"> | null>(null);
+  const [publishingRunId, setPublishingRunId] = useState<Id<"importRuns"> | null>(null);
+  const [viewingListRunId, setViewingListRunId] = useState<Id<"importRuns"> | null>(null);
+  const [importError, setImportError] = useState("");
+
+  // Build canonical products index for auto-matching
+  const canonicalProducts = useMemo((): CanonicalProduct[] => {
+    const products: CanonicalProduct[] = [];
+    for (const p of paneles) {
+      const names = [normalizeModelString(p.modelo)];
+      if (p.aliases) p.aliases.forEach((a) => names.push(normalizeModelString(a)));
+      products.push({
+        id: p.id, table: "productosPaneles", modelo: p.modelo,
+        marca: p.marca, aliases: p.aliases ?? [], normalizedNames: names,
+      });
+    }
+    for (const m of micros) {
+      const names = [normalizeModelString(m.modelo)];
+      if (m.aliases) m.aliases.forEach((a) => names.push(normalizeModelString(a)));
+      products.push({
+        id: m.id, table: "productosMicros", modelo: m.modelo,
+        marca: m.marca, aliases: m.aliases ?? [], normalizedNames: names,
+      });
+    }
+    for (const g of generales) {
+      const names = [normalizeModelString(g.modelo)];
+      if (g.aliases) g.aliases.forEach((a) => names.push(normalizeModelString(a)));
+      products.push({
+        id: g.id, table: "productosGenerales", modelo: g.modelo,
+        marca: g.marca, aliases: g.aliases ?? [], normalizedNames: names,
+      });
+    }
+    return products;
+  }, [paneles, micros, generales]);
+
+  // Proveedores map for display
+  const proveedoresMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of proveedores) m.set(p.id, p.nombre);
+    return m;
+  }, [proveedores]);
+
+  // Get the run being reviewed (for StagingReview)
+  const reviewingRun = useMemo(
+    () => (reviewingRunId ? importRuns.find((r) => r._id === reviewingRunId) : null),
+    [reviewingRunId, importRuns],
+  );
+
+  // Get the run being published (for PublishDialog)
+  const publishingRun = useMemo(
+    () => (publishingRunId ? importRuns.find((r) => r._id === publishingRunId) : null),
+    [publishingRunId, importRuns],
+  );
+
+  // Get the run whose published list we're viewing
+  const viewingListRun = useMemo(
+    () => (viewingListRunId ? importRuns.find((r) => r._id === viewingListRunId) : null),
+    [viewingListRunId, importRuns],
+  );
+
+  // Query price lists for the proveedor of the viewing run (to find priceListId)
+  const viewingProveedorLists = useQuery(
+    api.priceLists.listByProveedor,
+    viewingListRun ? { proveedorId: viewingListRun.proveedorId } : "skip",
+  );
+
+  // Resolve: importRunId → priceListId (frontend filter)
+  const viewingPriceList = useMemo(() => {
+    if (!viewingListRunId || !viewingProveedorLists) return null;
+    return viewingProveedorLists.find((pl) => pl.importRunId === viewingListRunId) ?? null;
+  }, [viewingListRunId, viewingProveedorLists]);
+
+  const deleteRun = useMutation(api.importRuns.remove);
 
   // No reload needed — Convex is reactive
   const reload = () => {};
@@ -2476,6 +2558,7 @@ export default function CatalogoPage() {
     { key: "proveedores", label: "Proveedores", count: proveedores.length },
     { key: "productos", label: "Productos", count: paneles.length + micros.length + generales.length },
     { key: "ofertas", label: "Ofertas", count: ofertas.length },
+    { key: "importaciones", label: "Importaciones", count: importRuns.length },
   ];
 
   return (
@@ -2506,7 +2589,7 @@ export default function CatalogoPage() {
           {tabDef.map((t) => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(t.key); setReviewingRunId(null); }}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 tab === t.key
                   ? "border-amber-400 text-amber-400"
@@ -2524,6 +2607,81 @@ export default function CatalogoPage() {
         {tab === "proveedores" && <TabProveedores proveedores={proveedores} reload={reload} ctx={ctx} />}
         {tab === "productos" && <TabProductos paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} ctx={ctx} />}
         {tab === "ofertas" && <TabOfertas proveedores={proveedores} paneles={paneles} micros={micros} generales={generales} ofertas={ofertas} reload={reload} ctx={ctx} />}
+
+        {/* Importaciones tab (Phase 4) */}
+        {tab === "importaciones" && (
+          <div className="space-y-6">
+            {/* Priority 1: Viewing a published price list */}
+            {viewingListRunId && viewingPriceList ? (
+              <PriceListView
+                priceListId={viewingPriceList._id}
+                proveedorNombre={proveedoresMap.get(viewingPriceList.proveedorId) ?? "—"}
+                onBack={() => setViewingListRunId(null)}
+              />
+            ) : viewingListRunId && !viewingPriceList ? (
+              // Loading state while resolving priceList
+              <div className="flex items-center justify-center py-16">
+                <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : reviewingRunId && reviewingRun ? (
+              /* Priority 2: Reviewing staging rows */
+              <StagingReview
+                runId={reviewingRunId}
+                run={reviewingRun}
+                canonicalProducts={canonicalProducts}
+                onBack={() => setReviewingRunId(null)}
+                onApproved={() => setReviewingRunId(null)}
+              />
+            ) : (
+              /* Priority 3: Default — upload + list */
+              <>
+                <ImportUpload
+                  proveedores={proveedores.map((p) => ({ id: p.id, nombre: p.nombre }))}
+                  canonicalProducts={canonicalProducts}
+                  onImportStarted={() => {}}
+                  onImportComplete={(runId) => setReviewingRunId(runId)}
+                  onError={(msg) => setImportError(msg)}
+                />
+
+                {importError && (
+                  <div className="rounded-lg border border-red-400/30 bg-red-400/5 px-4 py-3 text-xs text-red-400 flex items-center justify-between">
+                    <span>{importError}</span>
+                    <button
+                      onClick={() => setImportError("")}
+                      className="text-red-400/60 hover:text-red-400 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                <ImportRunsList
+                  runs={importRuns}
+                  proveedoresMap={proveedoresMap}
+                  onReview={(runId) => setReviewingRunId(runId)}
+                  onPublish={(runId) => setPublishingRunId(runId)}
+                  onViewList={(runId) => setViewingListRunId(runId)}
+                  onDelete={async (runId) => {
+                    if (confirm("¿Eliminar esta importación y todas sus filas de staging?")) {
+                      await deleteRun({ id: runId });
+                    }
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Publish dialog (Phase 4 Step 5) */}
+        {publishingRunId && publishingRun && (
+          <PublishDialog
+            runId={publishingRunId}
+            run={publishingRun}
+            proveedorNombre={proveedoresMap.get(publishingRun.proveedorId) ?? "—"}
+            onClose={() => setPublishingRunId(null)}
+            onPublished={() => setPublishingRunId(null)}
+          />
+        )}
       </main>
     </div>
   );

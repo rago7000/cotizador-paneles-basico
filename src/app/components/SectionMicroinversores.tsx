@@ -285,6 +285,51 @@ export default function SectionMicroinversores({
         </div>
       )}
 
+      {/* Breaker summary — always visible when electrical data exists */}
+      {electricalResult && cantidadMicros > 0 && (
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wide">
+              Breakers y circuitos
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-zinc-500">Circuitos</span>
+              <span className="text-[11px] text-zinc-200 font-mono font-medium">{electricalResult.totalCircuitos}</span>
+            </div>
+            {electricalResult.breakerResumen.map((b) => (
+              <div key={b.amperaje} className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">Pastilla {b.amperaje}A</span>
+                <span className="text-[11px] text-amber-400 font-mono font-medium">{b.cantidad} pza{b.cantidad !== 1 ? "s" : ""}</span>
+              </div>
+            ))}
+            {electricalResult.cableACResumen.map((c) => (
+              <div key={c.tipo} className="flex items-center justify-between col-span-2 sm:col-span-3">
+                <span className="text-[11px] text-zinc-500">Cable</span>
+                <span className="text-[11px] text-zinc-300 font-mono">{c.circuitos}x {c.tipo}</span>
+              </div>
+            ))}
+            {electricalResult.tierraFisica && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">Tierra</span>
+                <span className="text-[11px] text-zinc-300 font-mono">{electricalResult.tierraFisica.calibreAWG} AWG</span>
+              </div>
+            )}
+          </div>
+          {electricalResult.warnings.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {electricalResult.warnings.map((w, i) => (
+                <p key={i} className="text-[10px] text-red-400/80">{w}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Save to catalog suggestion */}
       {sugerirGuardarMicro && precioMicroNum > 0 && (
         <SaveToCatalogBanner
