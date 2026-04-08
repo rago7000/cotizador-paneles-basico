@@ -55,7 +55,7 @@ import MisCotizacionesModal from "./components/MisCotizacionesModal";
 // PDF components imported lazily for new-window rendering
 const loadCotizacionPDF = () => import("./components/CotizacionPDF").then((m) => m.default);
 const loadCotizacionClientePDF = () => import("./components/CotizacionClientePDF").then((m) => m.default);
-const loadSolicitudCFEPDF = () => import("./components/SolicitudCFEPDF").then((m) => m.default);
+const loadGenerateSolicitudCFE = () => import("./components/SolicitudCFEPDF").then((m) => m.generateSolicitudCFE);
 
 type AluminioItem = LineItem;
 type GeneralItem = LineItem;
@@ -968,20 +968,32 @@ export default function Home() {
               {reciboCFE && cantidadNum > 0 && potenciaNum > 0 && (
                 <button
                   onClick={async () => {
-                    const SolicitudCFEPDF = await loadSolicitudCFEPDF();
+                    const generateSolicitudCFE = await loadGenerateSolicitudCFE();
                     const kWp = cantidadNum * potenciaNum / 1000;
-                    await openPDFInNewWindow(createElement(SolicitudCFEPDF, {
+                    // Parse address: "Calle #123, Colonia, Municipio, Estado, CP"
+                    const dir = reciboCFE.direccion || "";
+                    const parts = dir.split(",").map((s: string) => s.trim());
+                    const callePart = parts[0] || "";
+                    // Try to extract number from calle: "Av. Reforma #123" or "Calle 10 No. 456"
+                    const numMatch = callePart.match(/(?:#|No\.?\s*|Num\.?\s*)(\d+\w*)/i);
+                    const calle = numMatch ? callePart.slice(0, numMatch.index).trim() : callePart;
+                    const numExt = numMatch ? numMatch[1] : "";
+                    await generateSolicitudCFE({
                       nombreSolicitante: reciboCFE.nombre || "",
-                      domicilio: reciboCFE.direccion || "",
+                      calle,
+                      numeroExterior: numExt,
+                      colonia: parts[1] || "",
+                      municipio: parts[2] || "",
+                      estado: parts[3] || clienteUbicacion || "",
+                      codigoPostal: (dir.match(/\b\d{5}\b/) || [])[0] || "",
                       telefono: clienteTelefono || "",
                       email: clienteEmail || "",
-                      estado: clienteUbicacion || "",
                       rpu: reciboCFE.noServicio || "",
                       tarifa: reciboCFE.tarifa || "",
                       capacidadKW: kWp,
                       generacionMensualKWh: kWp * 132,
                       cantidadPaneles: cantidadNum,
-                    }));
+                    });
                   }}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm font-medium text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
                 >
