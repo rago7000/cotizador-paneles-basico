@@ -324,22 +324,26 @@ export default function ComparativaPage() {
     setSelectedData(data);
   }, [selectedNombre]);
 
-  // Fetch live DOF
+  // Fetch live DOF — only when selection or frozen state changes (NOT on every object reference change)
+  const tcFrozen = selectedData?.tcFrozen ?? false;
+  const tcSnapshot = selectedData?.tcSnapshot;
   useEffect(() => {
-    if (!selectedData) return;
-    if (selectedData.tcFrozen) {
+    if (!selectedNombre) return;
+    if (tcFrozen) {
       setLiveTc(0);
       return;
     }
+    let cancelled = false;
     setLoadingTc(true);
     fetch("/api/tipo-cambio")
       .then((r) => r.json())
-      .then((d) => { if (d?.tipoCambio) setLiveTc(d.tipoCambio); })
+      .then((d) => { if (!cancelled && d?.tipoCambio) setLiveTc(d.tipoCambio); })
       .catch(() => {
-        if (selectedData.tcSnapshot) setLiveTc(Number(selectedData.tcSnapshot) || 0);
+        if (!cancelled && tcSnapshot) setLiveTc(Number(tcSnapshot) || 0);
       })
-      .finally(() => setLoadingTc(false));
-  }, [selectedData]);
+      .finally(() => { if (!cancelled) setLoadingTc(false); });
+    return () => { cancelled = true; };
+  }, [selectedNombre, tcFrozen, tcSnapshot]);
 
   const baseTc = useMemo(() => {
     if (!selectedData) return 0;
