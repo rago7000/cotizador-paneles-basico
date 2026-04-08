@@ -452,6 +452,7 @@ function OCCard({
   const marcarRecibidaMut = useMutation(api.ordenesCompra.marcarRecibida);
   const cancelarMut = useMutation(api.ordenesCompra.cancelar);
   const eliminarMut = useMutation(api.ordenesCompra.eliminar);
+  const actualizarMut = useMutation(api.ordenesCompra.actualizar);
 
   const [costosReales, setCostosReales] = useState<Map<string, number>>(new Map());
   const [tcRecepcion, setTcRecepcion] = useState<string>(oc.tcCompra ? String(oc.tcCompra) : "");
@@ -640,6 +641,12 @@ function OCCard({
                           type="number"
                           value={tcRecepcion}
                           onChange={(e) => setTcRecepcion(e.target.value)}
+                          onBlur={(e) => {
+                            const val = Number(e.target.value);
+                            if (val > 0 && val !== oc.tcCompra) {
+                              actualizarMut({ id: oc._id, tcCompra: val });
+                            }
+                          }}
                           placeholder="17.50"
                           min="0"
                           step="0.01"
