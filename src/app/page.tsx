@@ -979,7 +979,9 @@ export default function Home() {
                       const dir = reciboCFE.direccion || "";
                       const parts = dir.split(",").map((s: string) => s.trim());
                       const callePart = parts[0] || "";
-                      const numMatch = callePart.match(/(?:#|No\.?\s*|Num\.?\s*)(\d+\w*)/i);
+                      // Extract street number: "ENCINO 234", "Av. Reforma #123", "Calle 10 No. 456"
+                      const numMatch = callePart.match(/(?:#|No\.?\s*|Num\.?\s*)(\d+[\w-]*)\s*$/i)
+                        || callePart.match(/\s(\d+[\w-]*)\s*$/);
                       const calle = numMatch ? callePart.slice(0, numMatch.index).trim() : callePart;
                       const numExt = numMatch ? numMatch[1] : "";
                       // Use configEmpresa from Convex, fallback to defaults

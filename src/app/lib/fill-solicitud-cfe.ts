@@ -95,88 +95,75 @@ export async function fillSolicitudCFE(
   const emp = data.empresa;
 
   // ═══ HEADER ═══
-  // Fecha (y≈727 label → value at y≈720)
-  txt(195, 720, hoy);
+  txt(195, 722, hoy);
 
   // ═══ I. DATOS DEL SOLICITANTE (cliente) ═══
-  // Nombre (label y≈700 → value y≈690)
-  txt(42, 688, data.nombreSolicitante);
+  txt(42, 685, data.nombreSolicitante);
 
-  // Calle (label y≈675 → value y≈663)
-  txt(42, 662, data.calle || "");
-  txt(250, 662, data.numeroExterior || "");
-  txt(400, 662, data.numeroInterior || "");
-  txt(530, 662, data.codigoPostal || "");
+  // Calle, Num ext, Num int, CP
+  txt(42, 667, data.calle || "");
+  txt(260, 667, data.numeroExterior || "");
+  txt(390, 667, data.numeroInterior || "");
+  txt(540, 667, data.codigoPostal || "");
 
-  // Colonia, Municipio, Estado (label y≈655 → value y≈647)
-  txt(42, 646, data.colonia || "");
-  txt(290, 646, data.municipio || "");
-  txt(500, 646, data.estado || "");
+  // Colonia, Municipio, Estado
+  txt(42, 651, data.colonia || "");
+  txt(300, 651, data.municipio || "");
+  txt(510, 651, data.estado || "");
 
-  // Teléfono, Email (label y≈638 → value y≈630)
-  txt(42, 630, data.telefono || "");
-  txt(290, 630, data.email || "");
+  // Teléfono, Email
+  txt(42, 635, data.telefono || "");
+  txt(300, 635, data.email || "");
 
   // ═══ II. DATOS DE CONTACTO (empresa instaladora) ═══
-  // Nombre (y≈597 → value y≈593)
-  txt(42, 593, emp.nombre);
-  txt(370, 593, emp.puesto || "");
+  txt(42, 596, emp.nombre);
+  txt(380, 596, emp.puesto || "");
 
-  // Calle (y≈572 → value y≈567)
-  txt(42, 567, emp.calle || "");
-  txt(250, 567, emp.numeroExterior || "");
-  // Num interior: skip
-  txt(530, 567, emp.codigoPostal || "");
+  // Calle, Num ext, CP
+  txt(42, 572, emp.calle || "");
+  txt(260, 572, emp.numeroExterior || "");
+  txt(540, 572, emp.codigoPostal || "");
 
-  // Colonia, Municipio, Estado (y≈553 → value y≈548)
-  txt(42, 548, emp.colonia || "");
-  txt(290, 548, emp.municipio || "");
-  txt(500, 548, emp.estado || "");
+  // Colonia, Municipio, Estado
+  txt(42, 554, emp.colonia || "");
+  txt(300, 554, emp.municipio || "");
+  txt(510, 554, emp.estado || "");
 
-  // Teléfono, Email (y≈535 → value y≈530)
-  txt(42, 530, emp.telefono || "");
-  txt(290, 530, emp.email || "");
+  // Teléfono, Email
+  txt(42, 536, emp.telefono || "");
+  txt(300, 536, emp.email || "");
 
   // ═══ III. MODALIDAD ═══
-  // Baja Tensión (x≈340, y≈498) / Media Tensión (x≈490, y≈498)
+  // Baja Tensión checkbox ~x=310, Media Tensión ~x=460
   if (bajaTension) {
-    check(340, 496);
+    check(305, 498);
   } else {
-    check(490, 496);
+    check(460, 498);
   }
 
   // ═══ IV. UTILIZACIÓN ═══
-  // "Consumo de Centros de Carga" checkbox (x≈140, y≈472)
-  check(140, 470);
+  check(130, 473);
 
   // ═══ V. DATOS DEL SERVICIO ═══
-  // RPU (y≈440 → value y≈434)
-  txt(42, 434, data.rpu);
-  // Nivel de tensión (x≈330)
-  txt(335, 434, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
+  txt(42, 438, data.rpu);
+  txt(340, 438, bajaTension ? `Baja Tension (${data.tarifa})` : `Media Tension (${data.tarifa})`);
 
   // ═══ VI. CENTRAL ELÉCTRICA ═══
-  // Fecha operación (y≈406 → value y≈398)
-  txt(42, 397, data.fechaOperacion || "");
-  // Capacidad Bruta Instalada (x≈260)
-  txt(268, 397, data.capacidadKW.toFixed(2));
-  // Generación Promedio Mensual (x≈490)
-  txt(498, 397, data.generacionMensualKWh.toFixed(0));
+  txt(42, 400, data.fechaOperacion || "");
+  txt(275, 400, data.capacidadKW.toFixed(2));
+  txt(505, 400, data.generacionMensualKWh.toFixed(0));
 
   // ═══ VII. ESPECIFICACIONES TÉCNICAS ═══
-  // Solar checkbox (x≈68, y≈325)
-  check(68, 321);
+  check(70, 324);
 
-  // No de unidades (y≈300 → value y≈296)
-  txt(42, 296, String(data.cantidadPaneles), szSm);
-  txt(245, 296, "N/A (Solar)", szSm);
-  txt(455, 296, "N/A", szSm);
+  // No de unidades, combustible
+  txt(42, 298, String(data.cantidadPaneles), szSm);
+  txt(250, 298, "N/A (Solar)", szSm);
+  txt(460, 298, "N/A", szSm);
 
   // ═══ FIRMA ═══
-  // Nombre solicitante (y≈97)
-  txt(165, 95, data.nombreSolicitante, szSm);
-  // Fecha (y≈78)
-  txt(165, 76, hoy, szSm);
+  txt(170, 96, data.nombreSolicitante, szSm);
+  txt(170, 78, hoy, szSm);
 
   const filledBytes = await doc.save();
   return new Blob([filledBytes as unknown as ArrayBuffer], { type: "application/pdf" });
