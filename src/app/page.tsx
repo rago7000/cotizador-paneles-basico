@@ -27,7 +27,12 @@ import { fmt, CollapseAllContext } from "./components/primitives";
 import { generateArrangements } from "./lib/structure/generate-arrangements";
 import { syncGeneralesFromElectrical } from "./lib/sync-generales";
 import { autoSelectPanel, analyzePanelRecommendations } from "./lib/auto-select-panel";
+import { num } from "./lib/normalize";
 import { openPDFInNewWindow } from "./lib/open-pdf";
+import { useTipoCambio } from "./lib/useTipoCambio";
+import { useReciboCFE } from "./lib/useReciboCFE";
+import { useCotizacionCalculada } from "./lib/useCotizacionCalculada";
+import { useCotizacionPersistence } from "./lib/useCotizacionPersistence";
 import type { CatalogoPanelConPrecio, OfertaSimple } from "./lib/auto-select-panel";
 
 // ── Extracted components ─────────────────────────────────────────────────────
@@ -50,6 +55,7 @@ import MisCotizacionesModal from "./components/MisCotizacionesModal";
 // PDF components imported lazily for new-window rendering
 const loadCotizacionPDF = () => import("./components/CotizacionPDF").then((m) => m.default);
 const loadCotizacionClientePDF = () => import("./components/CotizacionClientePDF").then((m) => m.default);
+const loadSolicitudCFEPDF = () => import("./components/SolicitudCFEPDF").then((m) => m.default);
 
 type AluminioItem = LineItem;
 type GeneralItem = LineItem;
@@ -89,6 +95,9 @@ export default function Home() {
     updateMinisplit,
     getFormData,
   } = useCotizacion();
+
+  // ── Tipo de cambio (fetch + setters) ───────────────────────────────────────
+  const tcActions = useTipoCambio(set);
 
   // ── Autosave (2s debounce) ────────────────────────────────────────────────
   const { autosaveStatus, resetSnapshot, markClean } = useAutosave({
@@ -215,7 +224,7 @@ export default function Home() {
       .filter((x): x is CatalogoMicro => x !== null);
   }, [convexMicros, convexOfertas]);
 
-  const reciboInputRef = useRef<HTMLInputElement>(null);
+  // reciboInputRef moved to useReciboCFE hook
 
   const rawVariantesById = useQuery(
     api.cotizaciones.listCliente,
@@ -269,156 +278,70 @@ export default function Home() {
     return list.sort((a, b) => `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`));
   }, [catalogoMicros, pq, pickerMarca]);
 
-  // ── Numeric derivations ───────────────────────────────────────────────────
-  const cantidadNum = Number(cantidad) || 0;
-  const structureResult = useMemo(
-    () => (structureRows.length > 0 ? calculateStructure(structureRows) : null),
-    [structureRows],
-  );
-  const potenciaNum = Number(potencia) || 0;
-  const precioNum = Number(precioPorWatt) || 0;
-  const fletePanelesNum = Number(fletePaneles) || 0;
-  const garantiaPanelesNum = Number(garantiaPaneles) || 0;
-  const precioMicroNum = Number(precioMicroinversor) || 0;
-  const precioCableNum = Number(precioCable) || 0;
-  const precioECUNum = Number(precioECU) || 0;
-  const precioHerramientaNum = Number(precioHerramienta) || 0;
-  const precioEndCapNum = Number(precioEndCap) || 0;
-  const fleteMicrosNum = Number(fleteMicros) || 0;
+  // ── All calculations (normalize + partidas + pricing + ROI + sizing) ─────
+  const calc = useCotizacionCalculada({
+    state: s,
+    utilidad,
+    structureRows,
+    electricalProfileId,
+  });
+  const {
+    n, cantidadNum, potenciaNum, precioNum,
+    fletePanelesNum, garantiaPanelesNum,
+    precioMicroNum, precioCableNum, precioECUNum,
+    precioHerramientaNum, precioEndCapNum, fleteMicrosNum, fleteAluminioNum,
+    panelesPorMicro, cantidadMicros,
+    costoPanel, costoPanelesUSD,
+    costoMicrosUSD, costoCablesUSD, costoECUUSD, costoHerramientaUSD, costoEndCapUSD,
+    costoAluminioMXN, costoTornilleriaMXN, costoGeneralesMXN,
+    tcLive, tcVal, tcPaneles, tcMicros, panelW,
+    partidas, partidaPanelesMXN, partidaInversoresMXN, partidaEstructuraMXN,
+    partidaTornilleriaMXN, partidaGeneralesMXN,
+    subtotalMXN, ivaMXN, totalMXN,
+    totalPanelesUSD, totalInversoresUSD, costoPorPanel, fleteAluminioSinIVA,
+    precioCliente, clientePanelesMXN, clienteInversoresMXN, clienteEstructuraMXN,
+    clienteTornilleriaMXN, clienteGeneralesMXN,
+    clienteSubtotalMXN, clienteIvaMXN, clienteTotalMXN,
+    utilidadNetaMXN, utilidadNetaPct, clientePorPanel, clientePorWatt,
+    roi, kWpSistema, generacionMensualKwh, costoCFEporKwh,
+    ahorroMensualMXN, ahorroAnualMXN, roiMeses, roiAnios,
+    sizing, consumoMensualCFE, consumoMensualCalc,
+    panelesPromedio, kWpPromedio, panelesEquilibrado, kWpEquilibrado,
+    panelesMax, kWpMax, consumoP75, consumoMensualMax, maxHistKwh,
+    panelesSugeridosCFE, kWpSugerido, historicoFiltrado, todosBimestres,
+    minisplitKwhMes, minisplitKwhMesProm,
+    consumoConIncremento, panelesConIncremento, kWpConIncremento,
+    structureResult, electricalResult,
+  } = calc;
 
-  const costoPanel = potenciaNum * precioNum;
-  const costoPanelesUSD = costoPanel * cantidadNum;
+  // ── Persistence (save/load/delete cotizaciones + variantes) ────────────
+  const persistence = useCotizacionPersistence({
+    state: s, set, setMany, loadCotizacion, getFormData, markClean,
+    convexGuardarCotizacion, convexCargarCotizacion, convexEliminarCotizacion,
+    convexGuardarCotizacionCliente, convexEliminarCotizacionCliente,
+    catalogoPaneles, catalogoMicros, calc, variantes,
+    loadCotizacionPDF, loadCotizacionClientePDF,
+  });
+  const {
+    handleGuardar, handleCargar, handleEliminar,
+    handleGuardarVariante, handleEliminarVariante, handleCargarVariante,
+    handleVerPDFVariante,
+  } = persistence;
 
-  const panelesPorMicro = microSeleccionado?.panelesPorUnidad ?? 4;
-  const cantidadMicros = cantidadNum > 0 ? Math.ceil(cantidadNum / panelesPorMicro) : 0;
-  const electricalResult = useMemo(
-    () => cantidadMicros > 0 ? calculateElectrical({
-      equipmentProfileId: electricalProfileId,
-      cantidadEquipos: cantidadMicros,
-      cantidadPaneles: cantidadNum,
-    }) : null,
-    [electricalProfileId, cantidadMicros, cantidadNum],
-  );
-  const costoMicrosUSD = cantidadMicros * precioMicroNum;
-  const costoCablesUSD = cantidadMicros * precioCableNum;
-  const costoECUUSD = incluyeECU ? precioECUNum : 0;
-  const costoHerramientaUSD = incluyeHerramienta ? precioHerramientaNum : 0;
-  const costoEndCapUSD = incluyeEndCap ? precioEndCapNum * cantidadMicros : 0;
-
-  const costoAluminioMXN = aluminio.reduce(
-    (s, it) => s + (Number(it.cantidad) || 0) * (Number(it.precioUnitario) || 0), 0
-  );
-  const fleteAluminioNum = Number(fleteAluminio) || 0;
-  const fleteAluminioSinIVA = fleteAluminioNum / 1.16;
-  const costoTornilleriaMXN = tornilleria.reduce(
-    (s, it) => s + (Number(it.cantidad) || 0) * (Number(it.precioUnitario) || 0), 0
-  );
-  const costoGeneralesMXN = generales.reduce(
-    (s, it) => s + (Number(it.cantidad) || 0) * (Number(it.precioUnitario) || 0), 0
-  );
-
-  const tcLive = (tcUsarManana && tc?.tipoCambioAlt) ? tc.tipoCambioAlt : (tc?.tipoCambio || 0);
-  const tcVal = ((tcFrozen || tcManual) && Number(tcSnapshotLocal) > 0) ? Number(tcSnapshotLocal) : tcLive;
-  const tcPaneles = Number(tcCustomPaneles) > 0 ? Number(tcCustomPaneles) : tcVal;
-  const tcMicros  = Number(tcCustomMicros)  > 0 ? Number(tcCustomMicros)  : tcVal;
-
-  const totalPanelesUSD = cantidadNum > 0 ? costoPanelesUSD + fletePanelesNum + garantiaPanelesNum : 0;
-  const partidaPanelesMXN = totalPanelesUSD * tcPaneles;
-  const totalInversoresUSD = cantidadNum > 0 ? costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + costoEndCapUSD + fleteMicrosNum : 0;
-  const partidaInversoresMXN = totalInversoresUSD * tcMicros;
-  const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
-  const partidaTornilleriaMXN = costoTornilleriaMXN;
-  const partidaGeneralesMXN = costoGeneralesMXN;
-
-  const subtotalMXN = partidaPanelesMXN + partidaInversoresMXN + partidaEstructuraMXN + partidaTornilleriaMXN + partidaGeneralesMXN;
-  const ivaMXN = subtotalMXN * 0.16;
-  const totalMXN = subtotalMXN + ivaMXN;
-  const costoPorPanel = cantidadNum > 0 ? totalMXN / cantidadNum : 0;
-
-  // ── Precio al cliente ─────────────────────────────────────────────────────
-  const pctPaneles = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.panelesPct;
-  const pctInversores = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.inversoresPct;
-  const pctEstructura = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.estructuraPct;
-  const pctTornilleria = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.tornilleriaPct;
-  const pctGenerales = utilidad.tipo === "global" ? utilidad.globalPct : utilidad.generalesPct;
-
-  const clientePanelesMXN = partidaPanelesMXN * (1 + pctPaneles / 100);
-  const clienteInversoresMXN = partidaInversoresMXN * (1 + pctInversores / 100);
-  const clienteEstructuraMXN = partidaEstructuraMXN * (1 + pctEstructura / 100);
-  const clienteTornilleriaMXN = partidaTornilleriaMXN * (1 + pctTornilleria / 100);
-  const clienteGeneralesMXN = partidaGeneralesMXN * (1 + pctGenerales / 100);
-  const clienteSubtotalMXN = clientePanelesMXN + clienteInversoresMXN + clienteEstructuraMXN + clienteTornilleriaMXN + clienteGeneralesMXN + utilidad.montoFijo;
-  const clienteIvaMXN = clienteSubtotalMXN * 0.16;
-  const clienteTotalMXN = clienteSubtotalMXN + clienteIvaMXN;
-  const utilidadNetaMXN = clienteSubtotalMXN - subtotalMXN;
-  const utilidadNetaPct = subtotalMXN > 0 ? (utilidadNetaMXN / subtotalMXN) * 100 : 0;
-  const clientePorPanel = cantidadNum > 0 ? clienteTotalMXN / cantidadNum : 0;
-  const clientePorWatt = cantidadNum > 0 && potenciaNum > 0 ? clienteTotalMXN / (cantidadNum * potenciaNum) : 0;
-
-  // ── ROI ────────────────────────────────────────────────────────────────────
-  const kWpSistema = cantidadNum * potenciaNum / 1000;
-  const generacionMensualKwh = kWpSistema * 132;
-  const costoCFEporKwh = reciboCFE && reciboCFE.consumoKwh > 0 ? reciboCFE.totalFacturado / reciboCFE.consumoKwh : 0;
-  const ahorroMensualMXN = generacionMensualKwh * costoCFEporKwh;
-  const ahorroAnualMXN = ahorroMensualMXN * 12;
-  const roiMeses = ahorroMensualMXN > 0 ? clienteTotalMXN / ahorroMensualMXN : 0;
-  const roiAnios = roiMeses / 12;
-
-  // ── CFE sizing derivations ────────────────────────────────────────────────
-  const consumoMensualCFE = reciboCFE
-    ? reciboCFE.consumoMensualPromedio > 0
-      ? reciboCFE.consumoMensualPromedio
-      : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
-    : 0;
-  const GEN_POR_KWP = 5.5 * 30 * 0.8;
-  const panelW = Number(potencia) || 545;
-
-  // Último año = 6 bimestres: el actual + 5 del historial
-  // Todo el historial = actual + todos los anteriores
-  const historicoFiltrado = reciboCFE
-    ? reciboUltimoAnio ? reciboCFE.historico.slice(0, 5) : reciboCFE.historico
-    : [];
-  // Todos los bimestres (incluyendo actual) para cálculos de promedio/P75
-  const todosBimestres = reciboCFE
-    ? [reciboCFE.consumoKwh, ...historicoFiltrado.map((h) => h.kwh)]
-    : [];
-  const consumoMensualCalc = reciboCFE
-    ? todosBimestres.length > 0
-      ? Math.round(todosBimestres.reduce((s, kwh) => s + kwh, 0) / todosBimestres.length / 2)
-      : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1))
-    : 0;
-
-  const panelesPromedio = reciboCFE ? Math.ceil((consumoMensualCalc / GEN_POR_KWP * 1000) / panelW) : 0;
-  const kWpPromedio = panelesPromedio * panelW / 1000;
-  const maxHistKwh = reciboCFE ? Math.max(...todosBimestres) : 0;
-  const consumoMensualMax = Math.round(maxHistKwh / 2);
-  const panelesMax = reciboCFE ? Math.ceil((consumoMensualMax / GEN_POR_KWP * 1000) / panelW) : 0;
-  const kWpMax = panelesMax * panelW / 1000;
-  const todosKwhSorted = [...todosBimestres].sort((a, b) => a - b);
-  const p75Index = Math.floor(todosKwhSorted.length * 0.75);
-  const consumoP75 = todosKwhSorted.length > 0 ? Math.round(todosKwhSorted[p75Index] / 2) : 0;
-  const panelesEquilibrado = reciboCFE ? Math.ceil((consumoP75 / GEN_POR_KWP * 1000) / panelW) : 0;
-  const kWpEquilibrado = panelesEquilibrado * panelW / 1000;
-
-  const WATTS_POR_TON: Record<string, number> = { inverter: 900, convencional: 1400 };
-  const minisplitKwhMes = minisplits.reduce((sum, m) => {
-    const watts = m.cantidad * Number(m.toneladas) * WATTS_POR_TON[m.tipo];
-    return sum + (watts * m.horasDia * 30) / 1000;
-  }, 0);
-  const minisplitKwhMesProm = minisplitTemporada === "temporada" ? Math.round(minisplitKwhMes / 2) : Math.round(minisplitKwhMes);
-  const consumoConIncremento = consumoMensualCalc + minisplitKwhMesProm;
-  const panelesConIncremento = reciboCFE ? Math.ceil((consumoConIncremento / GEN_POR_KWP * 1000) / panelW) : 0;
-  const kWpConIncremento = panelesConIncremento * panelW / 1000;
-  const kWpSugerido = panelesPromedio * panelW / 1000;
-  const panelesSugeridosCFE = panelesPromedio;
+  // ── Auto-sync generales when panel count or electrical result changes ────
+  const prevSyncKey = useRef("");
+  useEffect(() => {
+    if (!electricalResult || cantidadNum <= 0) return;
+    const syncKey = `${cantidadNum}-${electricalResult.totalCircuitos}-${electricalResult.breakerResumen.map(b => `${b.amperaje}x${b.cantidad}`).join(",")}`;
+    if (syncKey === prevSyncKey.current) return;
+    prevSyncKey.current = syncKey;
+    const synced = syncGeneralesFromElectrical(electricalResult, generales, cantidadNum);
+    set("generales", synced);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [electricalResult, cantidadNum]);
 
   // ── Effects ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    fetch("/api/tipo-cambio")
-      .then((r) => r.json())
-      .then((d) => (d.error ? set("tcError", d.error) : set("tc", d)))
-      .catch(() => set("tcError", "No se pudo obtener el tipo de cambio"));
-  }, []);
+  // TC fetch moved to useTipoCambio hook
 
   const autoSelectedMicro = useRef(false);
   useEffect(() => {
@@ -468,27 +391,7 @@ export default function Home() {
     return catalogoPaneles.find((cp) => cp.id === `v2_${dp._id}`) ?? null;
   }, [convexPaneles, catalogoPaneles]);
 
-  // ── Build variant snapshot helper ─────────────────────────────────────────
-  const buildVariantSnapshot = (nombre: string): CotizacionCliente => ({
-    id: uid(), cotizacionBase: cotizacionId, nombre,
-    fecha: new Date().toISOString(), utilidad: { ...utilidad },
-    costos: {
-      paneles: partidaPanelesMXN, inversores: partidaInversoresMXN,
-      estructura: partidaEstructuraMXN, tornilleria: partidaTornilleriaMXN,
-      generales: partidaGeneralesMXN, subtotal: subtotalMXN, iva: ivaMXN,
-      total: totalMXN, cantidadPaneles: cantidadNum, potenciaW: potenciaNum,
-    },
-    precios: {
-      paneles: clientePanelesMXN, inversores: clienteInversoresMXN,
-      estructura: clienteEstructuraMXN, tornilleria: clienteTornilleriaMXN,
-      generales: clienteGeneralesMXN, montoFijo: utilidad.montoFijo,
-      subtotal: clienteSubtotalMXN, iva: clienteIvaMXN, total: clienteTotalMXN,
-      porPanel: clientePorPanel, porWatt: clientePorWatt,
-      utilidadNeta: utilidadNetaMXN, utilidadPct: utilidadNetaPct,
-    },
-    notas: "", vigenciaDias: 15,
-    stateSnapshot: getFormData(),
-  });
+  // buildVariantSnapshot moved to useCotizacionPersistence hook
 
   // ── Auto-proposals after first recibo ───────────────────────────────────
   const autoProposalPhase = useRef<"idle" | "save-base" | "save-opt">("idle");
@@ -506,7 +409,7 @@ export default function Home() {
         return;
       }
       // Save current config as base proposal
-      const base = buildVariantSnapshot("Propuesta Base");
+      const base = persistence.buildVariantSnapshot("Propuesta Base");
       basePortPanelRef.current = base.precios.porPanel;
       basePanelCountRef.current = cantidadNum;
       convexGuardarCotizacionCliente({
@@ -523,7 +426,7 @@ export default function Home() {
         set("mostrarVariantes", true);
       }
     } else if (autoProposalPhase.current === "save-opt") {
-      const opt = buildVariantSnapshot("Propuesta Optimizada");
+      const opt = persistence.buildVariantSnapshot("Propuesta Optimizada");
       // Add discount info comparing to base price per panel
       if (basePortPanelRef.current > 0) {
         const descuento = ((basePortPanelRef.current - opt.precios.porPanel) / basePortPanelRef.current * 100).toFixed(0);
@@ -603,131 +506,27 @@ export default function Home() {
     setMany(updates as Partial<typeof s>);
   };
 
-  // (auto-apply moved into handleReciboCFE for reliable timing)
+  // ── Recibo CFE (upload + sizing) ──────────────────────────────────────────
+  const { reciboInputRef, triggerUpload, handleReciboCFE } = useReciboCFE({
+    set,
+    potencia,
+    reciboUltimoAnio,
+    nombreCotizacion,
+    variantesCount: variantes.length,
+    onAutoProposal: (panelsP75, shouldSaveBase) => {
+      if (shouldSaveBase) {
+        autoProposalPhase.current = "save-base";
+        set("utilidad", { ...UTILIDAD_DEFAULT });
+      }
+      setTimeout(() => handleApplyProposal(panelsP75), 0);
+    },
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleGuardar = async () => {
-    if (!nombreCotizacion.trim()) { set("msgGuardado", "err"); setTimeout(() => set("msgGuardado", ""), 2500); return; }
-    await convexGuardarCotizacion(nombreCotizacion.trim(), getFormData());
-    set("msgGuardado", "ok");
-    setTimeout(() => set("msgGuardado", ""), 2500);
-  };
-
-  const handleCargar = (nombre: string) => {
-    const data = convexCargarCotizacion(nombre);
-    if (!data) return;
-    loadCotizacion(data);
-    markClean(data); // set baseline snapshot so autosave won't re-save unchanged data
-    const savedPanelId = data.panelCatalogoId;
-    const savedPotencia = Number(data.potencia) || 0;
-    const savedPrecioW = Number(data.precioPorWatt) || 0;
-    const matchPanel = savedPanelId ? catalogoPaneles.find((p) => p.id === savedPanelId) : null;
-    if (matchPanel) set("panelSeleccionado", matchPanel);
-    else if (savedPotencia > 0 && savedPrecioW > 0) set("panelSeleccionado", catalogoPaneles.find((p) => p.potencia === savedPotencia && Math.abs(p.precioPorWatt - savedPrecioW) < 0.001) ?? null);
-    else set("panelSeleccionado", null);
-    const savedMicroId = data.microCatalogoId;
-    const savedPrecioMicro = Number(data.precioMicroinversor) || 0;
-    const savedPrecioCable = Number(data.precioCable) || 0;
-    const matchMicro = savedMicroId ? catalogoMicros.find((m) => m.id === savedMicroId) : null;
-    if (matchMicro) set("microSeleccionado", matchMicro);
-    else if (savedPrecioMicro > 0) set("microSeleccionado", catalogoMicros.find((m) => Math.abs(m.precio - savedPrecioMicro) < 0.01 && Math.abs(m.precioCable - savedPrecioCable) < 0.01) ?? null);
-    else set("microSeleccionado", null);
-  };
-
-  const handleGuardarVariante = async () => {
-    if (!nombreCotizacion.trim() || !nombreVariante.trim() || subtotalMXN <= 0) return;
-    const c: CotizacionCliente = buildVariantSnapshot(nombreVariante);
-    await convexGuardarCotizacionCliente({
-      cotizacionBase: c.cotizacionBase, nombre: c.nombre, fecha: c.fecha, data: c,
-    });
-    set("nombreVariante", "");
-    set("mostrarVariantes", true);
-  };
-
-  const handleEliminarVariante = async (id: string) => { await convexEliminarCotizacionCliente(id); };
-  const handleCargarVariante = (v: CotizacionCliente) => {
-    const currentCotizacionId = cotizacionId;
-    const currentNombre = nombreCotizacion;
-    if (v.stateSnapshot) {
-      // Full restore: all parameters (panels, micros, structure, generales, etc.)
-      loadCotizacion(v.stateSnapshot);
-      // Restore panel/micro selection from catalog IDs in snapshot
-      const restoredPanel = v.stateSnapshot.panelCatalogoId
-        ? catalogoPaneles.find((p) => p.id === v.stateSnapshot!.panelCatalogoId) ?? null
-        : null;
-      const restoredMicro = v.stateSnapshot.microCatalogoId
-        ? catalogoMicros.find((m) => m.id === v.stateSnapshot!.microCatalogoId) ?? null
-        : null;
-      setMany({
-        // Keep current cotizacion identity (don't let snapshot change it)
-        cotizacionId: currentCotizacionId,
-        nombreCotizacion: currentNombre,
-        // Restore catalog selections
-        panelSeleccionado: restoredPanel,
-        microSeleccionado: restoredMicro,
-        utilidad: v.utilidad,
-        mostrarPrecioCliente: true,
-        mostrarVariantes: false,
-        nombreVariante: "",
-      });
-    } else {
-      // Legacy variants without snapshot: restore what we can
-      setMany({
-        cantidad: String(v.costos.cantidadPaneles),
-        utilidad: v.utilidad,
-        mostrarPrecioCliente: true,
-        mostrarVariantes: false,
-        nombreVariante: "",
-      });
-    }
-  };
-  // ── Variant PDF (open in new window) ──
-  const handleVerPDFVariante = async (v: CotizacionCliente, tipo: "cliente" | "costos") => {
-    if (tipo === "cliente") {
-      const CotizacionClientePDF = await loadCotizacionClientePDF();
-      // Find base variant for discount comparison
-      const baseVariant = variantes.find((vv) => vv.nombre === "Propuesta Base" && vv.cotizacionBase === v.cotizacionBase);
-      const precioAnterior = baseVariant && baseVariant.id !== v.id ? baseVariant.precios.porPanel : undefined;
-      const el = createElement(CotizacionClientePDF, {
-        nombreCotizacion: `${nombreCotizacion} — ${v.nombre}`,
-        clienteNombre: reciboCFE?.nombre || "",
-        cantidadPaneles: v.costos.cantidadPaneles,
-        potenciaW: v.costos.potenciaW,
-        kWp: v.costos.cantidadPaneles * v.costos.potenciaW / 1000,
-        generacionMensualKwh: v.costos.cantidadPaneles * v.costos.potenciaW / 1000 * 132,
-        partidas: {
-          paneles: v.precios.paneles, inversores: v.precios.inversores,
-          estructura: v.precios.estructura, tornilleria: v.precios.tornilleria,
-          generales: v.precios.generales, montoFijo: v.precios.montoFijo,
-        },
-        subtotal: v.precios.subtotal, iva: v.precios.iva, total: v.precios.total,
-        porPanel: v.precios.porPanel, porWatt: v.precios.porWatt,
-        vigenciaDias: 15, notas: "",
-        precioAnteriorPorPanel: precioAnterior,
-      });
-      await openPDFInNewWindow(el);
-    } else if (tc) {
-      const CotizacionPDF = await loadCotizacionPDF();
-      const el = createElement(CotizacionPDF, {
-        nombreCotizacion: `${nombreCotizacion} — ${v.nombre} (Costos)`,
-        cantidad: v.costos.cantidadPaneles, potencia: v.costos.potenciaW,
-        precioPorWatt: Number(precioPorWatt) || 0,
-        fletePaneles: Number(fletePaneles) || 0, garantiaPaneles: Number(garantiaPaneles) || 0,
-        precioMicroinversor: Number(precioMicroinversor) || 0,
-        precioCable: Number(precioCable) || 0,
-        precioECU: Number(precioECU) || 0, incluyeECU,
-        precioHerramienta: Number(precioHerramienta) || 0, incluyeHerramienta,
-        precioEndCap: Number(precioEndCap) || 0, incluyeEndCap,
-        fleteMicros: Number(fleteMicros) || 0,
-        aluminio, fleteAluminio: Number(fleteAluminio) || 0,
-        tornilleria, generales, tc,
-      });
-      await openPDFInNewWindow(el);
-    }
-  };
-
-  const handleEliminar = async (nombre: string) => { await convexEliminarCotizacion(nombre); };
+  // handleGuardar, handleCargar, handleEliminar, handleGuardarVariante,
+  // handleEliminarVariante, handleCargarVariante, handleVerPDFVariante
+  // → all moved to useCotizacionPersistence hook
 
   const updateAluminio = (i: number, f: keyof AluminioItem, v: string) => updateLineItem("aluminio", i, f, v);
   const updateTornilleria = (i: number, f: keyof LineItem, v: string) => updateLineItem("tornilleria", i, f, v);
@@ -749,48 +548,7 @@ export default function Home() {
     set("sugerirGuardarMicro", false);
   };
 
-  const handleReciboCFE = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    set("loadingRecibo", true);
-    set("errorRecibo", "");
-    try {
-      const fd = new FormData();
-      fd.append("pdf", file);
-      const res = await fetch("/api/leer-recibo", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      set("reciboCFE", data);
-      const reader = new FileReader();
-      reader.onload = () => set("reciboPDFBase64", reader.result as string);
-      reader.readAsDataURL(file);
-      if (data.nombre && !nombreCotizacion.trim()) set("nombreCotizacion", data.nombre);
-
-      // ── Auto-apply propuesta equilibrada (P75) ──
-      // Calculate directly from recibo data + current potencia to avoid stale state
-      const pw = Number(potencia) || 545;
-      const GEN = 5.5 * 30 * 0.8; // GEN_POR_KWP
-      const hist = reciboUltimoAnio ? data.historico.slice(0, 5) : data.historico;
-      const allKwh = [data.consumoKwh, ...hist.map((h: { kwh: number }) => h.kwh)].sort((a: number, b: number) => a - b);
-      const p75Idx = Math.floor(allKwh.length * 0.75);
-      const cP75 = allKwh.length > 0 ? Math.round(allKwh[p75Idx] / 2) : 0;
-      const panelsP75 = cP75 > 0 ? Math.ceil((cP75 / GEN * 1000) / pw) : 0;
-      if (panelsP75 > 0) {
-        // Use setTimeout(0) so the state from set("reciboCFE") is committed first
-        if (variantes.length === 0) {
-          autoProposalPhase.current = "save-base";
-          // Force Equilibrado strategy (80%) for auto-proposals
-          set("utilidad", { ...UTILIDAD_DEFAULT });
-        }
-        setTimeout(() => handleApplyProposal(panelsP75), 0);
-      }
-    } catch (err: unknown) {
-      set("errorRecibo", err instanceof Error ? err.message : "Error al procesar el recibo");
-    } finally {
-      set("loadingRecibo", false);
-      if (reciboInputRef.current) reciboInputRef.current.value = "";
-    }
-  };
+  // handleReciboCFE moved to useReciboCFE hook
 
   // ── Panel recommendations ────────────────────────────────────────────────
   const panelRecommendations = useMemo(() => {
@@ -919,7 +677,7 @@ export default function Home() {
               onAddMinisplit={addMinisplit} onRemoveMinisplit={removeMinisplit}
               onUpdateMinisplit={updateMinisplit}
               onSetMinisplitTemporada={(v) => set("minisplitTemporada", v)}
-              onUploadClick={() => reciboInputRef.current?.click()}
+              onUploadClick={triggerUpload}
               onSetReciboCFE={(v) => set("reciboCFE", v)}
               onSetCantidad={(v) => set("cantidad", v)}
               onApplyProposal={handleApplyProposal}
@@ -973,7 +731,7 @@ export default function Home() {
               onSetPrecioPorWatt={(v) => { set("precioPorWatt", v); if (v) { set("sugerirGuardarPanel", true); set("panelSeleccionado", null); } }}
               onSetFletePaneles={(v) => set("fletePaneles", v)}
               onSetGarantiaPaneles={(v) => set("garantiaPaneles", v)}
-              onSetTcCustomPaneles={(v) => set("tcCustomPaneles", v)}
+              onSetTcCustomPaneles={tcActions.onSetTcCustomPaneles}
               sugerirGuardarPanel={sugerirGuardarPanel}
               onGuardarPanel={guardarPanelEnCatalogo}
               onDismissGuardarPanel={() => set("sugerirGuardarPanel", false)}
@@ -1003,7 +761,7 @@ export default function Home() {
               onSetPrecioEndCap={(v) => set("precioEndCap", v)}
               onSetIncluyeEndCap={(v) => set("incluyeEndCap", v)}
               onSetFleteMicros={(v) => set("fleteMicros", v)}
-              onSetTcCustomMicros={(v) => set("tcCustomMicros", v)}
+              onSetTcCustomMicros={tcActions.onSetTcCustomMicros}
               sugerirGuardarMicro={sugerirGuardarMicro}
               onGuardarMicro={guardarMicroEnCatalogo}
               onDismissGuardarMicro={() => set("sugerirGuardarMicro", false)}
@@ -1079,10 +837,10 @@ export default function Home() {
               tc={tc} tcError={tcError} tcFrozen={tcFrozen} tcManual={tcManual}
               tcUsarManana={tcUsarManana} tcSnapshotLocal={tcSnapshotLocal}
               tcLive={tcLive} tcVal={tcVal}
-              onSetFrozen={(v) => set("tcFrozen", v)}
-              onSetManual={(v) => set("tcManual", v)}
-              onSetSnapshot={(v) => set("tcSnapshotLocal", v)}
-              onSetUsarManana={(v) => set("tcUsarManana", v)}
+              onSetFrozen={tcActions.onSetFrozen}
+              onSetManual={tcActions.onSetManual}
+              onSetSnapshot={tcActions.onSetSnapshot}
+              onSetUsarManana={tcActions.onSetUsarManana}
             />
 
             <ResumenSidebar
@@ -1207,6 +965,30 @@ export default function Home() {
                   PDF cotizacion cliente
                 </button>
               )}
+              {reciboCFE && cantidadNum > 0 && potenciaNum > 0 && (
+                <button
+                  onClick={async () => {
+                    const SolicitudCFEPDF = await loadSolicitudCFEPDF();
+                    const kWp = cantidadNum * potenciaNum / 1000;
+                    await openPDFInNewWindow(createElement(SolicitudCFEPDF, {
+                      nombreSolicitante: reciboCFE.nombre || "",
+                      domicilio: reciboCFE.direccion || "",
+                      telefono: clienteTelefono || "",
+                      email: clienteEmail || "",
+                      estado: clienteUbicacion || "",
+                      rpu: reciboCFE.noServicio || "",
+                      tarifa: reciboCFE.tarifa || "",
+                      capacidadKW: kWp,
+                      generacionMensualKWh: kWp * 132,
+                      cantidadPaneles: cantidadNum,
+                    }));
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm font-medium text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Solicitud CFE (interconexion)
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1317,7 +1099,7 @@ export default function Home() {
         // ── Precio al cliente (con utilidad) ──
         precioCliente: mostrarPrecioCliente ? {
           markupTipo: utilidad.tipo,
-          markupPorcentaje: utilidad.tipo === "global" ? utilidad.globalPct : { paneles: pctPaneles, inversores: pctInversores, estructura: pctEstructura, tornilleria: pctTornilleria, generales: pctGenerales },
+          markupPorcentaje: utilidad.tipo === "global" ? utilidad.globalPct : { paneles: utilidad.panelesPct, inversores: utilidad.inversoresPct, estructura: utilidad.estructuraPct, tornilleria: utilidad.tornilleriaPct, generales: utilidad.generalesPct },
           montoFijoMXN: utilidad.montoFijo,
           subtotalMXN: clienteSubtotalMXN,
           ivaMXN: clienteIvaMXN,
