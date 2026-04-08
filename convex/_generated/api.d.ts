@@ -9,6 +9,7 @@
  */
 
 import type * as archivos from "../archivos.js";
+import type * as configEmpresa from "../configEmpresa.js";
 import type * as consolidador from "../consolidador.js";
 import type * as cotizaciones from "../cotizaciones.js";
 import type * as importRowStaging from "../importRowStaging.js";
@@ -29,6 +30,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   archivos: typeof archivos;
+  configEmpresa: typeof configEmpresa;
   consolidador: typeof consolidador;
   cotizaciones: typeof cotizaciones;
   importRowStaging: typeof importRowStaging;
