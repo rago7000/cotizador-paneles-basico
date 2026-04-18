@@ -1,20 +1,45 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import AppNav from "./components/AppNav";
 import { useConvexCotizaciones } from "./lib/useConvexCatalogo";
-import type { CotizacionData, CotizacionGuardada } from "./lib/types";
+import type { CotizacionData, CotizacionGuardada, CotizacionCliente } from "./lib/types";
 import CotizadorWorkspace, { type CalcSnapshot } from "./components/CotizadorWorkspace";
 import SplitDeltaSidebar from "./components/SplitDeltaSidebar";
-import MisCotizacionesModal from "./components/MisCotizacionesModal";
+import CompareSourcePicker from "./components/CompareSourcePicker";
+
+type SecondaryInit =
+  | { kind: "cotizacion"; nombre: string }
+  | { kind: "variante"; variante: CotizacionCliente };
 
 export default function Home() {
   const [splitOpen, setSplitOpen] = useState(false);
-  const [secondaryInit, setSecondaryInit] = useState<{ kind: "cotizacion"; nombre: string } | null>(null);
+  const [primaryInit] = useState<{ kind: "cotizacion"; nombre: string } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const load = new URLSearchParams(window.location.search).get("load");
+    return load ? { kind: "cotizacion", nombre: load } : null;
+  });
+  const [secondaryInit, setSecondaryInit] = useState<SecondaryInit | null>(null);
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const [primaryCalc, setPrimaryCalc] = useState<CalcSnapshot | null>(null);
   const [secondaryCalc, setSecondaryCalc] = useState<CalcSnapshot | null>(null);
   const [splitCollapseCounter, setSplitCollapseCounter] = useState(0);
+  const [primaryIdentity, setPrimaryIdentity] = useState<{ cotizacionId: string; nombreCotizacion: string }>({
+    cotizacionId: "",
+    nombreCotizacion: "",
+  });
+
+  // Strip ?load=<nombre> from the URL once primaryInit has been captured.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("load")) {
+      url.searchParams.delete("load");
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+    }
+  }, []);
 
   const { cotizaciones: convexCotizaciones, cargarCotizacion: convexCargarCotizacion } = useConvexCotizaciones();
 
@@ -26,8 +51,49 @@ export default function Home() {
     }));
   }, [convexCotizaciones, convexCargarCotizacion]);
 
-  const handleSelectCompare = (nombre: string) => {
+  // ── Variantes del primario (para el picker) ──
+  const rawVariantesById = useQuery(
+    api.cotizaciones.listCliente,
+    primaryIdentity.cotizacionId ? { cotizacionBase: primaryIdentity.cotizacionId } : "skip",
+  );
+  const rawVariantesByName = useQuery(
+    api.cotizaciones.listCliente,
+    primaryIdentity.nombreCotizacion.trim()
+      ? { cotizacionBase: primaryIdentity.nombreCotizacion.trim() }
+      : "skip",
+  );
+  const primaryVariantes = useMemo<CotizacionCliente[]>(() => {
+    const seen = new Set<string>();
+    const result: CotizacionCliente[] = [];
+    for (const raw of [rawVariantesById, rawVariantesByName]) {
+      if (!raw) continue;
+      for (const v of raw) {
+        if (seen.has(v._id as string)) continue;
+        seen.add(v._id as string);
+        try {
+          const parsed = JSON.parse(v.data);
+          result.push({ ...parsed, id: v._id as string } as CotizacionCliente);
+        } catch { /* skip */ }
+      }
+    }
+    return result;
+  }, [rawVariantesById, rawVariantesByName]);
+
+  // ── Otras cotizaciones (excluye la que está activa en primario) ──
+  const otrasCotizaciones = useMemo(() => {
+    const activeName = primaryIdentity.nombreCotizacion.trim();
+    if (!activeName) return cotizacionesGuardadas;
+    return cotizacionesGuardadas.filter((c) => c.nombre !== activeName);
+  }, [cotizacionesGuardadas, primaryIdentity.nombreCotizacion]);
+
+  const handlePickCotizacion = (nombre: string) => {
     setSecondaryInit({ kind: "cotizacion", nombre });
+    setSplitOpen(true);
+    setComparePickerOpen(false);
+  };
+
+  const handlePickVariante = (variante: CotizacionCliente) => {
+    setSecondaryInit({ kind: "variante", variante });
     setSplitOpen(true);
     setComparePickerOpen(false);
   };
@@ -81,8 +147,10 @@ export default function Home() {
               enableAutosave
               compactSidebar={splitOpen}
               externalCollapseCounter={splitOpen ? splitCollapseCounter : undefined}
+              initialLoad={primaryInit}
               onCalcChange={splitOpen ? setPrimaryCalc : undefined}
               onRequestCompare={!splitOpen ? () => setComparePickerOpen(true) : undefined}
+              onIdentityChange={setPrimaryIdentity}
             />
 
             {splitOpen && (
@@ -108,13 +176,14 @@ export default function Home() {
         </main>
       </div>
 
-      <MisCotizacionesModal
+      <CompareSourcePicker
         open={comparePickerOpen}
-        cotizaciones={cotizacionesGuardadas}
+        cotizaciones={otrasCotizaciones}
+        variantes={primaryVariantes}
+        primaryName={primaryIdentity.nombreCotizacion}
         onClose={() => setComparePickerOpen(false)}
-        onCargar={handleSelectCompare}
-        onEliminar={() => { /* read-only in compare picker */ }}
-        onDuplicar={() => { /* read-only in compare picker */ }}
+        onPickCotizacion={handlePickCotizacion}
+        onPickVariante={handlePickVariante}
       />
     </>
   );

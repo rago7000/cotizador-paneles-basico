@@ -126,6 +126,8 @@ export interface CotizadorWorkspaceProps {
   onRequestCompare?: () => void;
   /** External collapse counter (split mode). When provided, drives section collapse. */
   externalCollapseCounter?: number;
+  /** Notifies parent when this workspace's identity (id/name) changes. */
+  onIdentityChange?: (identity: { cotizacionId: string; nombreCotizacion: string }) => void;
 }
 
 export default function CotizadorWorkspace({
@@ -137,6 +139,7 @@ export default function CotizadorWorkspace({
   onClose,
   onRequestCompare,
   externalCollapseCounter,
+  onIdentityChange,
 }: CotizadorWorkspaceProps) {
   // ── Convex hooks (deduped by Convex client across instances) ────────────
   const {
@@ -383,6 +386,12 @@ export default function CotizadorWorkspace({
     consumoConIncremento, panelesConIncremento, kWpConIncremento,
     structureResult, electricalResult,
   } = calc;
+
+  // ── Notify parent of identity changes (for variantes picker) ──
+  useEffect(() => {
+    if (!onIdentityChange) return;
+    onIdentityChange({ cotizacionId, nombreCotizacion });
+  }, [cotizacionId, nombreCotizacion, onIdentityChange]);
 
   // ── Notify parent of calc changes (for delta sidebar) ──
   useEffect(() => {
