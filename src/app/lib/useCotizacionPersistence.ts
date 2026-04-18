@@ -78,6 +78,7 @@ export interface UseCotizacionPersistenceReturn {
   handleGuardar: () => Promise<void>;
   handleCargar: (nombre: string) => void;
   handleEliminar: (nombre: string) => Promise<void>;
+  handleDuplicar: (nombre: string) => Promise<void>;
   handleGuardarVariante: () => Promise<void>;
   handleEliminarVariante: (id: string) => Promise<void>;
   handleCargarVariante: (v: CotizacionCliente) => void;
@@ -214,6 +215,18 @@ export function useCotizacionPersistence({
     await convexEliminarCotizacion(nombre);
   };
 
+  const handleDuplicar = async (nombre: string) => {
+    const data = convexCargarCotizacion(nombre);
+    if (!data) return;
+    let candidato = `${nombre} (copia)`;
+    let n = 2;
+    while (convexCargarCotizacion(candidato) !== null) {
+      candidato = `${nombre} (copia ${n})`;
+      n++;
+    }
+    await convexGuardarCotizacion(candidato, data);
+  };
+
   // ── Variantes ─────────────────────────────────────────────────────────
 
   const handleGuardarVariante = async () => {
@@ -335,6 +348,7 @@ export function useCotizacionPersistence({
     handleGuardar,
     handleCargar,
     handleEliminar,
+    handleDuplicar,
     handleGuardarVariante,
     handleEliminarVariante,
     handleCargarVariante,

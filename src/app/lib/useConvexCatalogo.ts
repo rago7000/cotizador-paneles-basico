@@ -359,7 +359,7 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
  * Handles both structured documents and legacy JSON blobs (for migration).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function docToCotizacionData(doc: any): CotizacionData | null {
+export function docToCotizacionData(doc: any): CotizacionData | null {
   // Legacy format: has `data` JSON blob but no structured fields
   if (doc.data && doc.cantidad === undefined) {
     try { return JSON.parse(doc.data); } catch { return null; }

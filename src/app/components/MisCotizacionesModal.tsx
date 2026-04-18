@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { CotizacionGuardada } from "../lib/types";
 
 interface MisCotizacionesModalProps {
@@ -8,6 +9,7 @@ interface MisCotizacionesModalProps {
   onClose: () => void;
   onCargar: (nombre: string) => void;
   onEliminar: (nombre: string) => void;
+  onDuplicar: (nombre: string) => void;
 }
 
 export default function MisCotizacionesModal({
@@ -16,13 +18,26 @@ export default function MisCotizacionesModal({
   onClose,
   onCargar,
   onEliminar,
+  onDuplicar,
 }: MisCotizacionesModalProps) {
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null);
+
   if (!open) return null;
+
+  const handleClose = () => {
+    setConfirmandoEliminar(null);
+    onClose();
+  };
+
+  const handleCargar = (nombre: string) => {
+    setConfirmandoEliminar(null);
+    onCargar(nombre);
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
@@ -35,7 +50,7 @@ export default function MisCotizacionesModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-100">Mis cotizaciones</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,22 +74,56 @@ export default function MisCotizacionesModal({
                   key={c.nombre}
                   className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-800/60 transition-colors"
                 >
-                  <button
-                    onClick={() => onCargar(c.nombre)}
-                    className="flex-1 text-left min-w-0"
-                  >
-                    <p className="text-sm font-medium text-zinc-100 truncate">{c.nombre}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{c.fecha}</p>
-                  </button>
-                  <button
-                    onClick={() => onEliminar(c.nombre)}
-                    className="shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                    title="Eliminar"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {confirmandoEliminar === c.nombre ? (
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <p className="flex-1 text-xs text-zinc-200 truncate">
+                        ¿Eliminar «{c.nombre}»?
+                      </p>
+                      <button
+                        onClick={() => setConfirmandoEliminar(null)}
+                        className="shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => {
+                          onEliminar(c.nombre);
+                          setConfirmandoEliminar(null);
+                        }}
+                        className="shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleCargar(c.nombre)}
+                        className="flex-1 text-left min-w-0"
+                      >
+                        <p className="text-sm font-medium text-zinc-100 truncate">{c.nombre}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{c.fecha}</p>
+                      </button>
+                      <button
+                        onClick={() => onDuplicar(c.nombre)}
+                        className="shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+                        title="Duplicar"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setConfirmandoEliminar(c.nombre)}
+                        className="shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                        title="Eliminar"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
