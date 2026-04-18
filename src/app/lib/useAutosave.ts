@@ -18,11 +18,14 @@ export function useAutosave({
   getFormData,
   save,
   delay = 2000,
+  enabled = true,
 }: {
   nombre: string;
   getFormData: () => CotizacionData;
   save: (nombre: string, data: CotizacionData) => Promise<void>;
   delay?: number;
+  /** When false, no debounced save runs. markClean/resetSnapshot still work. */
+  enabled?: boolean;
 }) {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,7 +82,7 @@ export function useAutosave({
 
   // Trigger debounced save whenever doSave identity changes (i.e., when deps change)
   useEffect(() => {
-    if (!nombre.trim()) return;
+    if (!enabled || !nombre.trim()) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
@@ -89,7 +92,7 @@ export function useAutosave({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [doSave, delay, nombre]);
+  }, [doSave, delay, nombre, enabled]);
 
-  return { autosaveStatus: status, resetSnapshot, markClean };
+  return { autosaveStatus: enabled ? status : "idle" as const, resetSnapshot, markClean };
 }

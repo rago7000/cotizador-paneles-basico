@@ -42,17 +42,32 @@ export interface TipoCambioActions {
   onSetTcCustomMicros: (v: string) => void;
 }
 
+// ── Module-level fetch cache ───────────────────────────────────────────────
+// Shared across all useTipoCambio instances so split-pane mode doesn't
+// re-fetch /api/tipo-cambio per workspace.
+
+let tcFetchPromise: Promise<TipoCambioData | { error: string }> | null = null;
+
+function fetchTipoCambioOnce(): Promise<TipoCambioData | { error: string }> {
+  if (!tcFetchPromise) {
+    tcFetchPromise = fetch("/api/tipo-cambio")
+      .then((r) => r.json())
+      .catch(() => ({ error: "No se pudo obtener el tipo de cambio" }));
+  }
+  return tcFetchPromise;
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 export function useTipoCambio(
   set: SetField,
 ): TipoCambioActions {
-  // ── Fetch on mount ─────────────────────────────────────────────────────
+  // ── Fetch on mount (deduped via module-level promise) ──────────────────
   useEffect(() => {
-    fetch("/api/tipo-cambio")
-      .then((r) => r.json())
-      .then((d) => (d.error ? set("tcError", d.error) : set("tc", d)))
-      .catch(() => set("tcError", "No se pudo obtener el tipo de cambio"));
+    fetchTipoCambioOnce().then((d) => {
+      if ("error" in d) set("tcError", d.error);
+      else set("tc", d);
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // `set` is stable (from useReducer dispatch), safe to omit from deps.
 
