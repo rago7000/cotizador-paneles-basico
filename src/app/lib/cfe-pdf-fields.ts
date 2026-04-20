@@ -33,31 +33,31 @@ export const CFE_FIELDS = {
 
   // I. Datos del Solicitante (cliente)
   solicitante: {
-    nombre:          { x: 42,  y: 687 },  // -4
-    calle:           { x: 42,  y: 667 },  // -3
-    numeroExterior:  { x: 255, y: 667 },
-    numeroInterior:  { x: 385, y: 667 },
-    codigoPostal:    { x: 515, y: 667 },
-    colonia:         { x: 42,  y: 652 },  // -3
-    municipio:       { x: 285, y: 652 },  // -3
-    estado:          { x: 480, y: 652 },  // -3
+    nombre:          { x: 42,  y: 683 },
+    calle:           { x: 42,  y: 662 },
+    numeroExterior:  { x: 255, y: 662 },
+    numeroInterior:  { x: 385, y: 662 },
+    codigoPostal:    { x: 515, y: 662 },
+    colonia:         { x: 42,  y: 647 },
+    municipio:       { x: 285, y: 647 },
+    estado:          { x: 480, y: 647 },
     telefono:        { x: 42,  y: 641 },
     email:           { x: 285, y: 641 },
   },
 
   // II. Datos de Contacto (empresa instaladora)
   contacto: {
-    nombre:          { x: 42,  y: 598 },  // -4
-    puesto:          { x: 350, y: 598 },  // -4
-    calle:           { x: 42,  y: 570 },  // -3
-    numeroExterior:  { x: 255, y: 570 },
-    numeroInterior:  { x: 385, y: 570 },
-    codigoPostal:    { x: 515, y: 570 },
-    colonia:         { x: 42,  y: 554 },  // -3
-    municipio:       { x: 285, y: 554 },
-    estado:          { x: 480, y: 554 },
-    telefono:        { x: 42,  y: 538 },  // -3
-    email:           { x: 285, y: 538 },  // -3
+    nombre:          { x: 42,  y: 594 },
+    puesto:          { x: 350, y: 594 },
+    calle:           { x: 42,  y: 565 },
+    numeroExterior:  { x: 255, y: 565 },
+    numeroInterior:  { x: 385, y: 565 },
+    codigoPostal:    { x: 515, y: 565 },
+    colonia:         { x: 42,  y: 557 },
+    municipio:       { x: 285, y: 557 },
+    estado:          { x: 480, y: 557 },
+    telefono:        { x: 42,  y: 533 },
+    email:           { x: 285, y: 533 },
   },
 
   // III. Datos de la Solicitud
@@ -75,16 +75,16 @@ export const CFE_FIELDS = {
 
   // V. Datos del Servicio Suministro Actual
   servicio: {
-    rpu:          { x: 42,  y: 438 },  // -3
-    nivelTension: { x: 350, y: 438 },  // -3
+    rpu:          { x: 42,  y: 433 },
+    nivelTension: { x: 350, y: 433 },
   },
 
   // VI. Central Eléctrica
   central: {
     fechaOperacion:       { x: 42,  y: 398 },
-    capacidadBrutaKw:     { x: 270, y: 395 },  // -3
-    capacidadIncrementarKw: { x: 385, y: 395 },
-    generacionMensualKwh: { x: 515, y: 395 },  // -3
+    capacidadBrutaKw:     { x: 270, y: 390 },
+    capacidadIncrementarKw: { x: 385, y: 390 },
+    generacionMensualKwh: { x: 515, y: 390 },
   },
 
   // VII. Manifestación de Cumplimiento
@@ -102,9 +102,9 @@ export const CFE_FIELDS = {
 
   // Firma de Conformidad
   firma: {
-    nombre: { x: 180, y: 89 },  // -3
+    nombre: { x: 180, y: 84 },
     cargo:  { x: 180, y: 82 },
-    fecha:  { x: 180, y: 69 },  // -3
+    fecha:  { x: 180, y: 64 },
   },
 } as const;
 
