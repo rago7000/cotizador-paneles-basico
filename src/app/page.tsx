@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import AppNav from "./components/AppNav";
 import { useConvexCotizaciones } from "./lib/useConvexCatalogo";
 import type { CotizacionData, CotizacionGuardada, CotizacionCliente } from "./lib/types";
@@ -14,12 +15,21 @@ type SecondaryInit =
   | { kind: "cotizacion"; nombre: string }
   | { kind: "variante"; variante: CotizacionCliente };
 
+type PrimaryInit =
+  | { kind: "cotizacion"; nombre: string }
+  | { kind: "prefillProyecto"; proyectoId: Id<"proyectos"> }
+  | null;
+
 export default function Home() {
   const [splitOpen, setSplitOpen] = useState(false);
-  const [primaryInit] = useState<{ kind: "cotizacion"; nombre: string } | null>(() => {
+  const [primaryInit] = useState<PrimaryInit>(() => {
     if (typeof window === "undefined") return null;
-    const load = new URLSearchParams(window.location.search).get("load");
-    return load ? { kind: "cotizacion", nombre: load } : null;
+    const params = new URLSearchParams(window.location.search);
+    const load = params.get("load");
+    if (load) return { kind: "cotizacion", nombre: load };
+    const prefill = params.get("prefillProyecto");
+    if (prefill) return { kind: "prefillProyecto", proyectoId: prefill as Id<"proyectos"> };
+    return null;
   });
   const [secondaryInit, setSecondaryInit] = useState<SecondaryInit | null>(null);
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
@@ -31,12 +41,18 @@ export default function Home() {
     nombreCotizacion: "",
   });
 
-  // Strip ?load=<nombre> from the URL once primaryInit has been captured.
+  // Strip query params (load / prefillProyecto) once primaryInit has been captured.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    if (url.searchParams.has("load")) {
-      url.searchParams.delete("load");
+    let changed = false;
+    for (const k of ["load", "prefillProyecto"]) {
+      if (url.searchParams.has(k)) {
+        url.searchParams.delete(k);
+        changed = true;
+      }
+    }
+    if (changed) {
       window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
     }
   }, []);

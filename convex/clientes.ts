@@ -24,6 +24,36 @@ export const get = query({
 });
 
 /**
+ * Returns the hydration payload needed to pre-fill a brand-new cotización
+ * for an existing (cliente, proyecto) pair. Used by `/?prefillProyecto=<id>`.
+ *
+ * Sin side effects — solo lectura.
+ */
+export const getPrefillForProyecto = query({
+  args: { proyectoId: v.id("proyectos") },
+  handler: async (ctx, { proyectoId }) => {
+    const proyecto = await ctx.db.get(proyectoId);
+    if (!proyecto) return null;
+    const cliente = await ctx.db.get(proyecto.clienteId);
+    if (!cliente) return null;
+    return {
+      clienteId: cliente._id,
+      clienteNombre: cliente.nombre,
+      clienteTelefono: cliente.telefono,
+      clienteEmail: cliente.email,
+      clienteUbicacion: cliente.ubicacion ?? proyecto.ubicacion,
+      clienteNotas: cliente.notas,
+      origen: cliente.origen,
+      origenDetalle: cliente.origenDetalle,
+      tags: cliente.tags,
+      proyectoId: proyecto._id,
+      proyectoNombre: proyecto.nombre,
+      reciboCFE: proyecto.reciboCFE,
+    };
+  },
+});
+
+/**
  * Returns clients grouped with their proyectos and cotizaciones.
  * Shape:
  *   [{ ...cliente, proyectos: [{ ...proyecto, cotizaciones: [{ _id, nombre, fecha, etapa, actualizadoEn, archived }] }] }]

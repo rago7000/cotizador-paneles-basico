@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState, createElement } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import AppNav from "./AppNav";
 import {
   useConvexCotizaciones,
@@ -117,6 +118,7 @@ export interface CotizadorWorkspaceProps {
   initialLoad?:
     | { kind: "cotizacion"; nombre: string }
     | { kind: "variante"; variante: CotizacionCliente }
+    | { kind: "prefillProyecto"; proyectoId: Id<"proyectos"> }
     | null;
   /** Notifies parent of calc snapshot changes (for delta sidebar). */
   onCalcChange?: (calc: CalcSnapshot) => void;
@@ -426,6 +428,12 @@ export default function CotizadorWorkspace({
   // ── Hydration tracking (block auto-select until initial load processed) ──
   const initialLoadProcessed = useRef(initialLoad === null);
 
+  // ── Prefetch prefill data when initialLoad is a prefillProyecto request ──
+  const prefillQuery = useQuery(
+    api.clientes.getPrefillForProyecto,
+    initialLoad?.kind === "prefillProyecto" ? { proyectoId: initialLoad.proyectoId } : "skip",
+  );
+
   // ── Apply initialLoad once on mount or when key changes ──
   const lastInitialLoadKey = useRef<string | null>(null);
   useEffect(() => {
@@ -436,18 +444,42 @@ export default function CotizadorWorkspace({
     const key =
       initialLoad.kind === "cotizacion"
         ? `c:${initialLoad.nombre}`
-        : `v:${initialLoad.variante.id}`;
+        : initialLoad.kind === "variante"
+          ? `v:${initialLoad.variante.id}`
+          : `p:${initialLoad.proyectoId}`;
     if (lastInitialLoadKey.current === key) return;
-    lastInitialLoadKey.current = key;
 
     if (initialLoad.kind === "cotizacion") {
       handleCargar(initialLoad.nombre);
-    } else {
+      lastInitialLoadKey.current = key;
+      initialLoadProcessed.current = true;
+    } else if (initialLoad.kind === "variante") {
       handleCargarVariante(initialLoad.variante);
+      lastInitialLoadKey.current = key;
+      initialLoadProcessed.current = true;
+    } else if (initialLoad.kind === "prefillProyecto") {
+      // Esperamos a que la query de prefill termine antes de aplicar.
+      if (prefillQuery === undefined) return;
+      if (prefillQuery) {
+        setMany({
+          clienteTelefono: prefillQuery.clienteTelefono ?? "",
+          clienteEmail: prefillQuery.clienteEmail ?? "",
+          clienteUbicacion: prefillQuery.clienteUbicacion ?? "",
+          clienteNotas: prefillQuery.clienteNotas ?? "",
+          origen: prefillQuery.origen ?? "",
+          origenDetalle: prefillQuery.origenDetalle ?? "",
+          tags: prefillQuery.tags ?? [],
+          reciboCFE: prefillQuery.reciboCFE ?? null,
+        });
+        // setClienteNombre al final para que el sync con nombreCotizacion
+        // tome los datos recién puestos y arranque limpio (dirty=false).
+        setClienteNombre(prefillQuery.clienteNombre);
+      }
+      lastInitialLoadKey.current = key;
+      initialLoadProcessed.current = true;
     }
-    initialLoadProcessed.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialLoad]);
+  }, [initialLoad, prefillQuery]);
 
   // ── Auto-sync generales when panel count or electrical result changes ────
   const prevSyncKey = useRef("");

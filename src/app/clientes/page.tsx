@@ -50,6 +50,10 @@ export default function ClientesPage() {
     router.push(`/?load=${encodeURIComponent(nombre)}`);
   };
 
+  const nuevaCotizacionParaProyecto = (proyectoId: string) => {
+    router.push(`/?prefillProyecto=${encodeURIComponent(proyectoId)}`);
+  };
+
   const q = query.trim().toLowerCase();
   const filtrados = !q
     ? clientes ?? []
@@ -175,6 +179,17 @@ export default function ClientesPage() {
                           {p.reciboCFE && (
                             <span className="text-[10px] text-emerald-500/70">· recibo CFE</span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => nuevaCotizacionParaProyecto(p._id)}
+                            className="ml-auto flex items-center gap-1 rounded-md border border-amber-400/30 bg-amber-400/5 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
+                            title={`Crear una nueva cotización para este proyecto${p.reciboCFE ? " con el recibo CFE ya cargado" : ""}`}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Nueva cotización
+                          </button>
                         </div>
 
                         {p.cotizaciones.length === 0 ? (
