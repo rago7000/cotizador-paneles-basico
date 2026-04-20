@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { cotizacionFieldsV, seguimientoItemEstadoV, ordenCompraEstadoV, lineaOCV } from "./validators";
+import { cotizacionFieldsV, seguimientoItemEstadoV, ordenCompraEstadoV, lineaOCV, origenV, reciboCFEV } from "./validators";
 
 export default defineSchema({
   // ── Proveedores ──
@@ -10,6 +10,39 @@ export default defineSchema({
     telefono: v.string(),
     notas: v.string(),
   }),
+
+  // ── Clientes (persona / empresa reutilizable) ──
+  clientes: defineTable({
+    nombre: v.string(),
+    telefono: v.optional(v.string()),
+    email: v.optional(v.string()),
+    ubicacion: v.optional(v.string()),
+    notas: v.optional(v.string()),
+    origen: v.optional(origenV),
+    origenDetalle: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    creadoEn: v.string(),
+    actualizadoEn: v.string(),
+    archived: v.optional(v.boolean()),
+    archivadoEn: v.optional(v.string()),
+  })
+    .index("by_nombre", ["nombre"])
+    .index("by_actualizadoEn", ["actualizadoEn"]),
+
+  // ── Proyectos (sitio físico / instalación; un cliente puede tener varios) ──
+  proyectos: defineTable({
+    clienteId: v.id("clientes"),
+    nombre: v.string(),
+    ubicacion: v.optional(v.string()),
+    reciboCFE: v.optional(reciboCFEV),
+    notas: v.optional(v.string()),
+    creadoEn: v.string(),
+    actualizadoEn: v.string(),
+    archived: v.optional(v.boolean()),
+    archivadoEn: v.optional(v.string()),
+  })
+    .index("by_clienteId", ["clienteId"])
+    .index("by_clienteId_and_actualizadoEn", ["clienteId", "actualizadoEn"]),
 
   // ── Productos: Paneles ──
   productosPaneles: defineTable({

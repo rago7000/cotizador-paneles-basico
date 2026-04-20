@@ -29,8 +29,10 @@ export interface UseReciboCFEOptions {
   potencia: string;
   /** Whether to filter historico to last year only. */
   reciboUltimoAnio: boolean;
-  /** Current cotización name — used to auto-fill from recibo nombre. */
-  nombreCotizacion: string;
+  /** Current client name — used to decide whether to auto-fill from recibo. */
+  clienteNombre: string;
+  /** Sync-aware setter that also updates nombreCotizacion when not dirty. */
+  setClienteNombre: (value: string) => void;
   /** Number of existing variantes — controls auto-proposal behavior. */
   variantesCount: number;
   /** Callback for auto-applying P75 proposal after recibo upload. */
@@ -52,7 +54,8 @@ export function useReciboCFE({
   set,
   potencia,
   reciboUltimoAnio,
-  nombreCotizacion,
+  clienteNombre,
+  setClienteNombre,
   variantesCount,
   onAutoProposal,
 }: UseReciboCFEOptions): UseReciboCFEReturn {
@@ -84,9 +87,11 @@ export function useReciboCFE({
       reader.onload = () => set("reciboPDFBase64", reader.result as string);
       reader.readAsDataURL(file);
 
-      // ── Auto-fill nombre if empty ──────────────────────────────────────
-      if (data.nombre && !nombreCotizacion.trim()) {
-        set("nombreCotizacion", data.nombre);
+      // ── Auto-fill client name if empty ─────────────────────────────────
+      // Usamos el setter sync-aware: mientras el usuario no haya renombrado
+      // la cotización manualmente, el nombre de cotización sigue al cliente.
+      if (data.nombre && !clienteNombre.trim()) {
+        setClienteNombre(data.nombre);
       }
 
       // ── Calculate P75 sizing using shared function (no duplication) ────

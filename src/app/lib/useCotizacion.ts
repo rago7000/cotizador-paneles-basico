@@ -49,6 +49,23 @@ export function useCotizacion() {
     [],
   );
 
+  /**
+   * Set the client name. Auto-syncs `nombreCotizacion` to the same value while
+   * the user has not manually diverged it.
+   */
+  const setClienteNombre = useCallback((value: string) => {
+    dispatch({ type: "SET_CLIENTE_NOMBRE", value });
+  }, []);
+
+  /**
+   * Set the cotización name from user input. Marks the dirty flag so future
+   * client-name changes do not overwrite this value — unless the user clears
+   * it or makes it equal to the client name, which re-syncs them.
+   */
+  const setNombreCotizacion = useCallback((value: string) => {
+    dispatch({ type: "SET_NOMBRE_COTIZACION", value });
+  }, []);
+
   /** Minisplit helpers */
   const addMinisplit = useCallback(() => dispatch({ type: "ADD_MINISPLIT" }), []);
   const removeMinisplit = useCallback((id: string) => dispatch({ type: "REMOVE_MINISPLIT", id }), []);
@@ -70,6 +87,8 @@ export function useCotizacion() {
     dispatch,
     set,
     setMany,
+    setClienteNombre,
+    setNombreCotizacion,
     loadCotizacion,
     updateLineItem,
     addMinisplit,

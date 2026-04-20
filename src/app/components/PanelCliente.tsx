@@ -26,6 +26,7 @@ type Origen =
   | "";
 
 export interface PanelClienteProps {
+  clienteNombre: string;
   clienteTelefono: string;
   clienteEmail: string;
   clienteUbicacion: string;
@@ -38,8 +39,9 @@ export interface PanelClienteProps {
   origen: Origen;
   origenDetalle: string;
   tags: string[];
-  nombreCliente: string;
   onChange: (field: string, value: string | number | string[]) => void;
+  /** Sync-aware setter for the client name (also updates cotización name when unlinked). */
+  onClienteNombreChange: (value: string) => void;
 }
 
 // ── Pipeline stages ───────────────────────────────────────────────────────────
@@ -103,9 +105,9 @@ function etapaBadge(etapa: Etapa) {
 
 export default function PanelCliente(props: PanelClienteProps) {
   const {
-    clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas,
+    clienteNombre, clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas,
     etapa, etapaNotas, fechaCierre, fechaInstalacion, probabilidadCierre,
-    origen, origenDetalle, tags, nombreCliente, onChange,
+    origen, origenDetalle, tags, onChange, onClienteNombreChange,
   } = props;
 
   const [collapsed, setCollapsed] = useState(true);
@@ -138,9 +140,16 @@ export default function PanelCliente(props: PanelClienteProps) {
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
       {/* ── Header (always visible) ─────────────────────────────── */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setCollapsed(!collapsed)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setCollapsed(!collapsed);
+          }
+        }}
         className="flex items-center gap-3 px-5 py-3 w-full text-left hover:bg-zinc-800/40 transition-colors cursor-pointer"
       >
         {/* Icon */}
@@ -150,11 +159,22 @@ export default function PanelCliente(props: PanelClienteProps) {
           </svg>
         </span>
 
-        <span className="text-sm font-semibold text-zinc-100 truncate">
-          {nombreCliente || "Cliente sin nombre"}
-        </span>
+        {/* Inline-editable client name */}
+        <input
+          type="text"
+          value={clienteNombre}
+          onChange={(e) => onClienteNombreChange(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          placeholder="Cliente sin nombre"
+          aria-label="Nombre del cliente"
+          className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-zinc-100 placeholder-zinc-500 outline-none rounded px-1.5 py-0.5 -mx-1.5 transition-colors hover:bg-zinc-800/60 focus:bg-zinc-800 focus:ring-1 focus:ring-amber-400/40"
+        />
 
-        {etapa && <span className="ml-1">{etapaBadge(etapa)}</span>}
+        {etapa && <span className="ml-1 shrink-0">{etapaBadge(etapa)}</span>}
 
         <svg
           className={`w-4 h-4 text-zinc-500 shrink-0 ml-auto transition-transform ${collapsed ? "" : "rotate-180"}`}
@@ -164,7 +184,7 @@ export default function PanelCliente(props: PanelClienteProps) {
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
-      </button>
+      </div>
 
       {/* ── Expanded body ───────────────────────────────────────── */}
       {!collapsed && (

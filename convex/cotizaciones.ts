@@ -1,6 +1,7 @@
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { cotizacionFieldsV } from "./validators";
+import { Doc, Id } from "./_generated/dataModel";
 
 // ── Cotizaciones principales ──
 
@@ -41,8 +42,110 @@ export const getByNombre = query({
 });
 
 /**
+ * Sincroniza lazy el cliente+proyecto para una cotización.
+ *
+ * Si `clienteNombre` trae un nombre real (no vacío), hace upsert por nombre
+ * en `clientes`, asegura un proyecto por defecto, y devuelve ambos ids
+ * (y el recibo CFE espejado al proyecto, si existe).
+ *
+ * Si el nombre está vacío o no se proveyó, no crea nada y devuelve los ids
+ * existentes en la cotización (si los hay). Esto permite que "Cliente sin nombre"
+ * no ensucie la tabla de clientes con prospectos anónimos.
+ */
+async function syncClienteProyecto(
+  ctx: MutationCtx,
+  opts: {
+    clienteNombre?: string;
+    clienteTelefono?: string;
+    clienteEmail?: string;
+    clienteUbicacion?: string;
+    clienteNotas?: string;
+    reciboCFE?: Doc<"cotizaciones">["reciboCFE"];
+    existingClienteId?: Id<"clientes">;
+    existingProyectoId?: Id<"proyectos">;
+  },
+): Promise<{ clienteId?: Id<"clientes">; proyectoId?: Id<"proyectos">; clienteNombre?: string }> {
+  const nombre = opts.clienteNombre?.trim();
+  if (!nombre) {
+    // Sin nombre, no tocamos clientes/proyectos
+    return {
+      clienteId: opts.existingClienteId,
+      proyectoId: opts.existingProyectoId,
+    };
+  }
+
+  const now = new Date().toISOString();
+
+  // 1. Upsert cliente por nombre
+  const existingCliente = await ctx.db
+    .query("clientes")
+    .withIndex("by_nombre", (q) => q.eq("nombre", nombre))
+    .first();
+  let clienteId: Id<"clientes">;
+  if (existingCliente) {
+    clienteId = existingCliente._id;
+    await ctx.db.patch(existingCliente._id, {
+      telefono: opts.clienteTelefono ?? existingCliente.telefono,
+      email: opts.clienteEmail ?? existingCliente.email,
+      ubicacion: opts.clienteUbicacion ?? existingCliente.ubicacion,
+      notas: opts.clienteNotas ?? existingCliente.notas,
+      actualizadoEn: now,
+    });
+  } else {
+    clienteId = await ctx.db.insert("clientes", {
+      nombre,
+      telefono: opts.clienteTelefono,
+      email: opts.clienteEmail,
+      ubicacion: opts.clienteUbicacion,
+      notas: opts.clienteNotas,
+      creadoEn: now,
+      actualizadoEn: now,
+    });
+  }
+
+  // 2. Ensure proyecto: usa el existente si la cotización ya apuntaba a uno,
+  //    si no, busca o crea el proyecto por defecto del cliente.
+  let proyectoId: Id<"proyectos">;
+  if (opts.existingProyectoId) {
+    proyectoId = opts.existingProyectoId;
+  } else {
+    const existingProyecto = await ctx.db
+      .query("proyectos")
+      .withIndex("by_clienteId", (q) => q.eq("clienteId", clienteId))
+      .first();
+    if (existingProyecto) {
+      proyectoId = existingProyecto._id;
+    } else {
+      proyectoId = await ctx.db.insert("proyectos", {
+        clienteId,
+        nombre: "Proyecto principal",
+        ubicacion: opts.clienteUbicacion,
+        reciboCFE: opts.reciboCFE,
+        creadoEn: now,
+        actualizadoEn: now,
+      });
+    }
+  }
+
+  // 3. Si el proyecto ya existía y nos llegó un recibo CFE, espejarlo
+  //    (el recibo es propiedad del sitio, no de la cotización individual).
+  if (opts.reciboCFE) {
+    const proyecto = await ctx.db.get(proyectoId);
+    if (proyecto && !proyecto.reciboCFE) {
+      await ctx.db.patch(proyectoId, {
+        reciboCFE: opts.reciboCFE,
+        actualizadoEn: now,
+      });
+    }
+  }
+
+  return { clienteId, proyectoId, clienteNombre: nombre };
+}
+
+/**
  * Save a cotización with structured fields.
  * Upserts by nombre — patches existing or inserts new.
+ * Además sincroniza lazy el cliente + proyecto asociados.
  */
 export const save = mutation({
   args: cotizacionFieldsV,
@@ -52,19 +155,37 @@ export const save = mutation({
       .query("cotizaciones")
       .withIndex("by_nombre", (q) => q.eq("nombre", args.nombre))
       .first();
+
+    // Sincronización lazy cliente+proyecto (solo si hay nombre real).
+    const { clienteId, proyectoId, clienteNombre } = await syncClienteProyecto(ctx, {
+      clienteNombre: args.clienteNombre,
+      clienteTelefono: args.clienteTelefono,
+      clienteEmail: args.clienteEmail,
+      clienteUbicacion: args.clienteUbicacion,
+      clienteNotas: args.clienteNotas,
+      reciboCFE: args.reciboCFE,
+      existingClienteId: args.clienteId ?? existing?.clienteId,
+      existingProyectoId: args.proyectoId ?? existing?.proyectoId,
+    });
+
+    const linkedFields = {
+      clienteId: clienteId ?? args.clienteId,
+      proyectoId: proyectoId ?? args.proyectoId,
+      clienteNombre: clienteNombre ?? args.clienteNombre,
+    };
+
     if (existing) {
-      // Preservar creadoEn original, actualizar actualizadoEn
-      // Usar patch en vez de replace para no borrar campos no incluidos en args
       await ctx.db.patch(existing._id, {
         ...args,
+        ...linkedFields,
         creadoEn: existing.creadoEn ?? args.creadoEn ?? now,
         actualizadoEn: now,
       });
       return existing._id;
     }
-    // Nuevo documento: establecer ambos timestamps
     return await ctx.db.insert("cotizaciones", {
       ...args,
+      ...linkedFields,
       creadoEn: args.creadoEn ?? now,
       actualizadoEn: now,
       etapa: args.etapa ?? "prospecto",
@@ -191,6 +312,69 @@ export const migrateToStructured = internalMutation({
     }
 
     return { migrated, skipped, errors, total: all.length };
+  },
+});
+
+/**
+ * One-time backfill: recorre todas las cotizaciones existentes y, usando
+ * `clienteNombre` (o como fallback `reciboCFE.nombre`), crea/enlaza
+ * cliente + proyecto. Es idempotente — se puede correr varias veces.
+ *
+ * Run desde el Convex dashboard después de desplegar el esquema:
+ *   internal.cotizaciones.backfillClientesProyectos()
+ */
+export const backfillClientesProyectos = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("cotizaciones").collect();
+    let linked = 0;
+    let skippedAnonymous = 0;
+    let skippedAlreadyLinked = 0;
+    const errors: string[] = [];
+
+    for (const c of all) {
+      // Si ya está enlazado, skip
+      if (c.clienteId && c.proyectoId) {
+        skippedAlreadyLinked++;
+        continue;
+      }
+
+      // Resolver nombre del cliente
+      const nombre = (c.clienteNombre ?? c.reciboCFE?.nombre ?? "").trim();
+      if (!nombre) {
+        skippedAnonymous++;
+        continue;
+      }
+
+      try {
+        const { clienteId, proyectoId } = await syncClienteProyecto(ctx, {
+          clienteNombre: nombre,
+          clienteTelefono: c.clienteTelefono,
+          clienteEmail: c.clienteEmail,
+          clienteUbicacion: c.clienteUbicacion,
+          clienteNotas: c.clienteNotas,
+          reciboCFE: c.reciboCFE,
+          existingClienteId: c.clienteId,
+          existingProyectoId: c.proyectoId,
+        });
+        await ctx.db.patch(c._id, {
+          clienteId,
+          proyectoId,
+          clienteNombre: nombre,
+        });
+        linked++;
+      } catch (e) {
+        errors.push(`"${c.nombre}": ${e}`);
+      }
+    }
+
+    return {
+      total: all.length,
+      linked,
+      skippedAnonymous,
+      skippedAlreadyLinked,
+      errors,
+    };
   },
 });
 

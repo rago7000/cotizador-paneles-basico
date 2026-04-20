@@ -9,6 +9,7 @@
  */
 
 import type * as archivos from "../archivos.js";
+import type * as clientes from "../clientes.js";
 import type * as configEmpresa from "../configEmpresa.js";
 import type * as consolidador from "../consolidador.js";
 import type * as cotizaciones from "../cotizaciones.js";
@@ -19,6 +20,7 @@ import type * as ordenesCompra from "../ordenesCompra.js";
 import type * as priceLists from "../priceLists.js";
 import type * as productos from "../productos.js";
 import type * as proveedores from "../proveedores.js";
+import type * as proyectos from "../proyectos.js";
 import type * as seguimientoItems from "../seguimientoItems.js";
 import type * as validators from "../validators.js";
 
@@ -30,6 +32,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   archivos: typeof archivos;
+  clientes: typeof clientes;
   configEmpresa: typeof configEmpresa;
   consolidador: typeof consolidador;
   cotizaciones: typeof cotizaciones;
@@ -40,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   priceLists: typeof priceLists;
   productos: typeof productos;
   proveedores: typeof proveedores;
+  proyectos: typeof proyectos;
   seguimientoItems: typeof seguimientoItems;
   validators: typeof validators;
 }>;

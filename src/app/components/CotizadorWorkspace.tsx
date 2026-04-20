@@ -168,6 +168,8 @@ export default function CotizadorWorkspace({
     state: s,
     set,
     setMany,
+    setClienteNombre,
+    setNombreCotizacion,
     loadCotizacion,
     updateLineItem,
     addMinisplit,
@@ -198,7 +200,7 @@ export default function CotizadorWorkspace({
     tornilleria, generales,
     tc, tcError, tcFrozen, tcManual, tcSnapshotLocal, tcUsarManana,
     tcCustomPaneles, tcCustomMicros,
-    cotizacionId, nombreCotizacion, mostrarGuardadas, msgGuardado,
+    cotizacionId, nombreCotizacion, nombreCotizacionDirty, mostrarGuardadas, msgGuardado,
     pickerPanel, pickerMicro, pickerSearch, pickerMarca, pickerOrden,
     sugerirGuardarPanel, sugerirGuardarMicro,
     panelSeleccionado, microSeleccionado,
@@ -207,7 +209,7 @@ export default function CotizadorWorkspace({
     minisplits, minisplitTemporada,
     mostrarPrecioCliente, utilidad,
     nombreVariante, mostrarVariantes, mostrarComparador,
-    clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas,
+    clienteNombre, clienteTelefono, clienteEmail, clienteUbicacion, clienteNotas,
     etapa, etapaNotas, fechaCierre, fechaInstalacion, probabilidadCierre,
     origen, origenDetalle, tags,
   } = s;
@@ -615,7 +617,8 @@ export default function CotizadorWorkspace({
     set,
     potencia,
     reciboUltimoAnio,
-    nombreCotizacion,
+    clienteNombre,
+    setClienteNombre,
     variantesCount: variantes.length,
     onAutoProposal: (panelsP75, shouldSaveBase) => {
       if (mode === "secondary") return; // no proposals in sandbox
@@ -679,7 +682,7 @@ export default function CotizadorWorkspace({
   const handleGuardarComo = async () => {
     const nuevoNombre = window.prompt("Guardar como…", nombreCotizacion || "Sin nombre");
     if (!nuevoNombre || !nuevoNombre.trim()) return;
-    set("nombreCotizacion", nuevoNombre.trim());
+    setNombreCotizacion(nuevoNombre.trim());
     // Defer save to next tick so the new name is in state
     setTimeout(async () => {
       const data = getFormData();
@@ -732,12 +735,37 @@ export default function CotizadorWorkspace({
         <AppNav />
         <div className="h-5 w-px bg-zinc-800 hidden sm:block" />
 
-        <input
-          type="text" value={nombreCotizacion}
-          onChange={(e) => set("nombreCotizacion", e.target.value)}
-          placeholder="Nombre de la cotización…"
-          className="flex-1 min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10"
-        />
+        <div className="relative flex-1 min-w-0 flex items-center">
+          <input
+            type="text" value={nombreCotizacion}
+            onChange={(e) => setNombreCotizacion(e.target.value)}
+            placeholder={clienteNombre ? `${clienteNombre} (sincronizado)` : "Nombre de la cotización…"}
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 pr-8 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10"
+          />
+          {clienteNombre && (
+            <button
+              type="button"
+              onClick={() => nombreCotizacionDirty
+                ? setNombreCotizacion(clienteNombre)
+                : setNombreCotizacion(`${clienteNombre} — `)}
+              title={nombreCotizacionDirty
+                ? `Re-sincronizar con "${clienteNombre}"`
+                : `Sincronizado con "${clienteNombre}". Click para desvincular.`}
+              className={`absolute right-2 flex h-5 w-5 items-center justify-center rounded text-[11px] transition-colors ${nombreCotizacionDirty ? "text-zinc-500 hover:text-amber-400" : "text-amber-400 hover:text-amber-300"}`}
+              aria-label={nombreCotizacionDirty ? "Re-sincronizar con nombre del cliente" : "Desvincular del nombre del cliente"}
+            >
+              {nombreCotizacionDirty ? (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1m-.758 4.899a4 4 0 005.656 0l4-4" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
 
         {msgGuardado === "ok" && (
           <span className="hidden sm:flex items-center gap-1 text-xs text-emerald-400 shrink-0">
@@ -804,9 +832,10 @@ export default function CotizadorWorkspace({
       </span>
       <input
         type="text" value={nombreCotizacion}
-        onChange={(e) => set("nombreCotizacion", e.target.value)}
-        placeholder="Nombre…"
-        className="flex-1 min-w-0 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400"
+        onChange={(e) => setNombreCotizacion(e.target.value)}
+        placeholder={clienteNombre ? `${clienteNombre}` : "Nombre…"}
+        title={clienteNombre && !nombreCotizacionDirty ? `Sincronizado con ${clienteNombre}` : undefined}
+        className={`flex-1 min-w-0 rounded-md border bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400 ${clienteNombre && !nombreCotizacionDirty ? "border-amber-400/30" : "border-zinc-800"}`}
       />
       {mode === "primary" && msgGuardado === "ok" && (
         <span className="text-[10px] text-emerald-400 shrink-0">Guardado</span>
@@ -1088,7 +1117,8 @@ export default function CotizadorWorkspace({
         />
 
         <PanelCliente
-          nombreCliente={reciboCFE?.nombre || nombreCotizacion}
+          clienteNombre={clienteNombre}
+          onClienteNombreChange={setClienteNombre}
           clienteTelefono={clienteTelefono}
           clienteEmail={clienteEmail}
           clienteUbicacion={clienteUbicacion}

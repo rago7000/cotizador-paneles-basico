@@ -29,6 +29,16 @@ export default function AppNav() {
         Cotizaciones
       </Link>
       <Link
+        href="/clientes"
+        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          path === "/clientes"
+            ? "bg-zinc-800 text-zinc-100"
+            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+        }`}
+      >
+        Clientes
+      </Link>
+      <Link
         href="/catalogo"
         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
           path === "/catalogo"

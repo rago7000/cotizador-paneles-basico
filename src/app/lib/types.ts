@@ -81,6 +81,7 @@ export interface CotizacionData {
   utilidad?: UtilidadConfig;
 
   // ── Cliente / Contacto ──
+  clienteNombre?: string;
   clienteTelefono?: string;
   clienteEmail?: string;
   clienteUbicacion?: string;

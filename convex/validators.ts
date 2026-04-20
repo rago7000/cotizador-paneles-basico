@@ -72,6 +72,18 @@ export const ordenCompraEstadoV = v.union(
   v.literal("cancelada"),
 );
 
+export const origenV = v.union(
+  v.literal("referido"),
+  v.literal("facebook"),
+  v.literal("instagram"),
+  v.literal("google"),
+  v.literal("tiktok"),
+  v.literal("sitio_web"),
+  v.literal("volanteo"),
+  v.literal("feria"),
+  v.literal("otro"),
+);
+
 export const lineaOCV = v.object({
   id: v.string(),
   descripcion: v.string(),
@@ -145,7 +157,14 @@ export const cotizacionFieldsV = {
   // ── Utilidad ──
   utilidad: v.optional(utilidadV),
 
-  // ── Cliente / Contacto ──
+  // ── Cliente / Proyecto (FK a tablas relacionales) ──
+  // Nuevas: cotización apunta a un cliente + proyecto reutilizables.
+  // Durante la migración conviven con los campos cliente* embebidos.
+  clienteId: v.optional(v.id("clientes")),
+  proyectoId: v.optional(v.id("proyectos")),
+  clienteNombre: v.optional(v.string()), // cache denormalizado para listados rápidos
+
+  // ── Cliente / Contacto (LEGACY — embebido; se migrará a tabla clientes) ──
   clienteTelefono: v.optional(v.string()),
   clienteEmail: v.optional(v.string()),
   clienteUbicacion: v.optional(v.string()), // Ciudad, estado o dirección libre
@@ -168,19 +187,7 @@ export const cotizacionFieldsV = {
   probabilidadCierre: v.optional(v.number()), // 0-100, estimación subjetiva
 
   // ── Origen / Canal de captación ──
-  origen: v.optional(
-    v.union(
-      v.literal("referido"),
-      v.literal("facebook"),
-      v.literal("instagram"),
-      v.literal("google"),
-      v.literal("tiktok"),
-      v.literal("sitio_web"),
-      v.literal("volanteo"),
-      v.literal("feria"),
-      v.literal("otro"),
-    )
-  ),
+  origen: v.optional(origenV),
   origenDetalle: v.optional(v.string()), // "Referido por Juan Pérez", "Campaña Feb 2026"
 
   // ── Timestamps automáticos ──

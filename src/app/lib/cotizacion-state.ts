@@ -94,6 +94,12 @@ export interface CotizacionState {
   // ── Cotización meta ──
   cotizacionId: string;
   nombreCotizacion: string;
+  /**
+   * true = el usuario ha tocado manualmente el nombre de cotización y quiere
+   * que sea independiente del nombre del cliente. Mientras sea false, el
+   * nombre de cotización se mantiene sincronizado con `clienteNombre`.
+   */
+  nombreCotizacionDirty: boolean;
   mostrarGuardadas: boolean;
   mostrarPDF: boolean;
   msgGuardado: "ok" | "err" | "";
@@ -130,6 +136,7 @@ export interface CotizacionState {
   mostrarComparador: boolean;
 
   // ── Cliente / Contacto ──
+  clienteNombre: string;
   clienteTelefono: string;
   clienteEmail: string;
   clienteUbicacion: string;
@@ -229,6 +236,7 @@ export const INITIAL_STATE: CotizacionState = {
   // Cotización meta
   cotizacionId: uid(),
   nombreCotizacion: "",
+  nombreCotizacionDirty: false,
   mostrarGuardadas: false,
   mostrarPDF: false,
   msgGuardado: "",
@@ -260,6 +268,7 @@ export const INITIAL_STATE: CotizacionState = {
   mostrarPDFCliente: false,
   mostrarComparador: false,
   // Cliente / Contacto
+  clienteNombre: "",
   clienteTelefono: "",
   clienteEmail: "",
   clienteUbicacion: "",
@@ -289,6 +298,18 @@ export type CotizacionAction =
   | { type: "ADD_MINISPLIT" }
   | { type: "REMOVE_MINISPLIT"; id: string }
   | { type: "UPDATE_MINISPLIT"; id: string; field: keyof Minisplit; value: string | number }
+  /**
+   * Set the client name. Keeps `nombreCotizacion` in sync automatically while
+   * the user has not manually overridden it (`nombreCotizacionDirty === false`).
+   */
+  | { type: "SET_CLIENTE_NOMBRE"; value: string }
+  /**
+   * Set the cotización name from user input. Marks `nombreCotizacionDirty`
+   * based on whether the value differs from `clienteNombre`:
+   *   - empty or equal to clienteNombre → dirty = false (re-sync)
+   *   - otherwise                       → dirty = true  (independent)
+   */
+  | { type: "SET_NOMBRE_COTIZACION"; value: string }
   | { type: "RESET" };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -313,6 +334,12 @@ export function cotizacionReducer(
 
     case "LOAD_COTIZACION": {
       const d = action.data;
+      // Reconstruir el vínculo cliente ↔ cotización:
+      //   - clienteNombre: primero lo explícito, si no el del recibo.
+      //   - dirty: solo si el nombre guardado diverge del cliente.
+      const loadedCliente = (d.clienteNombre ?? d.reciboCFE?.nombre ?? "").trim();
+      const loadedNombre = (d.nombre ?? "").trim();
+      const dirty = loadedNombre !== "" && loadedNombre !== loadedCliente;
       return {
         ...state,
         // Paneles
@@ -346,6 +373,7 @@ export function cotizacionReducer(
         // Cotización meta
         cotizacionId: d.cotizacionId || uid(),
         nombreCotizacion: d.nombre ?? "",
+        nombreCotizacionDirty: dirty,
         // Recibo CFE
         reciboCFE: d.reciboCFE ?? null,
         reciboPDFBase64: d.reciboPDFBase64 ?? null,
@@ -356,6 +384,7 @@ export function cotizacionReducer(
         mostrarPrecioCliente: !!d.utilidad,
         utilidad: d.utilidad ?? UTILIDAD_DEFAULT,
         // Cliente / Contacto
+        clienteNombre: loadedCliente,
         clienteTelefono: d.clienteTelefono ?? "",
         clienteEmail: d.clienteEmail ?? "",
         clienteUbicacion: d.clienteUbicacion ?? "",
@@ -409,6 +438,25 @@ export function cotizacionReducer(
         ),
       };
 
+    case "SET_CLIENTE_NOMBRE": {
+      const next = { ...state, clienteNombre: action.value };
+      if (!state.nombreCotizacionDirty) {
+        next.nombreCotizacion = action.value;
+      }
+      return next;
+    }
+
+    case "SET_NOMBRE_COTIZACION": {
+      const v = action.value;
+      const sameAsCliente = v.trim() === state.clienteNombre.trim();
+      return {
+        ...state,
+        nombreCotizacion: v,
+        // Clearing the field or matching the client name re-syncs future edits.
+        nombreCotizacionDirty: v.trim() !== "" && !sameAsCliente,
+      };
+    }
+
     case "RESET":
       return INITIAL_STATE;
 
@@ -458,6 +506,7 @@ export function stateToFormData(state: CotizacionState): CotizacionData {
     minisplitTemporada: state.minisplits.length > 0 ? state.minisplitTemporada : undefined,
     utilidad: state.mostrarPrecioCliente ? state.utilidad : undefined,
     // Cliente / Contacto (solo si hay datos)
+    clienteNombre: state.clienteNombre || undefined,
     clienteTelefono: state.clienteTelefono || undefined,
     clienteEmail: state.clienteEmail || undefined,
     clienteUbicacion: state.clienteUbicacion || undefined,
