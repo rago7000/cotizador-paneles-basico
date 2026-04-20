@@ -69,6 +69,22 @@ export default function CotizacionesToolbar({ ui, onChange, totalCount, filtered
           Con CFE
         </label>
 
+        <button
+          type="button"
+          onClick={() => onChange({ mostrarArchivadas: !ui.mostrarArchivadas })}
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition ${
+            ui.mostrarArchivadas
+              ? "border-amber-400/40 bg-amber-400/10 text-amber-200"
+              : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-600"
+          }`}
+          title={ui.mostrarArchivadas ? "Volver a cotizaciones activas" : "Ver cotizaciones archivadas"}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+          {ui.mostrarArchivadas ? "Archivadas" : "Archivadas"}
+        </button>
+
         <div className="ml-auto flex items-center gap-2">
           <ViewSwitch value={ui.view} onChange={(v) => onChange({ view: v })} />
           <button

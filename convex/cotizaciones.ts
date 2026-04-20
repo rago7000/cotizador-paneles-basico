@@ -83,6 +83,25 @@ export const remove = mutation({
   },
 });
 
+/**
+ * Soft-archive/unarchive: marca la cotización como archivada sin tocar `actualizadoEn`,
+ * para que al desarchivar conserve su fecha real de última modificación.
+ */
+export const setArchived = mutation({
+  args: { nombre: v.string(), archived: v.boolean() },
+  handler: async (ctx, { nombre, archived }) => {
+    const doc = await ctx.db
+      .query("cotizaciones")
+      .withIndex("by_nombre", (q) => q.eq("nombre", nombre))
+      .first();
+    if (!doc) return;
+    await ctx.db.patch(doc._id, {
+      archived,
+      archivadoEn: archived ? new Date().toISOString() : undefined,
+    });
+  },
+});
+
 // ── Migration: JSON blob → structured fields ──
 
 /**

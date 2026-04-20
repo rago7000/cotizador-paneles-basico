@@ -104,6 +104,10 @@ export interface CotizacionData {
 
   // ── Tags ──
   tags?: string[];
+
+  // ── Archivado ──
+  archived?: boolean;
+  archivadoEn?: string;
 }
 
 export interface CotizacionGuardada {

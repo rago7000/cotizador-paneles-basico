@@ -21,7 +21,7 @@ interface Props {
   rows: CotizacionRow[];
   onRowClick: (row: CotizacionRow) => void;
   onChangeEtapa: (row: CotizacionRow, etapa: Etapa) => void;
-  onAction: (action: "cargar" | "duplicar" | "eliminar", row: CotizacionRow) => void;
+  onAction: (action: "cargar" | "duplicar" | "eliminar" | "archivar" | "desarchivar", row: CotizacionRow) => void;
 }
 
 export default function CotizacionesBoard({ rows, onRowClick, onChangeEtapa, onAction }: Props) {
@@ -83,7 +83,7 @@ function Column({
   etapa: Etapa;
   rows: CotizacionRow[];
   onRowClick: (r: CotizacionRow) => void;
-  onAction: (a: "cargar" | "duplicar" | "eliminar", r: CotizacionRow) => void;
+  onAction: (a: "cargar" | "duplicar" | "eliminar" | "archivar" | "desarchivar", r: CotizacionRow) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa });
   const c = ETAPA_COLOR[etapa];
@@ -126,7 +126,7 @@ function Card({
 }: {
   row: CotizacionRow;
   onRowClick: (r: CotizacionRow) => void;
-  onAction: (a: "cargar" | "duplicar" | "eliminar", r: CotizacionRow) => void;
+  onAction: (a: "cargar" | "duplicar" | "eliminar" | "archivar" | "desarchivar", r: CotizacionRow) => void;
   overlay?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -177,7 +177,14 @@ function Card({
                   <button type="button" onClick={() => { setMenuOpen(false); onAction("cargar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-zinc-200 hover:bg-zinc-800">Cargar</button>
                   <button type="button" onClick={() => { setMenuOpen(false); onAction("duplicar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-zinc-200 hover:bg-zinc-800">Duplicar</button>
                   <div className="border-t border-zinc-800" />
-                  <button type="button" onClick={() => { setMenuOpen(false); onAction("eliminar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-zinc-800">Eliminar</button>
+                  {row.archived ? (
+                    <>
+                      <button type="button" onClick={() => { setMenuOpen(false); onAction("desarchivar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-zinc-200 hover:bg-zinc-800">Desarchivar</button>
+                      <button type="button" onClick={() => { setMenuOpen(false); onAction("eliminar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-zinc-800">Eliminar…</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => { setMenuOpen(false); onAction("archivar", row); }} className="block w-full px-3 py-1.5 text-left text-[11px] text-zinc-200 hover:bg-zinc-800">Archivar</button>
+                  )}
                 </div>
               </>
             )}

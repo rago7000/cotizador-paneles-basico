@@ -190,4 +190,8 @@ export const cotizacionFieldsV = {
 
   // ── Tags libres (para agrupación y búsqueda) ──
   tags: v.optional(v.array(v.string())),   // ["residencial", "hermosillo", "urgente"]
+
+  // ── Archivado (soft-hide) ──
+  archived: v.optional(v.boolean()),        // true = oculto del pipeline, elegible para borrar
+  archivadoEn: v.optional(v.string()),      // ISO — momento en que se archivó
 };

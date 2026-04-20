@@ -59,7 +59,9 @@ export type SortKey =
   | "nombre"
   | "totalCliente"
   | "probabilidadCierre"
-  | "etapa";
+  | "etapa"
+  | "origen"
+  | "tags";
 
 export type SortDir = "asc" | "desc";
 
@@ -82,6 +84,8 @@ export interface CotizacionRow {
   fechaCierre?: string;
   fechaInstalacion?: string;
   tags?: string[];
+  archived: boolean;
+  archivadoEn?: string;
   cantidadPaneles: number;
   potenciaW: number;
   kWp: number;
@@ -104,6 +108,7 @@ export interface UIState {
   sortKey: SortKey;
   sortDir: SortDir;
   view: ViewMode;
+  mostrarArchivadas: boolean;
 }
 
 export const DEFAULT_UI: UIState = {
@@ -115,4 +120,5 @@ export const DEFAULT_UI: UIState = {
   sortKey: "actualizadoEn",
   sortDir: "desc",
   view: "tabla",
+  mostrarArchivadas: false,
 };

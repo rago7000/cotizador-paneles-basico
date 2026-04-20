@@ -351,6 +351,9 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
     origenDetalle: data.origenDetalle || undefined,
     // Tags
     tags: data.tags?.length ? data.tags : undefined,
+    // Archivado
+    archived: data.archived || undefined,
+    archivadoEn: data.archivadoEn || undefined,
   });
 }
 
@@ -418,6 +421,9 @@ export function docToCotizacionData(doc: any): CotizacionData | null {
     actualizadoEn: doc.actualizadoEn,
     // Tags
     tags: doc.tags,
+    // Archivado
+    archived: doc.archived,
+    archivadoEn: doc.archivadoEn,
   };
 }
 
@@ -427,6 +433,7 @@ export function useConvexCotizaciones() {
 
   const saveMut = useMutation(api.cotizaciones.save);
   const removeMut = useMutation(api.cotizaciones.remove);
+  const setArchivedMut = useMutation(api.cotizaciones.setArchived);
   const saveClienteMut = useMutation(api.cotizaciones.saveCliente);
   const removeClienteMut = useMutation(api.cotizaciones.removeCliente);
   const saveSeguimientoMut = useMutation(api.cotizaciones.saveSeguimiento);
@@ -447,6 +454,14 @@ export function useConvexCotizaciones() {
 
     eliminarCotizacion: async (nombre: string) => {
       await removeMut({ nombre });
+    },
+
+    archivarCotizacion: async (nombre: string) => {
+      await setArchivedMut({ nombre, archived: true });
+    },
+
+    desarchivarCotizacion: async (nombre: string) => {
+      await setArchivedMut({ nombre, archived: false });
     },
 
     guardarSeguimiento: async (cotizacionNombre: string, items: unknown) => {

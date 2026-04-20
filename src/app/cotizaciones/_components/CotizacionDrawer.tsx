@@ -13,10 +13,12 @@ interface Props {
   onCargar: (row: CotizacionRow) => void;
   onDuplicar: (row: CotizacionRow) => void;
   onEliminar: (row: CotizacionRow) => void;
+  onArchivar: (row: CotizacionRow) => void;
+  onDesarchivar: (row: CotizacionRow) => void;
   onChangeEtapa: (row: CotizacionRow, etapa: Etapa) => void;
 }
 
-export default function CotizacionDrawer({ row, onClose, onCargar, onDuplicar, onEliminar, onChangeEtapa }: Props) {
+export default function CotizacionDrawer({ row, onClose, onCargar, onDuplicar, onEliminar, onArchivar, onDesarchivar, onChangeEtapa }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -167,7 +169,7 @@ export default function CotizacionDrawer({ row, onClose, onCargar, onDuplicar, o
           {confirmDelete ? (
             <div className="flex items-center gap-2">
               <p className="flex-1 text-xs text-zinc-300">
-                ¿Eliminar «{row.nombre}»?
+                ¿Eliminar «{row.nombre}» permanentemente?
               </p>
               <button
                 type="button"
@@ -181,29 +183,53 @@ export default function CotizacionDrawer({ row, onClose, onCargar, onDuplicar, o
                 onClick={() => onEliminar(row)}
                 className="rounded-md bg-red-500/20 px-2.5 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/30"
               >
-                Eliminar
+                Sí, borrar
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="rounded-md p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
-                title="Eliminar"
-                aria-label="Eliminar"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => onDuplicar(row)}
-                className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600"
-              >
-                Duplicar
-              </button>
+              {row.archived ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="rounded-md p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                  title="Eliminar permanentemente"
+                  aria-label="Eliminar"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onArchivar(row)}
+                  className="rounded-md p-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                  title="Archivar (luego podrás eliminar)"
+                  aria-label="Archivar"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
+                </button>
+              )}
+              {row.archived ? (
+                <button
+                  type="button"
+                  onClick={() => onDesarchivar(row)}
+                  className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600"
+                >
+                  Desarchivar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onDuplicar(row)}
+                  className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600"
+                >
+                  Duplicar
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onCargar(row)}

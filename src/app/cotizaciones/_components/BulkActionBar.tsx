@@ -9,10 +9,11 @@ interface Props {
   selected: Set<string>;
   onClear: () => void;
   onBulkDelete: (rows: CotizacionRow[]) => void;
+  onBulkArchivar: (rows: CotizacionRow[]) => void;
   onBulkChangeEtapa: (rows: CotizacionRow[], etapa: Etapa) => void;
 }
 
-export default function BulkActionBar({ rows, selected, onClear, onBulkDelete, onBulkChangeEtapa }: Props) {
+export default function BulkActionBar({ rows, selected, onClear, onBulkDelete, onBulkArchivar, onBulkChangeEtapa }: Props) {
   const [etapaOpen, setEtapaOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -28,6 +29,9 @@ export default function BulkActionBar({ rows, selected, onClear, onBulkDelete, o
 
   const selectedRows = rows.filter((r) => selected.has(r.nombre));
   if (selectedRows.length === 0) return null;
+
+  const allArchived = selectedRows.every((r) => r.archived);
+  const anyNotArchived = selectedRows.some((r) => !r.archived);
 
   const handleExportCSV = () => {
     const headers = [
@@ -117,36 +121,52 @@ export default function BulkActionBar({ rows, selected, onClear, onBulkDelete, o
           CSV
         </button>
 
-        {confirmDelete ? (
-          <>
-            <span className="mx-1 h-5 w-px bg-zinc-700" />
-            <span className="text-xs text-zinc-300">¿Eliminar {selectedRows.length}?</span>
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(false)}
-              className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => { setConfirmDelete(false); onBulkDelete(selectedRows); }}
-              className="rounded-md bg-red-500/20 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/30"
-            >
-              Sí, eliminar
-            </button>
-          </>
-        ) : (
+        {anyNotArchived && (
           <button
             type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+            onClick={() => onBulkArchivar(selectedRows)}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+            title="Archivar (luego se podrán eliminar)"
           >
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            Eliminar
+            Archivar
           </button>
+        )}
+
+        {allArchived && (
+          confirmDelete ? (
+            <>
+              <span className="mx-1 h-5 w-px bg-zinc-700" />
+              <span className="text-xs text-zinc-300">¿Eliminar {selectedRows.length} permanentemente?</span>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmDelete(false); onBulkDelete(selectedRows); }}
+                className="rounded-md bg-red-500/20 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/30"
+              >
+                Sí, borrar
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Eliminar…
+            </button>
+          )
         )}
 
         <span className="mx-1 h-5 w-px bg-zinc-700" />

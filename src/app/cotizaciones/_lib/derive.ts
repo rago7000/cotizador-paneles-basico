@@ -109,6 +109,8 @@ export function toRow(d: CotizacionData): CotizacionRow {
     fechaCierre: d.fechaCierre,
     fechaInstalacion: d.fechaInstalacion,
     tags: d.tags,
+    archived: Boolean(d.archived),
+    archivadoEn: d.archivadoEn,
     cantidadPaneles: cantidad,
     potenciaW: potencia,
     kWp: (cantidad * potencia) / 1000,
@@ -148,6 +150,8 @@ export function filterRows(rows: CotizacionRow[], ui: UIState): CotizacionRow[] 
   const q = norm(ui.search).trim();
   const sinceMs = ui.rangoDias > 0 ? Date.now() - ui.rangoDias * 86400000 : 0;
   return rows.filter((r) => {
+    if (!ui.mostrarArchivadas && r.archived) return false;
+    if (ui.mostrarArchivadas && !r.archived) return false;
     if (ui.etapas.length > 0 && !ui.etapas.includes(r.etapa)) return false;
     if (ui.origenes.length > 0 && (!r.origen || !ui.origenes.includes(r.origen))) return false;
     if (ui.soloConCFE && !r.hasReciboCFE) return false;
@@ -211,6 +215,14 @@ export function sortRows(rows: CotizacionRow[], ui: UIState): CotizacionRow[] {
         av = ETAPA_ORDER[a.etapa];
         bv = ETAPA_ORDER[b.etapa];
         break;
+      case "origen":
+        av = a.origen ?? "\uFFFF";
+        bv = b.origen ?? "\uFFFF";
+        break;
+      case "tags":
+        av = (a.tags?.[0] ?? "\uFFFF").toLowerCase();
+        bv = (b.tags?.[0] ?? "\uFFFF").toLowerCase();
+        break;
     }
     if (av < bv) return -1 * dir;
     if (av > bv) return 1 * dir;
@@ -259,4 +271,17 @@ export function fmtDate(iso: string | undefined): string {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return "—";
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+export function fmtDateTime(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "—";
+  return d.toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

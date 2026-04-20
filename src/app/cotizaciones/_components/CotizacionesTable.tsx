@@ -3,9 +3,11 @@
 import { useState } from "react";
 import type { CotizacionRow, SortKey, SortDir } from "../_lib/types-shared";
 import { ORIGEN_LABEL } from "../_lib/types-shared";
-import { fmtMXN, fmtRelative } from "../_lib/derive";
+import { fmtMXN, fmtRelative, fmtDateTime } from "../_lib/derive";
 import EtapaPill from "./EtapaPill";
 import type { Etapa } from "../_lib/types-shared";
+
+export type RowAction = "cargar" | "duplicar" | "eliminar" | "archivar" | "desarchivar";
 
 interface Props {
   rows: CotizacionRow[];
@@ -17,7 +19,7 @@ interface Props {
   onSort: (key: SortKey) => void;
   onRowClick: (row: CotizacionRow) => void;
   onChangeEtapa: (row: CotizacionRow, etapa: Etapa) => void;
-  onAction: (action: "cargar" | "duplicar" | "eliminar", row: CotizacionRow) => void;
+  onAction: (action: RowAction, row: CotizacionRow) => void;
 }
 
 export default function CotizacionesTable({
@@ -57,11 +59,11 @@ export default function CotizacionesTable({
               </th>
               <Th label="Nombre" sortKey="nombre" current={sortKey} dir={sortDir} onSort={onSort} />
               <Th label="Etapa" sortKey="etapa" current={sortKey} dir={sortDir} onSort={onSort} />
-              <th className="px-3 py-2.5 text-left font-medium">Origen</th>
+              <Th label="Origen" sortKey="origen" current={sortKey} dir={sortDir} onSort={onSort} />
               <Th label="Total cliente" sortKey="totalCliente" current={sortKey} dir={sortDir} onSort={onSort} align="right" />
               <Th label="Prob" sortKey="probabilidadCierre" current={sortKey} dir={sortDir} onSort={onSort} align="right" />
               <Th label="Actualizada" sortKey="actualizadoEn" current={sortKey} dir={sortDir} onSort={onSort} />
-              <th className="px-3 py-2.5 text-left font-medium">Tags</th>
+              <Th label="Tags" sortKey="tags" current={sortKey} dir={sortDir} onSort={onSort} />
               <th className="w-10 px-3 py-2.5"></th>
             </tr>
           </thead>
@@ -96,14 +98,18 @@ function Th({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 transition ${active ? "text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}
+        className={`group inline-flex items-center gap-1 transition ${active ? "text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}
+        title={`Ordenar por ${label.toLowerCase()}`}
       >
         {label}
-        {active && (
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={dir === "asc" ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-          </svg>
-        )}
+        <svg
+          className={`h-3 w-3 transition-opacity ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={active && dir === "asc" ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+        </svg>
       </button>
     </th>
   );
@@ -117,14 +123,15 @@ function Row({
   onToggleCheck: (c: boolean) => void;
   onRowClick: () => void;
   onChangeEtapa: (e: Etapa) => void;
-  onAction: (a: "cargar" | "duplicar" | "eliminar") => void;
+  onAction: (a: RowAction) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const inactividad = row.diasSinMovimiento;
   const inactivo = inactividad != null && inactividad >= 14 && !["cerrado_ganado", "cerrado_perdido", "instalado"].includes(row.etapa);
 
   return (
-    <tr className={`border-t border-zinc-800 transition ${checked ? "bg-amber-400/5" : "hover:bg-zinc-800/40"} cursor-pointer`} onClick={onRowClick}>
+    <tr className={`border-t border-zinc-800 transition ${checked ? "bg-amber-400/5" : row.archived ? "opacity-70 hover:bg-zinc-800/40" : "hover:bg-zinc-800/40"} cursor-pointer`} onClick={onRowClick}>
       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
@@ -163,11 +170,16 @@ function Row({
         {row.probabilidadCierre != null ? `${row.probabilidadCierre}%` : <span className="text-zinc-600">—</span>}
       </td>
       <td className="px-3 py-3 text-xs text-zinc-400">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" title={fmtDateTime(row.actualizadoEn)}>
           {fmtRelative(row.actualizadoEn)}
           {inactivo && (
             <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300 ring-1 ring-amber-500/20" title={`${inactividad} días sin movimiento`}>
               inactiva
+            </span>
+          )}
+          {row.archived && (
+            <span className="rounded-full bg-zinc-700/40 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400 ring-1 ring-zinc-600/30" title={`Archivada ${fmtDateTime(row.archivadoEn)}`}>
+              archivada
             </span>
           )}
         </div>
@@ -197,12 +209,47 @@ function Row({
         </button>
         {menuOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-3 top-10 z-50 min-w-[150px] overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
+            <div className="fixed inset-0 z-40" onClick={() => { setMenuOpen(false); setConfirmDelete(false); }} />
+            <div className="absolute right-3 top-10 z-50 min-w-[170px] overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
               <MenuItem onClick={() => { setMenuOpen(false); onAction("cargar"); }}>Cargar</MenuItem>
               <MenuItem onClick={() => { setMenuOpen(false); onAction("duplicar"); }}>Duplicar</MenuItem>
               <div className="border-t border-zinc-800" />
-              <MenuItem onClick={() => { setMenuOpen(false); onAction("eliminar"); }} danger>Eliminar</MenuItem>
+              {row.archived ? (
+                <>
+                  <MenuItem onClick={() => { setMenuOpen(false); setConfirmDelete(false); onAction("desarchivar"); }}>
+                    Desarchivar
+                  </MenuItem>
+                  {confirmDelete ? (
+                    <div className="border-t border-zinc-800 bg-red-500/5 p-2">
+                      <p className="mb-1.5 text-[11px] text-red-300">¿Eliminar permanentemente?</p>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmDelete(false); }}
+                          className="flex-1 rounded-md px-2 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setMenuOpen(false); setConfirmDelete(false); onAction("eliminar"); }}
+                          className="flex-1 rounded-md bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-300 hover:bg-red-500/30"
+                        >
+                          Sí, borrar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <MenuItem onClick={() => setConfirmDelete(true)} danger>
+                      Eliminar…
+                    </MenuItem>
+                  )}
+                </>
+              ) : (
+                <MenuItem onClick={() => { setMenuOpen(false); onAction("archivar"); }}>
+                  Archivar
+                </MenuItem>
+              )}
             </div>
           </>
         )}

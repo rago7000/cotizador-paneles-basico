@@ -19,7 +19,14 @@ const UI_STORAGE_KEY = "cotizaciones:ui:v1";
 
 export default function CotizacionesPage() {
   const router = useRouter();
-  const { cotizaciones, cargarCotizacion, guardarCotizacion, eliminarCotizacion } = useConvexCotizaciones();
+  const {
+    cotizaciones,
+    cargarCotizacion,
+    guardarCotizacion,
+    eliminarCotizacion,
+    archivarCotizacion,
+    desarchivarCotizacion,
+  } = useConvexCotizaciones();
 
   const [ui, setUI] = useState<UIState>(DEFAULT_UI);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -101,6 +108,11 @@ export default function CotizacionesPage() {
   };
 
   const handleDelete = async (row: CotizacionRow) => {
+    if (!row.archived) {
+      // Fricción: no se puede borrar sin archivar primero.
+      console.warn("No se puede eliminar una cotización no archivada");
+      return;
+    }
     await eliminarCotizacion(row.nombre);
     setSelected((prev) => {
       const next = new Set(prev);
@@ -111,7 +123,28 @@ export default function CotizacionesPage() {
   };
 
   const handleBulkDelete = async (targetRows: CotizacionRow[]) => {
-    await Promise.all(targetRows.map((r) => eliminarCotizacion(r.nombre)));
+    const deletables = targetRows.filter((r) => r.archived);
+    await Promise.all(deletables.map((r) => eliminarCotizacion(r.nombre)));
+    clearSelection();
+  };
+
+  const handleArchivar = async (row: CotizacionRow) => {
+    await archivarCotizacion(row.nombre);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(row.nombre);
+      return next;
+    });
+    if (drawerNombre === row.nombre) setDrawerNombre(null);
+  };
+
+  const handleDesarchivar = async (row: CotizacionRow) => {
+    await desarchivarCotizacion(row.nombre);
+  };
+
+  const handleBulkArchivar = async (targetRows: CotizacionRow[]) => {
+    const archivables = targetRows.filter((r) => !r.archived);
+    await Promise.all(archivables.map((r) => archivarCotizacion(r.nombre)));
     clearSelection();
   };
 
@@ -143,10 +176,15 @@ export default function CotizacionesPage() {
     router.push("/");
   };
 
-  const handleAction = (action: "cargar" | "duplicar" | "eliminar", row: CotizacionRow) => {
+  const handleAction = (
+    action: "cargar" | "duplicar" | "eliminar" | "archivar" | "desarchivar",
+    row: CotizacionRow,
+  ) => {
     if (action === "cargar") handleCargar(row);
     else if (action === "duplicar") handleDuplicar(row);
     else if (action === "eliminar") handleDelete(row);
+    else if (action === "archivar") handleArchivar(row);
+    else if (action === "desarchivar") handleDesarchivar(row);
   };
 
   return (
@@ -171,7 +209,7 @@ export default function CotizacionesPage() {
         </div>
 
         <div className="mb-5">
-          <CotizacionesMetrics rows={rows} />
+          <CotizacionesMetrics rows={rows.filter((r) => !r.archived)} />
         </div>
 
         <div className="mb-4">
@@ -214,6 +252,8 @@ export default function CotizacionesPage() {
         onCargar={handleCargar}
         onDuplicar={handleDuplicar}
         onEliminar={handleDelete}
+        onArchivar={handleArchivar}
+        onDesarchivar={handleDesarchivar}
         onChangeEtapa={handleChangeEtapa}
       />
 
@@ -222,6 +262,7 @@ export default function CotizacionesPage() {
         selected={selected}
         onClear={clearSelection}
         onBulkDelete={handleBulkDelete}
+        onBulkArchivar={handleBulkArchivar}
         onBulkChangeEtapa={handleBulkChangeEtapa}
       />
     </div>
