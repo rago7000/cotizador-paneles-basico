@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { fmt } from "../components/primitives";
 import type { UtilidadConfig, CotizacionCliente, CatalogoPanel } from "../lib/types";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 import type { PanelRecommendations } from "../lib/auto-select-panel";
 
 export interface PrecioClienteWidgetProps {
@@ -628,7 +629,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Paneles</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(clientePanelesMXN * 1.16)}
+                  ${fmt(clientePanelesMXN * IVA_FACTOR)}
                 </span>
               </div>
             )}
@@ -636,7 +637,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Inversores</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(clienteInversoresMXN * 1.16)}
+                  ${fmt(clienteInversoresMXN * IVA_FACTOR)}
                 </span>
               </div>
             )}
@@ -644,7 +645,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Estructura</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(clienteEstructuraMXN * 1.16)}
+                  ${fmt(clienteEstructuraMXN * IVA_FACTOR)}
                 </span>
               </div>
             )}
@@ -652,7 +653,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Tornilleria</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(clienteTornilleriaMXN * 1.16)}
+                  ${fmt(clienteTornilleriaMXN * IVA_FACTOR)}
                 </span>
               </div>
             )}
@@ -660,7 +661,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Generales</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(clienteGeneralesMXN * 1.16)}
+                  ${fmt(clienteGeneralesMXN * IVA_FACTOR)}
                 </span>
               </div>
             )}
@@ -668,7 +669,7 @@ export default function PrecioClienteWidget({
               <div className="flex items-center justify-between py-2 border-b border-zinc-800">
                 <span className="text-xs text-zinc-400">Adicional fijo</span>
                 <span className="text-xs font-mono text-zinc-300">
-                  ${fmt(utilidad.montoFijo * 1.16)}
+                  ${fmt(utilidad.montoFijo * IVA_FACTOR)}
                 </span>
               </div>
             )}

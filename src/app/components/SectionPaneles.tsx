@@ -3,6 +3,7 @@
 import type { CatalogoPanel } from "../lib/types";
 import type { PanelRecommendations } from "../lib/auto-select-panel";
 import { SectionCard, Field, NumInput, TcCustomRow, SaveToCatalogBanner, fmt } from "./primitives";
+import { IVA_RATE, IVA_FACTOR } from "../lib/config-fiscal";
 
 const fmtUSD = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -338,11 +339,11 @@ export default function SectionPaneles({
           </div>
           <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
             <span className="text-xs text-zinc-500">IVA 16%</span>
-            <span className="text-xs text-zinc-400 font-mono">${fmt(partidaPanelesMXN * 0.16)}</span>
+            <span className="text-xs text-zinc-400 font-mono">${fmt(partidaPanelesMXN * IVA_RATE)}</span>
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
             <span className="text-xs text-zinc-300 font-semibold">Total paneles</span>
-            <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaPanelesMXN * 1.16)} MXN</span>
+            <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaPanelesMXN * IVA_FACTOR)} MXN</span>
           </div>
         </div>
       )}

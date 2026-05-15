@@ -10,6 +10,7 @@ import type {
   CotizacionGuardada,
   SeguimientoEstado,
 } from "../lib/types";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,8 +182,8 @@ function derivarConceptos(data: CotizacionData, baseTc: number): ConceptoCotizad
       key: "est-flete",
       seccion: "ESTRUCTURA",
       concepto: "Flete estructura",
-      detalle: `$${(fleteAluminioNum / 1.16).toFixed(2)} sin IVA`,
-      totalMXN: fleteAluminioNum / 1.16,
+      detalle: `$${(fleteAluminioNum / IVA_FACTOR).toFixed(2)} sin IVA`,
+      totalMXN: fleteAluminioNum / IVA_FACTOR,
       monedaOrigen: "MXN",
     });
   }
@@ -380,7 +381,7 @@ export default function ComparativaPage() {
 
   // Summary calculations
   const totalCotizado = conceptos.reduce((acc, c) => acc + c.totalMXN, 0);
-  const precioCobrado = totalCotizado * 1.16;
+  const precioCobrado = totalCotizado * IVA_FACTOR;
 
   const totalReal = useMemo(() => {
     return conceptos.reduce((acc, c) => {

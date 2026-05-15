@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { LineItem, TipoCambioData } from "../lib/types";
+import { IVA_RATE, IVA_FACTOR } from "../lib/config-fiscal";
 
 const s = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
@@ -119,7 +120,7 @@ export default function CotizacionPDF(props: Props) {
 
   // Partida 3: Estructura
   const costoAluminioMXN = sumItems(aluminio);
-  const fleteAluminioSinIVA = fleteAluminio / 1.16;
+  const fleteAluminioSinIVA = fleteAluminio / IVA_FACTOR;
   const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
 
   // Partida 4: Tornilleria
@@ -130,7 +131,7 @@ export default function CotizacionPDF(props: Props) {
 
   // Totales
   const subtotalMXN = partidaPanelesMXN + partidaInversoresMXN + partidaEstructuraMXN + partidaTornilleriaMXN + partidaGeneralesMXN;
-  const ivaMXN = subtotalMXN * 0.16;
+  const ivaMXN = subtotalMXN * IVA_RATE;
   const totalMXN = subtotalMXN + ivaMXN;
 
   return (

@@ -24,6 +24,7 @@ import { useCotizacion } from "../lib/useCotizacion";
 import { useAutosave } from "../lib/useAutosave";
 import { uid, UTILIDAD_DEFAULT } from "../lib/cotizacion-state";
 import { fmt, CollapseAllContext } from "./primitives";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 import { generateArrangements } from "../lib/structure/generate-arrangements";
 import { syncGeneralesFromElectrical } from "../lib/sync-generales";
 import { autoSelectPanel, analyzePanelRecommendations } from "../lib/auto-select-panel";
@@ -1397,9 +1398,9 @@ export default function CotizadorWorkspace({
                   kWp: cantidadNum * potenciaNum / 1000,
                   generacionMensualKwh: cantidadNum * potenciaNum / 1000 * 132,
                   partidas: {
-                    paneles: clientePanelesMXN * 1.16, inversores: clienteInversoresMXN * 1.16,
-                    estructura: clienteEstructuraMXN * 1.16, tornilleria: clienteTornilleriaMXN * 1.16,
-                    generales: clienteGeneralesMXN * 1.16, montoFijo: utilidad.montoFijo * 1.16,
+                    paneles: clientePanelesMXN * IVA_FACTOR, inversores: clienteInversoresMXN * IVA_FACTOR,
+                    estructura: clienteEstructuraMXN * IVA_FACTOR, tornilleria: clienteTornilleriaMXN * IVA_FACTOR,
+                    generales: clienteGeneralesMXN * IVA_FACTOR, montoFijo: utilidad.montoFijo * IVA_FACTOR,
                   },
                   subtotal: clienteSubtotalMXN, iva: clienteIvaMXN, total: clienteTotalMXN,
                   porPanel: clientePorPanel, porWatt: clientePorWatt,
