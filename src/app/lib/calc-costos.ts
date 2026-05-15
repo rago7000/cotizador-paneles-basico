@@ -4,11 +4,11 @@
 
 import type { UtilidadConfig } from "./types";
 import type { ReciboCFEData } from "./cotizacion-state";
+import { IVA_FACTOR, calcularIVA } from "./config-fiscal";
+import { GEN_POR_KWP, KWH_PER_KWP_MES } from "./config-energia";
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-export const GEN_POR_KWP = 5.5 * 30 * 0.8; // ~132 kWh/kWp/mes
-export const KWH_PER_KWP_MES = 132;
+// Re-export para no romper imports históricos desde este módulo.
+export { GEN_POR_KWP, KWH_PER_KWP_MES };
 
 // ── Partidas (cost calculation) ─────────────────────────────────────────────
 
@@ -72,13 +72,13 @@ export function calcularPartidas(input: PartidasInput): PartidasResult {
   const totalInversoresUSD = cantidadPaneles > 0 ? costoMicrosUSD + costoCablesUSD + costoECUUSD + costoHerramientaUSD + costoEndCapUSD + fleteMicros : 0;
   const partidaInversoresMXN = totalInversoresUSD * tcMicros;
 
-  const fleteAluminioSinIVA = fleteAluminio / 1.16;
+  const fleteAluminioSinIVA = fleteAluminio / IVA_FACTOR;
   const partidaEstructuraMXN = costoAluminioMXN + fleteAluminioSinIVA;
   const partidaTornilleriaMXN = costoTornilleriaMXN;
   const partidaGeneralesMXN = costoGeneralesMXN;
 
   const subtotalMXN = partidaPanelesMXN + partidaInversoresMXN + partidaEstructuraMXN + partidaTornilleriaMXN + partidaGeneralesMXN;
-  const ivaMXN = subtotalMXN * 0.16;
+  const ivaMXN = calcularIVA(subtotalMXN);
   const totalMXN = subtotalMXN + ivaMXN;
   const costoPorPanel = cantidadPaneles > 0 ? totalMXN / cantidadPaneles : 0;
 
@@ -126,7 +126,7 @@ export function calcularPrecioCliente(
   const clienteTornilleriaMXN = partidas.partidaTornilleriaMXN * (1 + pctTornilleria / 100);
   const clienteGeneralesMXN = partidas.partidaGeneralesMXN * (1 + pctGenerales / 100);
   const clienteSubtotalMXN = clientePanelesMXN + clienteInversoresMXN + clienteEstructuraMXN + clienteTornilleriaMXN + clienteGeneralesMXN + utilidad.montoFijo;
-  const clienteIvaMXN = clienteSubtotalMXN * 0.16;
+  const clienteIvaMXN = calcularIVA(clienteSubtotalMXN);
   const clienteTotalMXN = clienteSubtotalMXN + clienteIvaMXN;
   const utilidadNetaMXN = clienteSubtotalMXN - partidas.subtotalMXN;
   const utilidadNetaPct = partidas.subtotalMXN > 0 ? (utilidadNetaMXN / partidas.subtotalMXN) * 100 : 0;

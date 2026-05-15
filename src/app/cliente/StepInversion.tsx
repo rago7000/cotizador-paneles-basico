@@ -2,6 +2,7 @@
 
 import { fmt } from "../components/primitives";
 import type { PrecioClienteResult, ROIResult } from "../lib/calc-costos";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 
 interface Props {
   precioCliente: PrecioClienteResult;
@@ -44,7 +45,7 @@ export default function StepInversion({ precioCliente, roi, cantidadPaneles }: P
         {rows.map((r, i) => (
           <div key={i} className={`flex justify-between px-5 py-3.5 ${i % 2 === 0 ? "bg-zinc-800/30" : "bg-zinc-800/10"}`}>
             <span className="text-sm text-zinc-300">{r.concepto}</span>
-            <span className="text-sm font-semibold text-zinc-200">{fmtMXN(r.monto * 1.16)}</span>
+            <span className="text-sm font-semibold text-zinc-200">{fmtMXN(r.monto * IVA_FACTOR)}</span>
           </div>
         ))}
         {/* Total */}

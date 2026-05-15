@@ -1,5 +1,8 @@
+import type { NextRequest } from "next/server";
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
+import { getAnthropicModel } from "../../lib/llm-config";
+import { protectLLMEndpoint } from "../../lib/api-protect";
 
 // ── System prompts ──────────────────────────────────────────────────────────
 
@@ -101,7 +104,10 @@ ${JSON.stringify(cotizaciones, null, 0)}`;
 
 // ── Route handler ───────────────────────────────────────────────────────────
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const blocked = protectLLMEndpoint(req);
+  if (blocked) return blocked;
+
   const { messages, cotizacion, cotizaciones, mode } = await req.json();
 
   const system = mode === "cotizacion" && cotizacion
@@ -109,7 +115,7 @@ export async function POST(req: Request) {
     : buildAnalisisPrompt(cotizaciones ?? []);
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-20250514" as string),
+    model: anthropic(getAnthropicModel("chat", "claude-sonnet-4-20250514")),
     system,
     messages,
   });

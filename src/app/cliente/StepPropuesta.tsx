@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { fmt } from "../components/primitives";
 import type { PrecioClienteResult, ROIResult } from "../lib/calc-costos";
 import type { ReciboCFEData } from "../lib/cotizacion-state";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 
 const fmtMXN = (n: number) =>
   "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -39,10 +40,10 @@ export default function StepPropuesta({
       kWp: kWpSistema,
       generacionMensualKwh,
       partidas: {
-        paneles: precioCliente.clientePanelesMXN * 1.16,
-        inversores: precioCliente.clienteInversoresMXN * 1.16,
-        estructura: precioCliente.clienteEstructuraMXN * 1.16,
-        tornilleria: (precioCliente.clienteTornilleriaMXN + precioCliente.clienteGeneralesMXN) * 1.16,
+        paneles: precioCliente.clientePanelesMXN * IVA_FACTOR,
+        inversores: precioCliente.clienteInversoresMXN * IVA_FACTOR,
+        estructura: precioCliente.clienteEstructuraMXN * IVA_FACTOR,
+        tornilleria: (precioCliente.clienteTornilleriaMXN + precioCliente.clienteGeneralesMXN) * IVA_FACTOR,
         generales: 0,
         montoFijo: 0,
       },

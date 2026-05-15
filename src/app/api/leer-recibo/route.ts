@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAnthropicModel } from "../../lib/llm-config";
+import { protectLLMEndpoint } from "../../lib/api-protect";
 
 const PROMPT = `Eres un extractor de datos de recibos de CFE (Comisión Federal de Electricidad de México).
 
@@ -30,6 +32,9 @@ REGLAS:
 - Responde SOLO con el JSON, absolutamente nada más`;
 
 export async function POST(req: NextRequest) {
+  const blocked = protectLLMEndpoint(req);
+  if (blocked) return blocked;
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 500 });
   }
@@ -75,7 +80,7 @@ export async function POST(req: NextRequest) {
         };
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: getAnthropicModel("extract", "claude-sonnet-4-6"),
       max_tokens: 2048,
       messages: [
         {

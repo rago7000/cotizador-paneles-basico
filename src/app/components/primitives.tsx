@@ -2,6 +2,7 @@
 
 import { useState, useEffect, createContext, useContext } from "react";
 import type { LineItem } from "../lib/types";
+import { IVA_FACTOR } from "../lib/config-fiscal";
 
 /** Increment this counter to force-collapse all SectionCards */
 export const CollapseAllContext = createContext(0);
@@ -200,7 +201,7 @@ export function LineItemTable({
 }
 
 export function PartidaRow({ label, value, tag }: { label: string; value: number; tag?: string }) {
-  const conIva = value * 1.16;
+  const conIva = value * IVA_FACTOR;
   const isZero = value === 0;
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-zinc-800 last:border-0">

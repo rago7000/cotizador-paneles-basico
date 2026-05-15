@@ -4,6 +4,7 @@ import type { LineItem } from "../lib/types";
 import type { StructureRowInput, StructureCalculationResult } from "../lib/structure/types";
 import type { ArrangementResult } from "../lib/structure/generate-arrangements";
 import { SectionCard, Field, NumInput, LineItemTable, fmt } from "./primitives";
+import { IVA_RATE, IVA_FACTOR } from "../lib/config-fiscal";
 
 export interface SectionEstructuraProps {
   aluminio: LineItem[];
@@ -164,11 +165,11 @@ export default function SectionEstructura({
           </div>
           <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-800/60">
             <span className="text-xs text-zinc-500">IVA 16%</span>
-            <span className="text-xs text-zinc-400 font-mono">${fmt(partidaEstructuraMXN * 0.16)}</span>
+            <span className="text-xs text-zinc-400 font-mono">${fmt(partidaEstructuraMXN * IVA_RATE)}</span>
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-800/80 border-t border-zinc-700">
             <span className="text-xs text-zinc-300 font-semibold">Total estructura</span>
-            <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaEstructuraMXN * 1.16)} MXN</span>
+            <span className="text-sm font-semibold text-amber-400 font-mono">${fmt(partidaEstructuraMXN * IVA_FACTOR)} MXN</span>
           </div>
         </div>
       )}
