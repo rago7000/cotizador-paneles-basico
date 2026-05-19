@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useConvexCatalogo, useConvexCotizaciones } from "../lib/useConvexCatalogo";
+import { fetchTipoCambioCached } from "../lib/useTipoCambio";
 import type { CatalogoPanel, CatalogoMicro, TipoCambioData } from "../lib/types";
 import { useClienteFlow, type ClienteStep } from "./useClienteFlow";
 import StepConsumo from "./StepConsumo";
 import StepSistema from "./StepSistema";
 import StepInversion from "./StepInversion";
 import StepPropuesta from "./StepPropuesta";
-import { useState } from "react";
 
 // ── Helper: best offer per product ──────────────────────────────────────────
 function mejorOferta(productoId: string, ofertas: { productoId: string; precio: number; precioCable?: number; notas?: string; fecha: string }[]) {
@@ -28,7 +28,7 @@ const STEPS: { key: ClienteStep; label: string; icon: string }[] = [
 
 export default function ClientePage() {
   // ── Convex data ──
-  const { paneles: convexPaneles, micros: convexMicros, ofertas: convexOfertas } = useConvexCatalogo();
+  const { paneles: convexPaneles, micros: convexMicros, ofertas: convexOfertas, isLoading: catalogLoading } = useConvexCatalogo();
 
   // ── Build catalogs (same logic as page.tsx) ──
   const catalogoPaneles = useMemo<CatalogoPanel[]>(() => {
@@ -77,12 +77,16 @@ export default function ClientePage() {
   }, [catalogoMicros]);
 
   // ── Exchange rate ──
+  // Compartimos cache + TTL con el editor principal. Antes había dos fetches
+  // independientes y un error inicial dejaba TC=null sin reintento.
   const [tc, setTc] = useState<TipoCambioData | null>(null);
   useEffect(() => {
-    fetch("/api/tipo-cambio")
-      .then((r) => r.json())
-      .then((d) => { if (!d.error) setTc(d); })
-      .catch(() => {});
+    let cancelled = false;
+    fetchTipoCambioCached().then((d) => {
+      if (cancelled) return;
+      if (!("error" in d)) setTc(d);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // ── Client flow hook ──
@@ -125,6 +129,33 @@ export default function ClientePage() {
     }
   };
 
+  // ── Step-bound callbacks: estables para no rebotar a los hijos en cada render ──
+  const handleUpload: React.ComponentProps<typeof StepConsumo>["onUpload"] = useCallback(
+    (data, base64) => dispatch({ type: "SET_RECIBO", data, base64 }),
+    [],
+  );
+  const handleLoading = useCallback((v: boolean) => dispatch({ type: "SET_LOADING", loading: v }), []);
+  const handleError = useCallback((msg: string) => dispatch({ type: "SET_ERROR", error: msg }), []);
+  const handleSelectSizing: React.ComponentProps<typeof StepSistema>["onSelectSizing"] = useCallback(
+    (opt, p) => dispatch({ type: "SELECT_SIZING", option: opt, paneles: p }),
+    [],
+  );
+
+  // ── Catalog loading ──
+  if (catalogLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-8">
+        <div className="text-center space-y-3">
+          <svg className="w-8 h-8 animate-spin mx-auto text-amber-400" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          <p className="text-xs text-zinc-500">Cargando catálogo…</p>
+        </div>
+      </div>
+    );
+  }
+
   // ── Catalog not ready ──
   if (convexPaneles.length > 0 && catalogoPaneles.length === 0) {
     return (
@@ -152,9 +183,9 @@ export default function ClientePage() {
             <span className="text-lg">☀️</span>
             <span className="text-sm font-medium hidden sm:inline">Cotizador Solar</span>
           </Link>
-          {state.reciboCFE && state.step > 1 && (
+          {state.reciboCFE && state.step > 1 && (state.nombreCliente || state.reciboCFE.nombre) && (
             <div className="text-xs text-zinc-500 truncate max-w-40">
-              {state.nombreCliente}
+              {state.nombreCliente || state.reciboCFE.nombre}
             </div>
           )}
           {state.reciboCFE && (
@@ -219,9 +250,9 @@ export default function ClientePage() {
             loadingRecibo={state.loadingRecibo}
             errorRecibo={state.errorRecibo}
             sizing={computed.sizing}
-            onUpload={(data, base64) => dispatch({ type: "SET_RECIBO", data, base64 })}
-            onLoading={(v) => dispatch({ type: "SET_LOADING", loading: v })}
-            onError={(msg) => dispatch({ type: "SET_ERROR", error: msg })}
+            onUpload={handleUpload}
+            onLoading={handleLoading}
+            onError={handleError}
           />
         )}
 
@@ -235,7 +266,7 @@ export default function ClientePage() {
             kWpSistema={computed.kWpSistema}
             generacionMensualKwh={computed.generacionMensualKwh}
             coberturaPct={computed.coberturaPct}
-            onSelectSizing={(opt, p) => dispatch({ type: "SELECT_SIZING", option: opt, paneles: p })}
+            onSelectSizing={handleSelectSizing}
           />
         )}
 

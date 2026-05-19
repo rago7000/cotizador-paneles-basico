@@ -288,6 +288,14 @@ function pickDefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
 }
 
 /**
+ * Devuelve `s` si es un string no vacío, si no `undefined`.
+ * Usar en lugar de `s || undefined` para preservar "0", "false", etc.
+ */
+function nz(s: string | undefined | null): string | undefined {
+  return s != null && s !== "" ? s : undefined;
+}
+
+/**
  * Convert app-side CotizacionData → Convex structured mutation args.
  * Filters out null/undefined so Convex receives only defined fields.
  */
@@ -295,65 +303,65 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
   return pickDefined({
     nombre,
     fecha: data.fecha,
-    cotizacionId: data.cotizacionId || undefined,
+    cotizacionId: nz(data.cotizacionId),
     // Tipo de cambio
-    tcCustomPaneles: data.tcCustomPaneles || undefined,
-    tcCustomMicros: data.tcCustomMicros || undefined,
-    tcSnapshot: data.tcSnapshot || undefined,
+    tcCustomPaneles: nz(data.tcCustomPaneles),
+    tcCustomMicros: nz(data.tcCustomMicros),
+    tcSnapshot: nz(data.tcSnapshot),
     tcFrozen: data.tcFrozen || undefined,
-    // Paneles
-    cantidad: data.cantidad || undefined,
-    potencia: data.potencia || undefined,
-    precioPorWatt: data.precioPorWatt || undefined,
-    fletePaneles: data.fletePaneles || undefined,
-    garantiaPaneles: data.garantiaPaneles || undefined,
+    // Paneles — strings numéricos: usar nz() para preservar "0"
+    cantidad: nz(data.cantidad),
+    potencia: nz(data.potencia),
+    precioPorWatt: nz(data.precioPorWatt),
+    fletePaneles: nz(data.fletePaneles),
+    garantiaPaneles: nz(data.garantiaPaneles),
     // Microinversores
-    precioMicroinversor: data.precioMicroinversor || undefined,
-    precioCable: data.precioCable || undefined,
-    precioECU: data.precioECU || undefined,
+    precioMicroinversor: nz(data.precioMicroinversor),
+    precioCable: nz(data.precioCable),
+    precioECU: nz(data.precioECU),
     incluyeECU: data.incluyeECU,   // preserve boolean false
-    precioHerramienta: data.precioHerramienta || undefined,
+    precioHerramienta: nz(data.precioHerramienta),
     incluyeHerramienta: data.incluyeHerramienta, // preserve boolean false
-    precioEndCap: data.precioEndCap || undefined,
+    precioEndCap: nz(data.precioEndCap),
     incluyeEndCap: data.incluyeEndCap,  // preserve boolean false
-    fleteMicros: data.fleteMicros || undefined,
+    fleteMicros: nz(data.fleteMicros),
     // Estructura
     aluminio: data.aluminio?.length ? data.aluminio : undefined,
-    fleteAluminio: data.fleteAluminio || undefined,
+    fleteAluminio: nz(data.fleteAluminio),
     // Tornillería
     tornilleria: data.tornilleria?.length ? data.tornilleria : undefined,
     // Generales
     generales: data.generales?.length ? data.generales : undefined,
     // Catálogo refs
-    panelCatalogoId: data.panelCatalogoId || undefined,
-    microCatalogoId: data.microCatalogoId || undefined,
+    panelCatalogoId: nz(data.panelCatalogoId),
+    microCatalogoId: nz(data.microCatalogoId),
     // Recibo CFE
     reciboCFE: data.reciboCFE ?? undefined,
     reciboPDFBase64: data.reciboPDFBase64 ?? undefined,
     // Minisplits
     minisplits: data.minisplits?.length ? data.minisplits : undefined,
-    minisplitTemporada: data.minisplitTemporada || undefined,
+    minisplitTemporada: nz(data.minisplitTemporada),
     // Utilidad
     utilidad: data.utilidad ?? undefined,
     // Cliente / Contacto
-    clienteTelefono: data.clienteTelefono || undefined,
-    clienteEmail: data.clienteEmail || undefined,
-    clienteUbicacion: data.clienteUbicacion || undefined,
-    clienteNotas: data.clienteNotas || undefined,
+    clienteTelefono: nz(data.clienteTelefono),
+    clienteEmail: nz(data.clienteEmail),
+    clienteUbicacion: nz(data.clienteUbicacion),
+    clienteNotas: nz(data.clienteNotas),
     // Pipeline
     etapa: data.etapa,  // always include — even "prospecto" default
-    etapaNotas: data.etapaNotas || undefined,
-    fechaCierre: data.fechaCierre || undefined,
-    fechaInstalacion: data.fechaInstalacion || undefined,
+    etapaNotas: nz(data.etapaNotas),
+    fechaCierre: nz(data.fechaCierre),
+    fechaInstalacion: nz(data.fechaInstalacion),
     probabilidadCierre: data.probabilidadCierre != null && data.probabilidadCierre > 0 ? data.probabilidadCierre : undefined,
     // Origen
-    origen: data.origen || undefined,
-    origenDetalle: data.origenDetalle || undefined,
+    origen: nz(data.origen),
+    origenDetalle: nz(data.origenDetalle),
     // Tags
     tags: data.tags?.length ? data.tags : undefined,
     // Archivado
     archived: data.archived || undefined,
-    archivadoEn: data.archivadoEn || undefined,
+    archivadoEn: nz(data.archivadoEn),
   });
 }
 
@@ -365,7 +373,12 @@ function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
 export function docToCotizacionData(doc: any): CotizacionData | null {
   // Legacy format: has `data` JSON blob but no structured fields
   if (doc.data && doc.cantidad === undefined) {
-    try { return JSON.parse(doc.data); } catch { return null; }
+    try {
+      return JSON.parse(doc.data);
+    } catch (err) {
+      console.error("[useConvexCatalogo] JSON legacy malformado en", doc.nombre, err);
+      return null;
+    }
   }
 
   // Structured format

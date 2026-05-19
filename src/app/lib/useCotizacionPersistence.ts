@@ -20,6 +20,7 @@ import type {
   CatalogoPanel,
   CatalogoMicro,
   CotizacionCliente,
+  TipoCambioData,
 } from "./types";
 import type { UseCotizacionCalculadaResult } from "./useCotizacionCalculada";
 import { openPDFInNewWindow } from "./open-pdf";
@@ -146,6 +147,11 @@ export function useCotizacionPersistence({
     notas: "",
     vigenciaDias: 15,
     stateSnapshot: getFormData(),
+    tcSnapshotVariante: {
+      paneles: calc.tcPaneles,
+      micros: calc.tcMicros,
+      fecha: new Date().toISOString(),
+    },
   });
 
   // ── Cotización CRUD ───────────────────────────────────────────────────
@@ -285,6 +291,11 @@ export function useCotizacionPersistence({
         nombreVariante: "",
       });
     }
+
+    // Re-baseline autosave después de que React aplique los dispatches.
+    // Sin esto, el siguiente keystroke gatilla un autosave inmediato del
+    // estado recién cargado, multiplicando races sobre el dirty del nombre.
+    queueMicrotask(() => markClean(getFormData()));
   };
 
   // ── Variant PDF generation ────────────────────────────────────────────
@@ -321,9 +332,18 @@ export function useCotizacionPersistence({
         precioAnteriorPorPanel: precioAnterior,
       });
       await openPDFInNewWindow(el);
-    } else if (s.tc) {
+    } else if (s.tc || v.tcSnapshotVariante) {
       const CotizacionPDF = await loadCotizacionPDF();
-      // NOTE: Number(x) || 0 left intentionally — will be cleaned in a future pass
+      // Si la variante congeló su propio TC, úsalo en vez del live.
+      // Sin esto, variantes viejas se re-renderean con TC de hoy.
+      const tcForPdf: TipoCambioData = v.tcSnapshotVariante
+        ? {
+            tipoCambio: v.tcSnapshotVariante.paneles,
+            fecha: v.tcSnapshotVariante.fecha,
+            fuente: "snapshot variante",
+            etiqueta: "TC congelado al crear la variante",
+          }
+        : s.tc!;
       const el = createElement(CotizacionPDF, {
         nombreCotizacion: `${s.nombreCotizacion} — ${v.nombre} (Costos)`,
         cantidad: v.costos.cantidadPaneles, potencia: v.costos.potenciaW,
@@ -338,7 +358,7 @@ export function useCotizacionPersistence({
         precioEndCap: Number(s.precioEndCap) || 0, incluyeEndCap: s.incluyeEndCap,
         fleteMicros: Number(s.fleteMicros) || 0,
         aluminio: s.aluminio, fleteAluminio: Number(s.fleteAluminio) || 0,
-        tornilleria: s.tornilleria, generales: s.generales, tc: s.tc,
+        tornilleria: s.tornilleria, generales: s.generales, tc: tcForPdf,
       });
       await openPDFInNewWindow(el);
     }

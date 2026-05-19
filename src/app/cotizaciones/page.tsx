@@ -59,7 +59,26 @@ export default function CotizacionesPage() {
   }, [cotizaciones]);
 
   const filteredRows = useMemo(() => sortRows(filterRows(rows, ui), ui), [rows, ui]);
+  // Memo separado para métricas: `filter(!archived)` inline rompía el useMemo
+  // adentro de CotizacionesMetrics (nueva referencia en cada render).
+  const activeRows = useMemo(() => rows.filter((r) => !r.archived), [rows]);
   const drawerRow = drawerNombre ? rows.find((r) => r.nombre === drawerNombre) ?? null : null;
+
+  // Poda la selección cuando cambian los filtros: si una fila seleccionada
+  // ya no está visible, sacarla evita que bulk-actions afecten filas ocultas.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(filteredRows.map((r) => r.nombre));
+      let changed = false;
+      const next = new Set<string>();
+      for (const n of prev) {
+        if (visible.has(n)) next.add(n);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filteredRows]);
 
   const updateUI = (patch: Partial<UIState>) => setUI((s) => ({ ...s, ...patch }));
 
@@ -209,7 +228,7 @@ export default function CotizacionesPage() {
         </div>
 
         <div className="mb-5">
-          <CotizacionesMetrics rows={rows.filter((r) => !r.archived)} />
+          <CotizacionesMetrics rows={activeRows} />
         </div>
 
         <div className="mb-4">

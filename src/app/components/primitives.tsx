@@ -8,13 +8,19 @@ import { IVA_FACTOR } from "../lib/config-fiscal";
 export const CollapseAllContext = createContext(0);
 
 export const fmt = (n: number) =>
-  n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number.isFinite(n)
+    ? n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
 
 export const fmtUSD = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number.isFinite(n)
+    ? "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
 
 export const fmtUSD3 = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  Number.isFinite(n)
+    ? "$" + n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+    : "—";
 
 export const inputCls =
   "w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/15";

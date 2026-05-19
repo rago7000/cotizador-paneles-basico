@@ -274,6 +274,12 @@ export interface CotizacionCliente {
   vigenciaDias: number;
   /** Full state snapshot for restoring via "Usar" */
   stateSnapshot?: CotizacionData;
+  /** TC congelado al crear la variante. Si falta, el PDF de costos usa TC live (legacy). */
+  tcSnapshotVariante?: {
+    paneles: number;
+    micros: number;
+    fecha: string;
+  };
 }
 
 // ── Seguimiento ──────────────────────────────────────────────────────────────
