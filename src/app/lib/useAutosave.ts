@@ -61,7 +61,10 @@ export function useAutosave({
           if (isMountedRef.current) setStatus("idle");
         }, 2000);
       }
-    } catch {
+    } catch (err) {
+      // Antes era silencioso: status="error" durante 2s y luego idle.
+      // Loggeamos para que la consola del browser muestre la causa.
+      console.error("[autosave] falló guardar la cotización:", err);
       if (isMountedRef.current) setStatus("error");
     }
   }, [nombre, getFormData, save]);

@@ -43,16 +43,37 @@ export interface TipoCambioActions {
 }
 
 // ── Module-level fetch cache ───────────────────────────────────────────────
-// Shared across all useTipoCambio instances so split-pane mode doesn't
-// re-fetch /api/tipo-cambio per workspace.
+// Compartido por todas las instancias. TTL evita: (a) errores permanentes si
+// el primer fetch falla, y (b) datos stale durante una sesión larga.
 
-let tcFetchPromise: Promise<TipoCambioData | { error: string }> | null = null;
+const TC_TTL_MS = 15 * 60 * 1000; // 15 min
 
-function fetchTipoCambioOnce(): Promise<TipoCambioData | { error: string }> {
-  if (!tcFetchPromise) {
+type TcFetchResult = TipoCambioData | { error: string };
+let tcFetchPromise: Promise<TcFetchResult> | null = null;
+let tcFetchedAt = 0;
+let tcLastWasError = false;
+
+// Exportada para que otras pantallas (p.ej. /cliente) compartan el cache.
+export function fetchTipoCambioCached(): Promise<TcFetchResult> {
+  return fetchTipoCambioOnce();
+}
+
+function fetchTipoCambioOnce(): Promise<TcFetchResult> {
+  const now = Date.now();
+  const stale = now - tcFetchedAt > TC_TTL_MS;
+  if (!tcFetchPromise || stale || tcLastWasError) {
+    tcFetchedAt = now;
+    tcLastWasError = false;
     tcFetchPromise = fetch("/api/tipo-cambio")
-      .then((r) => r.json())
-      .catch(() => ({ error: "No se pudo obtener el tipo de cambio" }));
+      .then((r) => r.json() as Promise<TcFetchResult>)
+      .then((d) => {
+        if ("error" in d) tcLastWasError = true;
+        return d;
+      })
+      .catch(() => {
+        tcLastWasError = true;
+        return { error: "No se pudo obtener el tipo de cambio" } as const;
+      });
   }
   return tcFetchPromise;
 }

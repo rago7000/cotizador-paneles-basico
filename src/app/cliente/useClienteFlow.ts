@@ -75,6 +75,10 @@ function reducer(state: ClienteFlowState, action: Action): ClienteFlowState {
         reciboCFE: action.data,
         reciboPDFBase64: action.base64,
         nombreCliente: action.data.nombre || state.nombreCliente,
+        // Resetear para que el auto-sizing pueda recalcular contra el nuevo
+        // consumo. Sin esto, cambiar de recibo conservaba la cantidad anterior.
+        cantidadPaneles: 0,
+        sizingOption: "recomendada",
         loadingRecibo: false,
         errorRecibo: "",
       };

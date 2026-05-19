@@ -20,8 +20,17 @@ export default function EtapaPill({ etapa, size = "md", editable = false, onChan
     const handler = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Antes solo se cerraba con click fuera; Escape/Tab dejaban el dropdown
+    // colgado bloqueando el teclado.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Tab") setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const colors = ETAPA_COLOR[etapa];

@@ -10,6 +10,13 @@ import { GEN_POR_KWP, KWH_PER_KWP_MES } from "./config-energia";
 // Re-export para no romper imports históricos desde este módulo.
 export { GEN_POR_KWP, KWH_PER_KWP_MES };
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Sanea cualquier número a un finito (NaN, Infinity, -Infinity → 0). */
+function safe(n: number): number {
+  return Number.isFinite(n) ? n : 0;
+}
+
 // ── Partidas (cost calculation) ─────────────────────────────────────────────
 
 export interface PartidasInput {
@@ -53,12 +60,29 @@ export interface PartidasResult {
 }
 
 export function calcularPartidas(input: PartidasInput): PartidasResult {
-  const {
-    cantidadPaneles, potenciaW, precioPorWatt, fletePaneles, garantiaPaneles, tcPaneles,
-    cantidadMicros, precioMicroinversor, precioCable, precioECU, incluyeECU,
-    precioHerramienta, incluyeHerramienta, precioEndCap, incluyeEndCap, fleteMicros, tcMicros,
-    costoAluminioMXN, fleteAluminio, costoTornilleriaMXN, costoGeneralesMXN,
-  } = input;
+  // Saneamos cada entrada para que NaN/Infinity en cualquier campo no contagie
+  // toda la cadena (multiplicar por NaN devuelve NaN y propaga al UI).
+  const cantidadPaneles = safe(input.cantidadPaneles);
+  const potenciaW = safe(input.potenciaW);
+  const precioPorWatt = safe(input.precioPorWatt);
+  const fletePaneles = safe(input.fletePaneles);
+  const garantiaPaneles = safe(input.garantiaPaneles);
+  const tcPaneles = safe(input.tcPaneles);
+  const cantidadMicros = safe(input.cantidadMicros);
+  const precioMicroinversor = safe(input.precioMicroinversor);
+  const precioCable = safe(input.precioCable);
+  const precioECU = safe(input.precioECU);
+  const incluyeECU = input.incluyeECU;
+  const precioHerramienta = safe(input.precioHerramienta);
+  const incluyeHerramienta = input.incluyeHerramienta;
+  const precioEndCap = safe(input.precioEndCap);
+  const incluyeEndCap = input.incluyeEndCap;
+  const fleteMicros = safe(input.fleteMicros);
+  const tcMicros = safe(input.tcMicros);
+  const costoAluminioMXN = safe(input.costoAluminioMXN);
+  const fleteAluminio = safe(input.fleteAluminio);
+  const costoTornilleriaMXN = safe(input.costoTornilleriaMXN);
+  const costoGeneralesMXN = safe(input.costoGeneralesMXN);
 
   const costoPanelesUSD = potenciaW * precioPorWatt * cantidadPaneles;
   const totalPanelesUSD = cantidadPaneles > 0 ? costoPanelesUSD + fletePaneles + garantiaPaneles : 0;
@@ -159,13 +183,16 @@ export function calcularROI(
   cantidadPaneles: number,
   potenciaW: number,
 ): ROIResult {
-  const kWpSistema = cantidadPaneles * potenciaW / 1000;
+  const total = safe(clienteTotalMXN);
+  const paneles = safe(cantidadPaneles);
+  const potencia = safe(potenciaW);
+  const kWpSistema = paneles * potencia / 1000;
   const generacionMensualKwh = kWpSistema * KWH_PER_KWP_MES;
   const costoCFEporKwh = reciboCFE && reciboCFE.consumoKwh > 0
-    ? reciboCFE.totalFacturado / reciboCFE.consumoKwh : 0;
+    ? safe(reciboCFE.totalFacturado / reciboCFE.consumoKwh) : 0;
   const ahorroMensualMXN = generacionMensualKwh * costoCFEporKwh;
   const ahorroAnualMXN = ahorroMensualMXN * 12;
-  const roiMeses = ahorroMensualMXN > 0 ? clienteTotalMXN / ahorroMensualMXN : 0;
+  const roiMeses = ahorroMensualMXN > 0 ? total / ahorroMensualMXN : 0;
   const roiAnios = roiMeses / 12;
 
   return { kWpSistema, generacionMensualKwh, costoCFEporKwh, ahorroMensualMXN, ahorroAnualMXN, roiMeses, roiAnios };
@@ -196,6 +223,20 @@ export function calcularSizing(
   panelW: number,
   reciboUltimoAnio: boolean,
 ): SizingResult {
+  // Sin panel válido devolvemos un sizing vacío para evitar Infinity en
+  // `... / panelW`. Sin esto, el sidebar y partidas reciben NaN/Infinity.
+  if (!Number.isFinite(panelW) || panelW <= 0) {
+    return {
+      consumoMensualCFE: 0, consumoMensualCalc: 0,
+      panelesPromedio: 0, kWpPromedio: 0,
+      panelesEquilibrado: 0, kWpEquilibrado: 0,
+      panelesMax: 0, kWpMax: 0,
+      consumoP75: 0, consumoMensualMax: 0, maxHistKwh: 0,
+      panelesSugeridosCFE: 0, kWpSugerido: 0,
+      historicoFiltrado: [], todosBimestres: [],
+    };
+  }
+
   const consumoMensualCFE = reciboCFE.consumoMensualPromedio > 0
     ? reciboCFE.consumoMensualPromedio
     : Math.round(reciboCFE.consumoKwh / Math.max(reciboCFE.diasPeriodo / 30, 1));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { fmt } from "../components/primitives";
 import type { PrecioClienteResult, ROIResult } from "../lib/calc-costos";
 import type { ReciboCFEData } from "../lib/cotizacion-state";
@@ -27,38 +27,46 @@ export default function StepPropuesta({
   precioCliente, roi, reciboCFE, coberturaPct,
 }: Props) {
 
+  const [generandoPDF, setGenerandoPDF] = useState(false);
   const handlePDF = useCallback(async () => {
-    const [{ pdf }, { default: CotizacionClientePDF }] = await Promise.all([
-      import("@react-pdf/renderer"),
-      import("../components/CotizacionClientePDF"),
-    ]);
-    const doc = CotizacionClientePDF({
-      nombreCotizacion: "",
-      clienteNombre: nombreCliente,
-      cantidadPaneles,
-      potenciaW: panelW,
-      kWp: kWpSistema,
-      generacionMensualKwh,
-      partidas: {
-        paneles: precioCliente.clientePanelesMXN * IVA_FACTOR,
-        inversores: precioCliente.clienteInversoresMXN * IVA_FACTOR,
-        estructura: precioCliente.clienteEstructuraMXN * IVA_FACTOR,
-        tornilleria: (precioCliente.clienteTornilleriaMXN + precioCliente.clienteGeneralesMXN) * IVA_FACTOR,
-        generales: 0,
-        montoFijo: 0,
-      },
-      subtotal: precioCliente.clienteSubtotalMXN,
-      iva: precioCliente.clienteIvaMXN,
-      total: precioCliente.clienteTotalMXN,
-      porPanel: precioCliente.clientePorPanel,
-      porWatt: precioCliente.clientePorWatt,
-      vigenciaDias: 15,
-      notas: "",
-    });
-    const blob = await pdf(doc).toBlob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-  }, [nombreCliente, cantidadPaneles, panelW, kWpSistema, generacionMensualKwh, precioCliente]);
+    // Evita doble-click: dos generaciones simultáneas abrían dos ventanas.
+    if (generandoPDF) return;
+    setGenerandoPDF(true);
+    try {
+      const [{ pdf }, { default: CotizacionClientePDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../components/CotizacionClientePDF"),
+      ]);
+      const doc = CotizacionClientePDF({
+        nombreCotizacion: "",
+        clienteNombre: nombreCliente,
+        cantidadPaneles,
+        potenciaW: panelW,
+        kWp: kWpSistema,
+        generacionMensualKwh,
+        partidas: {
+          paneles: precioCliente.clientePanelesMXN * IVA_FACTOR,
+          inversores: precioCliente.clienteInversoresMXN * IVA_FACTOR,
+          estructura: precioCliente.clienteEstructuraMXN * IVA_FACTOR,
+          tornilleria: (precioCliente.clienteTornilleriaMXN + precioCliente.clienteGeneralesMXN) * IVA_FACTOR,
+          generales: 0,
+          montoFijo: 0,
+        },
+        subtotal: precioCliente.clienteSubtotalMXN,
+        iva: precioCliente.clienteIvaMXN,
+        total: precioCliente.clienteTotalMXN,
+        porPanel: precioCliente.clientePorPanel,
+        porWatt: precioCliente.clientePorWatt,
+        vigenciaDias: 15,
+        notas: "",
+      });
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } finally {
+      setGenerandoPDF(false);
+    }
+  }, [generandoPDF, nombreCliente, cantidadPaneles, panelW, kWpSistema, generacionMensualKwh, precioCliente]);
 
   const roiAniosInt = roi ? Math.floor(roi.roiAnios) : 0;
   const roiMesesResto = roi ? Math.round((roi.roiAnios - roiAniosInt) * 12) : 0;
@@ -148,12 +156,13 @@ export default function StepPropuesta({
       <div className="flex flex-col sm:flex-row gap-3">
         <button
           onClick={handlePDF}
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-900 font-semibold py-3.5 px-6 transition-colors"
+          disabled={generandoPDF}
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-wait text-zinc-900 font-semibold py-3.5 px-6 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          Descargar PDF
+          {generandoPDF ? "Generando..." : "Descargar PDF"}
         </button>
         <button
           onClick={handleWhatsApp}

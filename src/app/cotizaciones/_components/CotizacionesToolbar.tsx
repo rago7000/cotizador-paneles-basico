@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { ETAPAS, ETAPA_LABEL, ETAPA_COLOR, ORIGENES, ORIGEN_LABEL, type Etapa, type Origen, type UIState } from "../_lib/types-shared";
 
 interface Props {
@@ -10,7 +11,27 @@ interface Props {
   onNew: () => void;
 }
 
+const SEARCH_DEBOUNCE_MS = 180;
+
 export default function CotizacionesToolbar({ ui, onChange, totalCount, filteredCount, onNew }: Props) {
+  // Debounce búsqueda: cada tecla causaba re-filter/re-render full sobre 200+
+  // filas. Mantenemos el input responsivo y propagamos a `ui` cada 180ms.
+  const [searchLocal, setSearchLocal] = useState(ui.search);
+  const lastPropagated = useRef(ui.search);
+  useEffect(() => {
+    if (ui.search !== lastPropagated.current) {
+      setSearchLocal(ui.search);
+      lastPropagated.current = ui.search;
+    }
+  }, [ui.search]);
+  useEffect(() => {
+    if (searchLocal === lastPropagated.current) return;
+    const t = setTimeout(() => {
+      lastPropagated.current = searchLocal;
+      onChange({ search: searchLocal });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchLocal, onChange]);
   const toggleEtapa = (e: Etapa) => {
     onChange({
       etapas: ui.etapas.includes(e) ? ui.etapas.filter((x) => x !== e) : [...ui.etapas, e],
@@ -40,8 +61,8 @@ export default function CotizacionesToolbar({ ui, onChange, totalCount, filtered
           </svg>
           <input
             type="text"
-            value={ui.search}
-            onChange={(e) => onChange({ search: e.target.value })}
+            value={searchLocal}
+            onChange={(e) => setSearchLocal(e.target.value)}
             placeholder="Buscar por nombre, cliente, tags…"
             className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2 pl-9 pr-3 text-sm text-zinc-100 placeholder-zinc-600 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/15"
           />
@@ -82,7 +103,7 @@ export default function CotizacionesToolbar({ ui, onChange, totalCount, filtered
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
           </svg>
-          {ui.mostrarArchivadas ? "Archivadas" : "Archivadas"}
+          {ui.mostrarArchivadas ? "Solo archivadas" : "Archivadas"}
         </button>
 
         <div className="ml-auto flex items-center gap-2">

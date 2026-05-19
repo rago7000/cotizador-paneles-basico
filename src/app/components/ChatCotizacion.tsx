@@ -59,6 +59,11 @@ export default function ChatCotizacion({ cotizacion }: ChatCotizacionProps) {
     setInput("");
     setLoading(true);
 
+    // Cortamos la conexión si la API se cuelga sin enviar datos.
+    const controller = new AbortController();
+    const STREAM_TIMEOUT_MS = 30_000;
+    const initialTimer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -68,6 +73,7 @@ export default function ChatCotizacion({ cotizacion }: ChatCotizacionProps) {
           cotizacion,
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error("Error en respuesta");
@@ -80,22 +86,31 @@ export default function ChatCotizacion({ cotizacion }: ChatCotizacionProps) {
 
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        assistantText += decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantText };
-          return updated;
-        });
+      // Reset del timer en cada chunk: 30s sin datos → abort.
+      let chunkTimer: ReturnType<typeof setTimeout> = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          clearTimeout(chunkTimer);
+          chunkTimer = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+          assistantText += decoder.decode(value, { stream: true });
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: "assistant", content: assistantText };
+            return updated;
+          });
+        }
+      } finally {
+        clearTimeout(chunkTimer);
       }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error al conectar con el asistente. Intenta de nuevo." },
-      ]);
+    } catch (err) {
+      const msg = (err as Error)?.name === "AbortError"
+        ? "Tiempo de espera agotado. Intenta de nuevo."
+        : "Error al conectar con el asistente. Intenta de nuevo.";
+      setMessages((prev) => [...prev, { role: "assistant", content: msg }]);
     } finally {
+      clearTimeout(initialTimer);
       setLoading(false);
     }
   }, [messages, loading, cotizacion]);

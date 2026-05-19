@@ -23,54 +23,58 @@ function pickDefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   ) as Partial<T>;
 }
 
+function nz(s: string | undefined | null): string | undefined {
+  return s != null && s !== "" ? s : undefined;
+}
+
 function cotizacionDataToArgs(nombre: string, data: CotizacionData) {
   return pickDefined({
     nombre,
     fecha: data.fecha,
-    cotizacionId: data.cotizacionId || undefined,
-    tcCustomPaneles: data.tcCustomPaneles || undefined,
-    tcCustomMicros: data.tcCustomMicros || undefined,
-    tcSnapshot: data.tcSnapshot || undefined,
+    cotizacionId: nz(data.cotizacionId),
+    tcCustomPaneles: nz(data.tcCustomPaneles),
+    tcCustomMicros: nz(data.tcCustomMicros),
+    tcSnapshot: nz(data.tcSnapshot),
     tcFrozen: data.tcFrozen || undefined,
-    cantidad: data.cantidad || undefined,
-    potencia: data.potencia || undefined,
-    precioPorWatt: data.precioPorWatt || undefined,
-    fletePaneles: data.fletePaneles || undefined,
-    garantiaPaneles: data.garantiaPaneles || undefined,
-    precioMicroinversor: data.precioMicroinversor || undefined,
-    precioCable: data.precioCable || undefined,
-    precioECU: data.precioECU || undefined,
+    cantidad: nz(data.cantidad),
+    potencia: nz(data.potencia),
+    precioPorWatt: nz(data.precioPorWatt),
+    fletePaneles: nz(data.fletePaneles),
+    garantiaPaneles: nz(data.garantiaPaneles),
+    precioMicroinversor: nz(data.precioMicroinversor),
+    precioCable: nz(data.precioCable),
+    precioECU: nz(data.precioECU),
     incluyeECU: data.incluyeECU,
-    precioHerramienta: data.precioHerramienta || undefined,
+    precioHerramienta: nz(data.precioHerramienta),
     incluyeHerramienta: data.incluyeHerramienta,
-    precioEndCap: data.precioEndCap || undefined,
+    precioEndCap: nz(data.precioEndCap),
     incluyeEndCap: data.incluyeEndCap,
-    fleteMicros: data.fleteMicros || undefined,
+    fleteMicros: nz(data.fleteMicros),
     aluminio: data.aluminio?.length ? data.aluminio : undefined,
-    fleteAluminio: data.fleteAluminio || undefined,
+    fleteAluminio: nz(data.fleteAluminio),
     tornilleria: data.tornilleria?.length ? data.tornilleria : undefined,
     generales: data.generales?.length ? data.generales : undefined,
-    panelCatalogoId: data.panelCatalogoId || undefined,
-    microCatalogoId: data.microCatalogoId || undefined,
+    panelCatalogoId: nz(data.panelCatalogoId),
+    microCatalogoId: nz(data.microCatalogoId),
     reciboCFE: data.reciboCFE ?? undefined,
     reciboPDFBase64: data.reciboPDFBase64 ?? undefined,
     minisplits: data.minisplits?.length ? data.minisplits : undefined,
-    minisplitTemporada: data.minisplitTemporada || undefined,
+    minisplitTemporada: nz(data.minisplitTemporada),
     utilidad: data.utilidad ?? undefined,
-    clienteTelefono: data.clienteTelefono || undefined,
-    clienteEmail: data.clienteEmail || undefined,
-    clienteUbicacion: data.clienteUbicacion || undefined,
-    clienteNotas: data.clienteNotas || undefined,
-    etapa: data.etapa || undefined,
-    etapaNotas: data.etapaNotas || undefined,
-    fechaCierre: data.fechaCierre || undefined,
-    fechaInstalacion: data.fechaInstalacion || undefined,
+    clienteTelefono: nz(data.clienteTelefono),
+    clienteEmail: nz(data.clienteEmail),
+    clienteUbicacion: nz(data.clienteUbicacion),
+    clienteNotas: nz(data.clienteNotas),
+    etapa: nz(data.etapa),
+    etapaNotas: nz(data.etapaNotas),
+    fechaCierre: nz(data.fechaCierre),
+    fechaInstalacion: nz(data.fechaInstalacion),
     probabilidadCierre:
       data.probabilidadCierre != null && data.probabilidadCierre > 0
         ? data.probabilidadCierre
         : undefined,
-    origen: data.origen || undefined,
-    origenDetalle: data.origenDetalle || undefined,
+    origen: nz(data.origen),
+    origenDetalle: nz(data.origenDetalle),
     tags: data.tags?.length ? data.tags : undefined,
   });
 }
@@ -402,8 +406,124 @@ describe("Cotizacion roundtrip: state -> save -> load -> state", () => {
         (k) => loadedData[k as keyof CotizacionData] !== undefined,
       ),
     );
-
     const missing = argKeys.filter((k) => !loadedKeys.has(k));
     expect(missing).toEqual([]);
   });
 });
+
+// ── Regresión: pérdida del nombre de cotización ─────────────────────────────
+// Reportado por el usuario: "empiezas algo y le pones nombre y luego ya no
+// está, lo buscas, sale y lo abres, pero no tiene nombre".
+
+describe("Naming round-trip resilience", () => {
+  function loadNameOnly(nombre: string, clienteNombre: string): CotizacionState {
+    const minimal: CotizacionData = {
+      nombre,
+      fecha: "",
+      tcCustomPaneles: "",
+      tcCustomMicros: "",
+      cantidad: "",
+      potencia: "",
+      precioPorWatt: "",
+      fletePaneles: "",
+      garantiaPaneles: "",
+      precioMicroinversor: "",
+      precioCable: "",
+      precioECU: "",
+      incluyeECU: true,
+      precioHerramienta: "",
+      incluyeHerramienta: false,
+      precioEndCap: "",
+      incluyeEndCap: true,
+      fleteMicros: "",
+      aluminio: [],
+      fleteAluminio: "",
+      tornilleria: [],
+      generales: [],
+      reciboCFE: null,
+      clienteNombre,
+    };
+    return cotizacionReducer(INITIAL_STATE, { type: "LOAD_COTIZACION", data: minimal });
+  }
+
+  it("on load, any saved name is treated as dirty (prevents auto-sync overwrite)", () => {
+    const s = loadNameOnly("Pedro Gonzalez", "Pedro Gonzalez");
+    expect(s.nombreCotizacion).toBe("Pedro Gonzalez");
+    expect(s.nombreCotizacionDirty).toBe(true);
+  });
+
+  it("loading an empty name leaves dirty=false (allows fresh auto-sync)", () => {
+    const s = loadNameOnly("", "Algun Cliente");
+    expect(s.nombreCotizacion).toBe("");
+    expect(s.nombreCotizacionDirty).toBe(false);
+  });
+
+  it("SET_CLIENTE_NOMBRE('') no borra el nombre de cotización", () => {
+    let s: CotizacionState = {
+      ...INITIAL_STATE,
+      nombreCotizacion: "Pedro Gonzalez",
+      clienteNombre: "Pedro Gonzalez",
+      nombreCotizacionDirty: false,
+    };
+    s = cotizacionReducer(s, { type: "SET_CLIENTE_NOMBRE", value: "" });
+    expect(s.clienteNombre).toBe("");
+    expect(s.nombreCotizacion).toBe("Pedro Gonzalez");
+  });
+
+  it("SET_CLIENTE_NOMBRE con nombre nuevo sigue auto-sincronizando si dirty=false", () => {
+    let s: CotizacionState = {
+      ...INITIAL_STATE,
+      nombreCotizacion: "",
+      clienteNombre: "",
+      nombreCotizacionDirty: false,
+    };
+    s = cotizacionReducer(s, { type: "SET_CLIENTE_NOMBRE", value: "Maria Lopez" });
+    expect(s.clienteNombre).toBe("Maria Lopez");
+    expect(s.nombreCotizacion).toBe("Maria Lopez");
+  });
+
+  it("SET_CLIENTE_NOMBRE NO pisa nombre cuando dirty=true", () => {
+    let s: CotizacionState = {
+      ...INITIAL_STATE,
+      nombreCotizacion: "Opcion A — Pedro",
+      clienteNombre: "Pedro Gonzalez",
+      nombreCotizacionDirty: true,
+    };
+    s = cotizacionReducer(s, { type: "SET_CLIENTE_NOMBRE", value: "Pedro Gonzalez Hernandez" });
+    expect(s.nombreCotizacion).toBe("Opcion A — Pedro");
+  });
+
+  it("preserva strings numéricos '0' en round-trip (no son tratados como vacíos)", () => {
+    const data: CotizacionData = {
+      nombre: "test",
+      fecha: "",
+      tcCustomPaneles: "",
+      tcCustomMicros: "",
+      cantidad: "10",
+      potencia: "545",
+      precioPorWatt: "0.22",
+      fletePaneles: "0",
+      garantiaPaneles: "0",
+      precioMicroinversor: "180",
+      precioCable: "25",
+      precioECU: "0",
+      incluyeECU: true,
+      precioHerramienta: "",
+      incluyeHerramienta: false,
+      precioEndCap: "5",
+      incluyeEndCap: true,
+      fleteMicros: "35",
+      aluminio: [],
+      fleteAluminio: "0",
+      tornilleria: [],
+      generales: [],
+      reciboCFE: null,
+    };
+    const args = cotizacionDataToArgs("test", data);
+    expect(args.fletePaneles).toBe("0");
+    expect(args.garantiaPaneles).toBe("0");
+    expect(args.precioECU).toBe("0");
+    expect(args.fleteAluminio).toBe("0");
+  });
+});
+

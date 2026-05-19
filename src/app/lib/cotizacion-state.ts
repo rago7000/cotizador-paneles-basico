@@ -334,12 +334,12 @@ export function cotizacionReducer(
 
     case "LOAD_COTIZACION": {
       const d = action.data;
-      // Reconstruir el vínculo cliente ↔ cotización:
-      //   - clienteNombre: primero lo explícito, si no el del recibo.
-      //   - dirty: solo si el nombre guardado diverge del cliente.
       const loadedCliente = (d.clienteNombre ?? d.reciboCFE?.nombre ?? "").trim();
       const loadedNombre = (d.nombre ?? "").trim();
-      const dirty = loadedNombre !== "" && loadedNombre !== loadedCliente;
+      // Cualquier nombre guardado se trata como manual al recargar.
+      // Sin esto, un nombre que coincidía con el cliente al guardar quedaría
+      // dirty=false y SET_CLIENTE_NOMBRE (re-OCR, cambio de recibo) lo pisaría.
+      const dirty = loadedNombre !== "";
       return {
         ...state,
         // Paneles
@@ -440,7 +440,9 @@ export function cotizacionReducer(
 
     case "SET_CLIENTE_NOMBRE": {
       const next = { ...state, clienteNombre: action.value };
-      if (!state.nombreCotizacionDirty) {
+      // Solo auto-syncear el nombre de cotización con un valor no vacío.
+      // Borrar el recibo no debe vaciar el nombre de la cotización.
+      if (!state.nombreCotizacionDirty && action.value.trim() !== "") {
         next.nombreCotizacion = action.value;
       }
       return next;

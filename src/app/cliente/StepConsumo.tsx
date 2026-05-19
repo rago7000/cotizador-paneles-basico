@@ -26,15 +26,24 @@ export default function StepConsumo({ reciboCFE, loadingRecibo, errorRecibo, siz
       const fd = new FormData();
       fd.append("pdf", file);
       const res = await fetch("/api/leer-recibo", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(`Servidor respondió ${res.status}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const reader = new FileReader();
-      reader.onload = () => onUpload(data, reader.result as string);
-      reader.readAsDataURL(file);
+      // Promisificamos FileReader para no perder errores ni dejar loading
+      // colgado si el reader falla. Antes la callback se ejecutaba fuera del
+      // try/catch y un fallo del reader nunca limpiaba loadingRecibo.
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error ?? new Error("FileReader error"));
+        reader.readAsDataURL(file);
+      });
+      onUpload(data, base64);
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : "Error al procesar el recibo");
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
     }
-    if (inputRef.current) inputRef.current.value = "";
   };
 
   const costoMensual = reciboCFE

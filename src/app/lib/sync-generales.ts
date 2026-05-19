@@ -70,8 +70,6 @@ export function syncGeneralesFromElectrical(
   currentGenerales: LineItem[],
   cantidadPaneles: number,
 ): LineItem[] {
-  // Separate auto-managed electrical items, auto-managed labor items, and fully manual items
-  const manualItems = currentGenerales.filter((it) => !isAutoManaged(it.nombre) && !isLaborAutoManaged(it.nombre));
   const existingAuto = currentGenerales.filter((it) => isAutoManaged(it.nombre));
   const existingLabor = currentGenerales.filter((it) => isLaborAutoManaged(it.nombre));
 
@@ -86,7 +84,7 @@ export function syncGeneralesFromElectrical(
     unidad: "Pza",
   };
 
-  // --- Pastillas ---
+  // --- Pastillas (una por amperaje distinto) ---
   const pastillaItems: LineItem[] = electrical.breakerResumen.map((br) => {
     const existingId = findExistingId(existingAuto, PASTILLA_RE, (it) => extractAmperaje(it.nombre) === br.amperaje);
     const existingPrecio = findExistingPrecio(existingAuto, PASTILLA_RE, (it) => extractAmperaje(it.nombre) === br.amperaje);
@@ -108,7 +106,7 @@ export function syncGeneralesFromElectrical(
     unidad: "mL",
   };
 
-  // --- Labor: Precio base (cubre hasta 8 paneles) ---
+  // --- Labor ---
   const precioBaseItem: LineItem = {
     id: findExistingId(existingLabor, PRECIO_BASE_RE) ?? uid(),
     nombre: "Instalacion - Precio base",
@@ -116,8 +114,6 @@ export function syncGeneralesFromElectrical(
     precioUnitario: findExistingPrecio(existingLabor, PRECIO_BASE_RE) ?? "3000.00",
     unidad: "Lote",
   };
-
-  // --- Labor: Paneles adicionales (más allá de 8) ---
   const panelesAdicionales = Math.max(0, cantidadPaneles - 8);
   const panelesAdicionalesItem: LineItem = {
     id: findExistingId(existingLabor, PANELES_ADICIONALES_RE) ?? uid(),
@@ -126,8 +122,6 @@ export function syncGeneralesFromElectrical(
     precioUnitario: findExistingPrecio(existingLabor, PANELES_ADICIONALES_RE) ?? "150.00",
     unidad: "Pza",
   };
-
-  // --- Labor: Vueltas gasolina (1 vuelta por cada 8 paneles, mínimo 1) ---
   const vueltas = cantidadPaneles > 0 ? Math.max(1, Math.ceil(cantidadPaneles / 8)) : 1;
   const vueltasItem: LineItem = {
     id: findExistingId(existingLabor, VUELTAS_RE) ?? uid(),
@@ -137,6 +131,60 @@ export function syncGeneralesFromElectrical(
     unidad: "Pza",
   };
 
-  // Reassemble: electrical auto-managed → manual items → labor items
-  return [centroItem, ...pastillaItems, cableItem, ...manualItems, precioBaseItem, panelesAdicionalesItem, vueltasItem];
+  // Key estable por ítem manejado: nos permite reemplazar en sitio sin
+  // alterar el orden manual del usuario.
+  function keyFor(it: LineItem): string | null {
+    if (CENTRO_RE.test(it.nombre)) return "centro";
+    if (PASTILLA_RE.test(it.nombre)) {
+      const amp = extractAmperaje(it.nombre);
+      return amp != null ? `pastilla:${amp}` : "pastilla:?";
+    }
+    if (CABLE_RUDO_RE.test(it.nombre)) return "cable";
+    if (PRECIO_BASE_RE.test(it.nombre)) return "precio-base";
+    if (PANELES_ADICIONALES_RE.test(it.nombre)) return "paneles-adicionales";
+    if (VUELTAS_RE.test(it.nombre)) return "vueltas";
+    return null;
+  }
+
+  const desired = new Map<string, LineItem>();
+  desired.set("centro", centroItem);
+  for (const p of pastillaItems) {
+    const amp = extractAmperaje(p.nombre);
+    desired.set(`pastilla:${amp ?? "?"}`, p);
+  }
+  desired.set("cable", cableItem);
+  desired.set("precio-base", precioBaseItem);
+  desired.set("paneles-adicionales", panelesAdicionalesItem);
+  desired.set("vueltas", vueltasItem);
+
+  const emitted = new Set<string>();
+  const merged: LineItem[] = [];
+  for (const it of currentGenerales) {
+    const k = keyFor(it);
+    if (k == null) {
+      merged.push(it);
+      continue;
+    }
+    const next = desired.get(k);
+    if (!next) continue; // ítem manejado que ya no aplica → drop
+    merged.push(next);
+    emitted.add(k);
+  }
+
+  // Apéndice canónico para ítems manejados nuevos.
+  const tailOrder = [
+    "centro",
+    ...pastillaItems.map((p) => `pastilla:${extractAmperaje(p.nombre) ?? "?"}`),
+    "cable",
+    "precio-base",
+    "paneles-adicionales",
+    "vueltas",
+  ];
+  for (const k of tailOrder) {
+    if (emitted.has(k)) continue;
+    const next = desired.get(k);
+    if (next) merged.push(next);
+  }
+
+  return merged;
 }
